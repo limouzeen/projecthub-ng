@@ -239,7 +239,30 @@
       </a>
     </nav>
 
-    <div class="mt-auto p-3 text-xs text-slate-500">© ProjectHub</div>
+
+    
+
+
+    <!-- Footer of the drawer -->
+<div class="mt-auto p-3">
+  <div class="flex items-center justify-between text-xs">
+    <div class="text-slate-500 select-none">© ProjectHub</div>
+
+    <!-- About us link (same visual weight/size, right aligned) -->
+    <a
+      routerLink="/about"
+      (click)="asideOpen.set(false)"
+      class="text-slate-500 hover:text-slate-700 rounded-lg px-2 py-1
+             hover:bg-white/50 border border-transparent hover:border-white/40
+             transition underline-offset-2 hover:underline"
+      aria-label="About us"
+    >
+      About us
+    </a>
+  </div>
+</div>
+
+    
   </aside>
 
   <!-- คอนเทนต์รายการ -->

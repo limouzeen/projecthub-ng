@@ -15,7 +15,7 @@ export class Home implements OnInit, OnDestroy {
   constructor(
     private footer: FooterStateService
   ) {}
-   //  ตั้ง threshold เฉพาะหน้า Login: ย่อเมื่อสูง < 806px
+   //  ตั้ง threshold เฉพาะหน้า Login: ย่อเมื่อสูง < 600px
   ngOnInit(): void {
     this.footer.setThreshold(600);
     this.footer.setForceCompact(null); // ให้ทำงานแบบ auto ตาม threshold

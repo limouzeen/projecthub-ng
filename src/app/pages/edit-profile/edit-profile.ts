@@ -1,13 +1,14 @@
-import { Component, OnInit, OnDestroy, signal, computed } from '@angular/core';
+import { Component, OnInit, OnDestroy, signal, computed, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { RouterLink } from '@angular/router';
 import { FooterStateService } from '../../core/footer-state.service';
+import { UsersService, MeDto } from '../../core/users.service';
 
-/* ===== Types ===== */
+/** ฟอร์มฝั่งโปรไฟล์ + เปลี่ยนรหัส */
 type ProfileForm = {
   avatarFile: File | null;
   avatarPreview: string | null;
-  displayName: string;
+  displayName: string; // -> username ใน backend
   email: string;
   currentPassword: string;
   newPassword: string;
@@ -16,7 +17,6 @@ type ProfileForm = {
 
 type UpdateStatus = 'idle' | 'success' | 'error';
 
-/* ===== Component ===== */
 @Component({
   selector: 'app-edit-profile',
   standalone: true,
@@ -25,32 +25,38 @@ type UpdateStatus = 'idle' | 'success' | 'error';
   styleUrl: './edit-profile.css',
 })
 export class EditProfile implements OnInit, OnDestroy {
-  /* -----------------------------
-   * State (signals)
-   * --------------------------- */
+  // --- DI ---
+  private readonly footer = inject(FooterStateService);
+  private readonly users = inject(UsersService);
+
+  // --- Form state ---
   readonly model = signal<ProfileForm>({
     avatarFile: null,
     avatarPreview: null,
-    displayName: 'Phakin Kamwilaisak',
-    email: 's65524100xx@sau.ac.th',
+
+    // TODO(REMOVE-HARDCODE): ค่านี้จะถูกแทนที่ด้วยผลลัพธ์จาก GET /api/users/me
+    displayName: 'Your name',  // <- backend ใช้ชื่อ field ว่า username
+    email: 'you@example.com',
+
     currentPassword: '',
     newPassword: '',
     confirmNewPassword: '',
   });
 
-  readonly saving = signal(false);
+  // --- UI states ---
+  readonly savingProfile = signal(false);
+  readonly savingPassword = signal(false);
 
-  // สถานะการอัปเดต (สำหรับแถบข้อความด้านซ้ายปุ่ม Save)
-  readonly status = signal<UpdateStatus>('idle');
-  readonly statusMessage = signal<string>('');
+  readonly statusProfile = signal<UpdateStatus>('idle');
+  readonly statusProfileMsg = signal('');
+  readonly statusPassword = signal<UpdateStatus>('idle');
+  readonly statusPasswordMsg = signal('');
 
-  // สเตตสำหรับปุ่มตาแต่ละช่อง
+  // toggle eyes
   readonly showCurrent = signal(false);
   readonly showNew = signal(false);
 
-  /* -----------------------------
-   * Derived values
-   * --------------------------- */
+  // password strength
   readonly strength = computed(() => {
     const p = this.model().newPassword ?? '';
     let s = 0;
@@ -59,52 +65,42 @@ export class EditProfile implements OnInit, OnDestroy {
     if (/[a-z]/.test(p)) s++;
     if (/[0-9]/.test(p)) s++;
     if (/[^A-Za-z0-9]/.test(p)) s++;
-    return Math.min(s, 5); // 0..5
+    return Math.min(s, 5);
   });
+  readonly strengthLabel = computed(() =>
+    ['Too weak', 'Weak', 'Fair', 'Good', 'Strong', 'Very strong'][this.strength()]
+  );
 
-  readonly strengthLabel = computed(() => {
-    return ['Too weak', 'Weak', 'Fair', 'Good', 'Strong', 'Very strong'][this.strength()];
-  });
-
-  constructor(private readonly footer: FooterStateService) {}
-
-  /* -----------------------------
-   * Lifecycle
-   * --------------------------- */
-  ngOnInit(): void {
-    // ให้ป้ายลิขสิทธิ์ย่อเมื่อจอเตี้ยจริง ๆ
+  // ----- lifecycle -----
+  async ngOnInit() {
+    // ย่อ footer อัตโนมัติถ้าจอเตี้ย
     this.footer.setThreshold(735);
-    this.footer.setForceCompact(null); // auto ตาม threshold
-  }
+    this.footer.setForceCompact(null);
 
-  ngOnDestroy(): void {
-    // เก็บกวาด URL เดิมถ้ายังมี
-    const prev = this.model().avatarPreview;
-    if (prev) URL.revokeObjectURL(prev);
-    this.footer.resetAll();
-  }
-
-  /* -----------------------------
-   * UI helpers
-   * --------------------------- */
-  toggleShowCurrent() { this.showCurrent.update(v => !v); }
-  toggleShowNew()     { this.showNew.update(v => !v); }
-
-  private setStatus(kind: UpdateStatus, message: string, autoClearMs = 4000) {
-    this.status.set(kind);
-    this.statusMessage.set(message);
-    if (autoClearMs > 0) {
-      window.clearTimeout((this as any).__statusTimer);
-      (this as any).__statusTimer = window.setTimeout(() => {
-        this.status.set('idle');
-        this.statusMessage.set('');
-      }, autoClearMs);
+    // ✅ โหลดข้อมูลผู้ใช้จาก API จริง
+    try {
+      const me = await this.users.getMe(); // GET /api/users/me
+      this.patchFromMe(me);
+      // ถ้า backend ส่งรูป avatarUrl มา ให้พรีวิวไว้ด้วย
+      if ((me as any).avatarUrl) {
+        this.model.update(m => ({ ...m, avatarPreview: (me as any).avatarUrl }));
+      }
+    } catch (e) {
+      // ปล่อยไว้เฉย ๆ หรือจะแจ้งเตือนได้
+      console.warn('Failed to load profile', e);
     }
   }
 
-  /* -----------------------------
-   * Form events
-   * --------------------------- */
+  ngOnDestroy(): void {
+    const prev = this.model().avatarPreview;
+    if (prev && prev.startsWith('blob:')) URL.revokeObjectURL(prev);
+    this.footer.resetAll();
+  }
+
+  // ----- UI helpers -----
+  toggleShowCurrent() { this.showCurrent.update(v => !v); }
+  toggleShowNew()     { this.showNew.update(v => !v); }
+
   onText<K extends keyof ProfileForm>(key: K, ev: Event) {
     const value = (ev.target as HTMLInputElement).value as ProfileForm[K];
     this.model.update(m => ({ ...m, [key]: value }));
@@ -116,17 +112,16 @@ export class EditProfile implements OnInit, OnDestroy {
     if (!file) return;
 
     if (!/^image\/(png|jpe?g|webp|gif)$/i.test(file.type)) {
-      this.setStatus('error', 'Please choose an image file (PNG, JPG, WEBP, GIF).');
+      this.setStatusProfile('error', 'Please choose an image file (PNG, JPG, WEBP, GIF).');
       return;
     }
     if (file.size > 2 * 1024 * 1024) {
-      this.setStatus('error', 'Image is too large. Max 2 MB.');
+      this.setStatusProfile('error', 'Image is too large. Max 2 MB.');
       return;
     }
 
-    // ลบพรีวิวเก่า (ถ้ามี) ก่อนสร้างใหม่ เพื่อไม่ให้ leak
     const prev = this.model().avatarPreview;
-    if (prev) URL.revokeObjectURL(prev);
+    if (prev && prev.startsWith('blob:')) URL.revokeObjectURL(prev);
 
     const url = URL.createObjectURL(file);
     this.model.update(m => ({ ...m, avatarFile: file, avatarPreview: url }));
@@ -134,58 +129,110 @@ export class EditProfile implements OnInit, OnDestroy {
 
   removeAvatar() {
     const prev = this.model().avatarPreview;
-    if (prev) URL.revokeObjectURL(prev);
+    if (prev && prev.startsWith('blob:')) URL.revokeObjectURL(prev);
     this.model.update(m => ({ ...m, avatarFile: null, avatarPreview: null }));
   }
 
-  /* -----------------------------
-   * Save
-   * --------------------------- */
-  async save() {
-    // เคลียร์สถานะเดิม
-    this.setStatus('idle', '');
+  // ----- Actions (PROFILE) -----
+  async saveProfile() {
+    this.clearProfileStatus();
 
-    const { displayName, email, currentPassword, newPassword, confirmNewPassword } = this.model();
-
-    // Basic validations
-    if (!displayName.trim()) {
-      this.setStatus('error', 'Please enter your name.');
-      return;
-    }
+    const { displayName, email, avatarFile } = this.model();
+    if (!displayName.trim()) return this.setStatusProfile('error', 'Please enter your name.');
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-      this.setStatus('error', 'Invalid email.');
-      return;
+      return this.setStatusProfile('error', 'Invalid email.');
     }
 
-    // ตั้งรหัสใหม่ (ถ้ากรอกมา)
-    if (newPassword || confirmNewPassword) {
-      if (newPassword !== confirmNewPassword) {
-        this.setStatus('error', 'New password and confirm password do not match.');
-        return;
-      }
-      if (this.strength() < 3) {
-        this.setStatus('error', 'Please choose a stronger password (min 8 chars, mixed case, numbers, symbol).');
-        return;
-      }
-      if (!currentPassword) {
-        this.setStatus('error', 'Please enter your current password to change password.');
-        return;
-      }
-    }
-
-    // เริ่มบันทึก
-    this.saving.set(true);
+    this.savingProfile.set(true);
     try {
-      // TODO: call API ของคุณที่นี่
-      // - แนบ this.model().avatarFile ถ้ามี
-      // - ส่งข้อมูลฟอร์มที่แก้ไข
+      // ✅ เรียก API จริงแก้ไขโปรไฟล์ (ไม่รวมรหัสผ่าน)
+      // PUT /api/users/me  body: { username, email }
+      await this.users.updateProfile({ username: displayName.trim(), email: email.trim() });
 
-      await new Promise(r => setTimeout(r, 900)); // mock delay
-      this.setStatus('success', 'Updated successfully');
+      // อัปโหลดรูป (ถ้ารองรับ) — ใช้ endpoint แยกแบบ multipart
+      if (avatarFile) {
+       
+        await this.users.uploadAvatar(avatarFile);
+      }
+
+      this.setStatusProfile('success', '✓ Profile updated.');
     } catch (e: any) {
-      this.setStatus('error', e?.message ?? 'Update failed. Please try again.');
+      this.setStatusProfile('error', e?.error?.error || e?.message || '✗ Update failed.');
     } finally {
-      this.saving.set(false);
+      this.savingProfile.set(false);
     }
   }
+
+  // ----- Actions (PASSWORD) -----
+  async changePassword() {
+    this.clearPasswordStatus();
+
+    const { currentPassword, newPassword, confirmNewPassword } = this.model();
+    if (!currentPassword) return this.setStatusPassword('error', 'Please enter current password.');
+    if (!newPassword) return this.setStatusPassword('error', 'Please enter new password.');
+    if (newPassword !== confirmNewPassword) {
+      return this.setStatusPassword('error', 'New password and confirm password do not match.');
+    }
+    if (this.strength() < 3) {
+      return this.setStatusPassword('error', 'Please choose a stronger password.');
+    }
+
+    this.savingPassword.set(true);
+    try {
+      // ✅ เรียก API จริงเปลี่ยนรหัสผ่าน
+      // ตัวอย่าง: PUT /api/users/me/password  body: { currentPassword, newPassword }
+      // (หากฝั่งหลังบ้านของคุณยังไม่มี endpoint นี้ ให้สร้างตามแผนที่คุยไว้)
+      await this.users.changePassword({ currentPassword, newPassword });
+
+      // เคลียร์ฟิลด์รหัส
+      this.model.update(m => ({ ...m, currentPassword: '', newPassword: '', confirmNewPassword: '' }));
+      this.setStatusPassword('success', '✓ Password updated.');
+    } catch (e: any) {
+      this.setStatusPassword('error', e?.error?.error || e?.message || '✗ Update failed.');
+    } finally {
+      this.savingPassword.set(false);
+    }
+  }
+
+  // ----- status helpers -----
+  private setStatusProfile(kind: UpdateStatus, msg: string, ms = 4000) {
+    this.statusProfile.set(kind);
+    this.statusProfileMsg.set(msg);
+    if (ms > 0) setTimeout(() => { this.clearProfileStatus(); }, ms);
+  }
+  private clearProfileStatus() { this.statusProfile.set('idle'); this.statusProfileMsg.set(''); }
+
+  private setStatusPassword(kind: UpdateStatus, msg: string, ms = 4000) {
+    this.statusPassword.set(kind);
+    this.statusPasswordMsg.set(msg);
+    if (ms > 0) setTimeout(() => { this.clearPasswordStatus(); }, ms);
+  }
+  private clearPasswordStatus() { this.statusPassword.set('idle'); this.statusPasswordMsg.set(''); }
+
+  // ----- map from API -----
+  private patchFromMe(me: MeDto) {
+    // backend /me คืน sub/email/name (ตาม controller ที่คุณให้)
+    // name อาจเป็น null → ใช้ email แทนชั่วคราว
+    this.model.update(m => ({
+      ...m,
+      displayName: (me.name ?? '').trim() || (me.email ?? ''),
+      email: me.email ?? m.email,
+    }));
+  }
+
+
+  // เคลียร์ค่าถ้าเบราว์เซอร์แอบ autofill มา
+wipeCurrentIfPrefilled(ev: Event) {
+  const el = ev.target as HTMLInputElement;
+  // ถ้า value โผล่โดยเราไม่ได้พิมพ์เอง ให้ล้าง
+  if (el && el.value && this.model().currentPassword === '') {
+    el.value = '';
+  }
+}
+
+// หลังเปลี่ยนรหัสผ่านสำเร็จ ให้ล้างช่องทั้งหมด
+private clearPasswordFields() {
+  this.model.update(m => ({ ...m, currentPassword: '', newPassword: '', confirmNewPassword: '' }));
+}
+
 }

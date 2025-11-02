@@ -36,10 +36,13 @@ export class ProjectDetail implements OnInit, OnDestroy {
   creating = signal(false);
   renaming = signal(false);
   deleting = signal(false);
+  profileOpen = signal(false);
 
   status    = signal<'idle' | 'success' | 'error'>('idle');
   statusMsg = signal('');
   keyword   = signal('');
+
+
 
   // “Add field” modal state
   ui = {
@@ -270,4 +273,31 @@ onWindowResize() {
       return r.data ?? '';
     }
   }
+
+
+//Right Profile Function
+  toggleProfileMenu() {
+  this.profileOpen.update(v => !v);
+}
+
+onEditProfile() {
+  // ไปหน้าแก้โปรไฟล์ตามที่คุณใช้ในแอป
+  this.router.navigateByUrl('/profile/edit');
+}
+
+onLogout() {
+  this.router.navigateByUrl('/login');
+}
+
+// ปิดเมนูเมื่อคลิกนอก/กด ESC
+@HostListener('document:click')
+onDocClick() {
+  if (this.profileOpen()) this.profileOpen.set(false);
+}
+
+@HostListener('document:keydown.escape')
+onEsc() {
+  if (this.profileOpen()) this.profileOpen.set(false);
+}
+
 }
