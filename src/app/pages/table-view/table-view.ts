@@ -1,8 +1,9 @@
-// src/app/pages/table-view/table-view.ts
 import { Component, inject, signal, OnInit, AfterViewInit, ViewChild, ElementRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ActivatedRoute } from '@angular/router';
 import { firstValueFrom } from 'rxjs';
+
+// ใช้ ESM ของ Tabulator แบบ named export
 import { TabulatorFull as Tabulator } from 'tabulator-tables/dist/js/tabulator_esm.js';
 
 import { TableViewService, ColumnDto, RowDto } from './table-view.service';
@@ -31,9 +32,8 @@ export class TableView implements OnInit, AfterViewInit {
   placeholderImg =
     'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0nNjQnIGhlaWdodD0nNjQnIHhtbG5zPSdodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2Zyc+PHJlY3Qgd2lkdGg9JzY0JyBoZWlnaHQ9JzY0JyByeD0nOCcgZmlsbD0nI2YzZjRmNScvPjxwYXRoIGQ9J000OCA0NEgyMEwzMCAzMCAzNiAzNyA0MCAzMyA0OCA0NScgZmlsbD0nI2M2YzljYScvPjwvc3ZnPg==';
 
-  // ---------- Tabulator ----------
   @ViewChild('tabGrid', { static: true }) tabGridEl!: ElementRef<HTMLDivElement>;
-  private grid!: any; // ❗ ใช้ any เพื่อหลบปัญหา types ของ Tabulator
+  private grid!: any;
 
   async ngOnInit() {
     this.tableId = Number(this.route.snapshot.paramMap.get('id'));
@@ -46,6 +46,11 @@ export class TableView implements OnInit, AfterViewInit {
   }
 
   async refresh() {
+    // ================================
+    // MOCK: ใช้ service mock ในฝั่ง FE
+    // TODO(REAL API):
+    //   - แทนที่ให้เรียก GET /api/rows/table/{tableId}
+    // ================================
     this.columns.set(await firstValueFrom(this.api.listColumns(this.tableId)));
     this.rows.set(await firstValueFrom(this.api.listRows(this.tableId)));
     this.syncDataToGrid();
@@ -66,11 +71,19 @@ export class TableView implements OnInit, AfterViewInit {
   // ---------- Field ----------
   onAddField() { this.fieldOpen.set(true); }
   async onSaveField(model: any) {
+    // ================================
+    // MOCK: เพิ่มคอลัมน์ในฝั่ง FE
+    // TODO(REAL API): POST /api/columns
+    // ================================
     this.fieldOpen.set(false);
     await firstValueFrom(this.api.createColumn(this.tableId, model));
     await this.refresh();
   }
   async onDeleteField(c: ColumnDto) {
+    // ================================
+    // MOCK: ลบคอลัมน์ในฝั่ง FE
+    // TODO(REAL API): DELETE /api/columns/{id}
+    // ================================
     if (!confirm(`Delete field "${c.name}"?`)) return;
     await firstValueFrom(this.api.deleteColumn(c.columnId));
     await this.refresh();
@@ -81,6 +94,13 @@ export class TableView implements OnInit, AfterViewInit {
   onAddRow() { this.editingRow = null; this.rowOpen.set(true); }
 
   async onSaveRow(newObj: Record<string, any>) {
+    // กด Save ใน dialog (เพิ่ม/แก้แถว)
+    // ================================
+    // MOCK:
+    // TODO(REAL API):
+    //   - POST /api/rows         (สร้างใหม่)
+    //   - PUT  /api/rows/{id}    (ถ้ามี editingRow)
+    // ================================
     this.rowOpen.set(false);
     if (this.editingRow) {
       await firstValueFrom(this.api.updateRow(this.editingRow.rowId, newObj));
@@ -91,13 +111,51 @@ export class TableView implements OnInit, AfterViewInit {
   }
 
   async onDeleteRow(r: RowDto) {
+    // สำหรับอนาคต หากอยากมีปุ่มลบแถวอีกครั้ง
     if (!confirm('Delete this row?')) return;
+    // TODO(REAL API): DELETE /api/rows/{id}
     await firstValueFrom(this.api.deleteRow(r.rowId));
     await this.refresh();
   }
 
+  // บันทึกแถวที่แก้ไขในกริด (ปุ่ม Save ในคอลัมน์ Actions)
+  private async saveRowByRecord(record: any) {
+    const rowId = record.__rowId as number;
+    const row = this.rows().find(r => r.rowId === rowId);
+    if (!row) return;
+
+    // ดึง object data ปัจจุบัน (จากคอลัมน์จริง)
+    const cols = this.columns();
+    const payload: Record<string, any> = {};
+    for (const c of cols) payload[c.name] = record[c.name];
+
+    // ================================
+    // MOCK:
+    // TODO(REAL API): PUT /api/rows/{rowId}
+    // ================================
+    await firstValueFrom(this.api.updateRow(rowId, payload));
+    // ไม่ต้อง refresh ทั้งตารางก็ได้ แต่เพื่อความชัวร์ (sync formula/lookup ในอนาคต)
+    await this.refresh();
+  }
+
+
+  private async deleteRowByRecord(record: any) {
+  const rowId = record.__rowId as number;
+  if (!confirm('Delete this row?')) return;
+
+  // ================================
+  // MOCK:
+  // TODO(REAL API): DELETE /api/rows/{rowId}
+  // ================================
+  await firstValueFrom(this.api.deleteRow(rowId));
+  await this.refresh();
+}
   // ---------- Image upload (mock) ----------
   onImagePicked(r: RowDto, c: ColumnDto, file: File) {
+    // ================================
+    // MOCK: upload เป็น dataURL
+    // TODO(REAL API): POST /api/files → ได้ URL แล้ว setCell
+    // ================================
     this.api.uploadImage(file, { tableId: this.tableId, rowId: r.rowId, columnId: c.columnId })
       .then(url => { this.setCell(r, c, url); this.syncDataToGrid(); })
       .catch(err => console.error('upload failed', err));
@@ -107,18 +165,18 @@ export class TableView implements OnInit, AfterViewInit {
   // =====================================================
   //                 TABULATOR CONFIG
   // =====================================================
-  private buildColumnsForGrid(): any[] {      // ❗ เปลี่ยนเป็น any[]
+  private buildColumnsForGrid(): any[] {
     const cols = this.columns();
 
-    const defs: any[] = cols.map((c) => {     // ❗ ใช้ any
+    const defs: any[] = cols.map((c) => {
       const field = c.name;
 
-      const base: any = {                     // ❗ ใช้ any
+      const base: any = {
         title: c.name,
         field,
         headerHozAlign: 'center',
         hozAlign: (c.dataType === 'INTEGER' || c.dataType === 'REAL') ? 'right' : 'left',
-        resizable: true,   // ลากคอลัมน์ได้
+        resizable: true,
         editor: false,
       };
 
@@ -133,14 +191,14 @@ export class TableView implements OnInit, AfterViewInit {
         case 'IMAGE':
           return {
             ...base,
-            formatter: (cell: any) => {        // ❗ type เป็น any
+            formatter: (cell: any) => {
               const url = cell.getValue() as string | null;
               const src = url || this.placeholderImg;
               return `<div style="display:grid;place-items:center;width:100%;height:84px;">
                         <img src="${src}" style="max-width:100%;max-height:100%;object-fit:cover;border-radius:8px;border:1px dashed rgba(0,0,0,.15)"/>
                       </div>`;
             },
-            cellClick: (_e: any, cell: any) => {   // ❗ ใส่ type ให้พารามิเตอร์
+            cellClick: (_e: any, cell: any) => {
               const fileInput = document.createElement('input');
               fileInput.type = 'file';
               fileInput.accept = 'image/*';
@@ -161,20 +219,32 @@ export class TableView implements OnInit, AfterViewInit {
       }
     });
 
-    // คอลัมน์ Actions
+    // ✅ คอลัมน์ Actions → ปุ่ม Save
     defs.push({
-      title: 'Actions',
-      width: 120,
-      headerHozAlign: 'center',
-      hozAlign: 'center',
-      formatter: () => `<button class="text-red-600 underline">Delete</button>`,
-      cellClick: (_e: any, cell: any) => {     // ❗ ใส่ type
-        const data = cell.getRow().getData() as any;
-        const row = this.rows().find(r => r.rowId === data.__rowId)!;
-        this.onDeleteRow(row);
-      },
-      resizable: false,
-    });
+  title: 'Actions',
+  width: 160,
+  headerHozAlign: 'center',
+  hozAlign: 'center',
+  formatter: () => `
+    <div style="display:flex;gap:8px;justify-content:center">
+      <button data-action="save"   class="underline text-emerald-600">Save</button>
+      <button data-action="delete" class="underline text-red-600">Delete</button>
+    </div>
+  `,
+  cellClick: async (e: any, cell: any) => {
+    const btn = (e.target as HTMLElement).closest('button');
+    if (!btn) return;
+    const action = btn.getAttribute('data-action');
+    const record = cell.getRow().getData() as any;
+
+    if (action === 'save') {
+      await this.saveRowByRecord(record);
+    } else if (action === 'delete') {
+      await this.deleteRowByRecord(record);
+    }
+  },
+  resizable: false,
+});
 
     return defs;
   }
@@ -193,13 +263,15 @@ export class TableView implements OnInit, AfterViewInit {
     this.grid = new Tabulator(this.tabGridEl.nativeElement, {
       data: [],
       columns: this.buildColumnsForGrid(),
-      layout: 'fitDataFill',
+      // ⬇️ เปลี่ยนเป็น fitColumns เพื่อ "ไม่ให้มีคอลัมน์ว่างทางขวา"
+      layout: 'fitColumns',
       height: '100%',
       resizableRows: true,
       reactiveData: false,
       columnDefaults: { resizable: true },
       placeholder: 'No rows yet.',
-      cellEdited: (cell: any) => {            // ❗ ใส่ type
+      cellEdited: (cell: any) => {
+        // เมื่อแก้ไขเซลล์ ให้ sync เข้า model ทันที (ยังไม่ยิง API จนกด Save)
         const field = cell.getField();
         const data = cell.getRow().getData() as any;
         const row = this.rows().find(r => r.rowId === data.__rowId);
