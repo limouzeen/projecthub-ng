@@ -45,6 +45,8 @@ export class TableView implements OnInit, AfterViewInit {
 
   @ViewChild('tabGrid', { static: true }) tabGridEl!: ElementRef<HTMLDivElement>;
   private grid!: any;
+  
+  @ViewChild(FieldDialog) fieldDialog!: FieldDialog;
 
   async ngOnInit() {
     this.tableId = Number(this.route.snapshot.paramMap.get('id'));
@@ -87,6 +89,9 @@ export class TableView implements OnInit, AfterViewInit {
     this.fieldOpen.set(false);
     await firstValueFrom(this.api.createColumn(this.tableId, model));
     await this.refresh();
+
+     // รีเซ็ตฟอร์มจากพาเรนต์ด้วย (เผื่อเคส state ค้าง)
+    try { this.fieldDialog?.resetForm(); } catch {}
   }
   async onDeleteField(c: ColumnDto) {
     // ================================
@@ -102,6 +107,13 @@ export class TableView implements OnInit, AfterViewInit {
   // ---------- Row ----------
 onAddRow() {
   this.editingRow = null;
+
+  // ⛔ ถ้ายังไม่มีคอลัมน์เลย ให้บังคับผู้ใช้สร้าง Field ก่อน
+  if ((this.columns()?.length ?? 0) === 0) {
+    alert('Please add at least 1 field before adding a row.');
+    return;
+  }
+
 
   const pk = this.columns().find(c => c.isPrimary)?.name;
   if (pk) {
@@ -140,7 +152,7 @@ onAddRow() {
     await this.refresh();
   }
   
-  
+
   private async saveRowByRecord(record: any) {
     const rowId = record.__rowId as number;
     const row = this.rows().find(r => r.rowId === rowId);

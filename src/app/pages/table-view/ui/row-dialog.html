@@ -52,41 +52,59 @@
               </div>
             }
 
-            @case ('IMAGE') {
-              <div class="space-y-2">
-                <!-- preview -->
-                <div class="img-pv">
-                  @if (model[c.name]) {
-                    <img [src]="model[c.name]" alt="" />
-                  } @else {
-                    <div class="img-empty">No image</div>
-                  }
-                </div>
+           @case ('IMAGE') {
+  <div class="img-field">
+    <!-- พรีวิวภาพ (ถ้ามีค่า) -->
+    @if (model[c.name]) {
+      <div class="img-preview">
+        <img [src]="model[c.name]" alt="" />
+      </div>
+    }
 
-                <!-- upload -->
-                <div class="flex items-center gap-2">
-                  <input
-                    type="file"
-                    accept="image/*"
-                    (change)="onFileChange($event, c.name)"
-                    [disabled]="!!c.isPrimary" />
+    <div class="img-actions">
+      <!-- ปุ่มอัปโหลดรูป (ไอคอน gallery) -->
+      <label class="icon-btn" title="Upload image">
+        <input type="file" accept="image/*" (change)="onFileChange($event, c.name)" hidden />
+        <!-- SVG: image-plus -->
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+          <path d="M4 5a2 2 0 0 1 2-2h6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+          <path d="M20 8v9a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V7" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+          <path d="M15 3h6m-3-3v6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+          <path d="M8.5 12.5l2-2 5 5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+          <circle cx="9" cy="8" r="1.5" fill="currentColor"/>
+        </svg>
+      </label>
 
-                  <button type="button" class="btn-ghost" (click)="model[c.name]=''" [disabled]="!!c.isPrimary">
-                    Clear
-                  </button>
+      <!-- ปุ่มล้างค่า (ไอคอนถังขยะ) -->
+      <button type="button"
+              class="icon-btn danger"
+              title="Clear"
+              (click)="onClearImage(c.name)"
+              [disabled]="!model[c.name] && uploadSource[c.name] !== 'url'">
+        <!-- SVG: trash -->
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+          <path d="M3 6h18" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+          <path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+          <path d="M19 6l-1 13a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+          <path d="M10 11v6M14 11v6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+        </svg>
+      </button>
 
-                  <span class="text-xs text-slate-500">or</span>
-                </div>
+      <!-- ช่องกรอก URL: แสดงเฉพาะเมื่อยังไม่ได้อัปโหลดไฟล์ -->
+      @if (shouldShowUrlInput(c)) {
+        <span class="or">or</span>
+        <input
+          class="input url"
+          placeholder="https://example.com/image.png"
+          [(ngModel)]="model[c.name]"
+          (input)="markUrlSource(c.name)"
+          [name]="c.name"
+          [disabled]="!!c.isPrimary" />
+      }
+    </div>
+  </div>
+}
 
-                <!-- paste URL -->
-                <input
-                  class="input"
-                  placeholder="Paste image URL…"
-                  [(ngModel)]="model[c.name]"
-                  [name]="c.name"
-                  [disabled]="!!c.isPrimary" />
-              </div>
-            }
 
             @case ('LOOKUP') {
               <input

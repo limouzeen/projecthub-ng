@@ -126,7 +126,7 @@ body::before {
            bg-primary text-white hover:opacity-90 transition active:scale-[0.99];
   }
 
-  /*  ปุ่มหลักที่เน้นมิติและแสง (สำหรับปุ่ม Register) */
+  /*  ปุ่มหลักที่เน้นมิติและแสง (สำหรับปุ่ม Register และอื่นๆ) */
   .btn-primary-enhance {
     @apply inline-flex items-center justify-center px-6 py-3.5 rounded-2xl font-semibold 
            text-white transition-all duration-500 active:scale-[0.98] cursor-pointer
