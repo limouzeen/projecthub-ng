@@ -1,0 +1,15 @@
+.back-btn {
+  position: absolute; left: 1.5rem; top: 1.5rem;
+  display: inline-flex; gap: .5rem; align-items: center;
+  background: rgba(255,255,255,.7); backdrop-filter: blur(6px);
+  border: 1px solid rgba(255,255,255,.35);
+  border-radius: 9999px;
+  padding: .375rem .75rem; color: #334155;
+}
+.title-wrap { display: grid; grid-template-columns: 1fr auto; gap: .75rem; align-items: center; margin: 3.5rem 0 1rem; }
+.title { font-weight: 800; font-size: 1.25rem; color: #0f172a }
+.sub { font-size: .75rem; color: #64748b }
+.actions { justify-self: end; display: inline-flex; gap: .5rem }
+.badge { font-size: .65rem; padding: .1rem .35rem; border-radius: .5rem; margin-left: .35rem }
+.badge-blue { background: #e0f2fe; color:#0369a1 }
+.badge-green{ background: #dcfce7; color:#047857 }

@@ -1,0 +1,8 @@
+.overlay { position: fixed; inset: 0; background: rgba(15,23,42,.25); backdrop-filter: blur(2px); display: grid; place-items: center; z-index: 50; }
+.dialog { width: 100%; max-width: 720px; }
+.title { font-weight: 700; color: #0f172a; margin-bottom: .5rem }
+.label { font-size: .875rem; color: #475569 }
+.input { width: 100%; border-radius: .75rem; border: 1px solid rgba(15,23,42,.08); padding: .6rem .75rem; background: #fff }
+.divider { font-size:.8rem; color: #64748b; margin-top: .5rem }
+.hint { font-size: .75rem; color: #94a3b8; margin-top: .125rem }
+.error { background:#fee2e2; color:#b91c1c; border:1px solid #fecaca; padding:.5rem .75rem; border-radius:.75rem }

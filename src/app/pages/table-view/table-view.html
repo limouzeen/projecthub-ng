@@ -1,0 +1,77 @@
+<section class="min-h-[100svh] px-4 py-6 relative">
+  <!-- Back -->
+  <a routerLink="/pages/dashboard" class="back-btn">
+    <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none">
+      <path d="M15 18l-6-6 6-6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+    </svg>
+    Back
+  </a>
+
+  <div class="title-wrap">
+    <div class="title">{{ table()?.name || 'Table' }}</div>
+    <div class="sub">Rows (top)</div>
+    <div class="actions">
+      <button class="btn-ghost-enhance" (click)="openAddField()">Add field</button>
+      <button class="btn-primary-enhance">Open table</button>
+    </div>
+  </div>
+
+  <div class="glass rounded-3xl p-4 sm:p-6">
+    @if (loading()) {
+      <div class="py-12 text-center text-slate-500">Loading...</div>
+    } @else {
+      <div class="overflow-x-auto">
+        <table class="w-full text-sm align-top">
+          <thead>
+            <tr>
+              @for (f of fields(); track f.columnId) {
+                <th class="px-3 py-2 text-left">
+                  {{ f.name }}
+                  @if (f.dataType === 'Lookup') { <span class="badge badge-blue">Lookup</span> }
+                  @if (f.dataType === 'Formula') { <span class="badge badge-green">Fx</span> }
+                </th>
+              }
+              <th class="px-3 py-2"></th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (r of rows(); track r.rowId) {
+              <tr>
+                @for (f of fields(); track f.columnId) {
+                  <td class="px-3 py-2">
+                    @if (f.dataType === 'Lookup') {
+                      <span class="text-blue-700">{{ r.cells[f.name] ?? '-' }}</span>
+                    } @else if (f.dataType === 'Formula') {
+                      <span class="text-emerald-700 font-mono">{{ r.cells[f.name] ?? '-' }}</span>
+                    } @else {
+                      <span>{{ r.cells[f.name] ?? '-' }}</span>
+                    }
+                  </td>
+                }
+                <td class="px-3 py-2 whitespace-nowrap text-right">
+                  <button class="btn-ghost-enhance mr-2">Duplicate</button>
+                  <button class="btn-ghost-enhance">Delete</button>
+                </td>
+              </tr>
+            }
+            @if (isEmpty()) {
+              <tr>
+                <td class="px-3 py-8 text-center text-slate-500" [attr.colspan]="fields().length + 1">
+                  No rows.
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    }
+  </div>
+
+  @if (showFieldDialog()) {
+    <app-field-dialog
+      [tableId]="tableId()"
+      [projectId]="projectId()"
+      (close)="closeAddField($event)">
+    </app-field-dialog>
+  }
+</section>

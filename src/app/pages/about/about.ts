@@ -46,9 +46,9 @@ export class About implements OnInit, OnDestroy {
 
   members = signal<Member[]>([
     {
-      name: 'Pixel Cat',
-      role: 'Product Designer',
-      img: '/assets/char.png',
+      name: 'Dome',
+      role: 'Backend Developer',
+      img: '/assets/char1.png',
       socials: {
         line: 'https://line.me/ti/p/~pixelcat',
         instagram: 'https://instagram.com/pixelcat',
@@ -56,15 +56,15 @@ export class About implements OnInit, OnDestroy {
       }
     },
     {
-      name: 'Byte Bunny',
-      role: 'Frontend Engineer',
-      img: '/assets/char.png',
+      name: 'Am',
+      role: 'Frontend Developer',
+      img: '/assets/char2.png',
       socials: { ig: 'https://instagram.com/byte.bunny' } 
     },
     {
-      name: 'Cloud Bear',
-      role: 'Backend Engineer',
-      img: '/assets/char.png',
+      name: 'Waiwai',
+      role: 'Frontend Developer',
+      img: '/assets/char3.png',
       socials: {}
     }
   ]);

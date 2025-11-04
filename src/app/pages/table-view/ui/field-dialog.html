@@ -1,0 +1,86 @@
+<div class="overlay">
+  <div class="dialog glass rounded-3xl p-5 sm:p-6">
+    <div class="title">Add field</div>
+
+    <form class="space-y-4" (submit)="$event.preventDefault()">
+      <div class="grid sm:grid-cols-2 gap-3">
+        <div>
+          <label class="label">Field name</label>
+          <input class="input mt-1" [(ngModel)]="name" name="name" placeholder="e.g. ProductName" />
+        </div>
+        <div>
+          <label class="label">Type</label>
+          <select class="input mt-1" [(ngModel)]="type" name="type">
+            <option value="Text">Text</option>
+            <option value="Number">Number</option>
+            <option value="YesNo">Yes/No</option>
+            <option value="Date">Date</option>
+            <option value="Lookup">Lookup</option>
+            <option value="Formula">Formula</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="grid sm:grid-cols-2 gap-3">
+        <label class="inline-flex items-center gap-2 text-sm">
+          <input type="checkbox" [(ngModel)]="isNullable" name="nullable" /> Nullable
+        </label>
+        <label class="inline-flex items-center gap-2 text-sm">
+          <input type="checkbox" [(ngModel)]="isPrimary" name="isPrimary" /> Primary key
+        </label>
+      </div>
+
+      @if (type === 'Lookup') {
+        <div class="divider">Lookup settings</div>
+
+        <div class="grid sm:grid-cols-2 gap-3">
+          <div>
+            <label class="label">Target table</label>
+            <select class="input mt-1" [(ngModel)]="targetTableId" name="targetTableId" (change)="onSelectTargetTable()">
+              <option [ngValue]="null">— Select —</option>
+              @for (t of tables(); track t.tableId) {
+                <option [ngValue]="t.tableId">{{ t.name }}</option>
+              }
+            </select>
+          </div>
+          <div>
+            <label class="label">Target column</label>
+            <select class="input mt-1" [(ngModel)]="targetColumnId" name="targetColumnId">
+              <option [ngValue]="null">— Select —</option>
+              @for (c of targetTableFields(); track c.columnId) {
+                <option [ngValue]="c.columnId">{{ c.name }}</option>
+              }
+            </select>
+          </div>
+        </div>
+
+        <div>
+          <label class="label">This table FK column name</label>
+          <input class="input mt-1" [(ngModel)]="fkColumnName" name="fk" placeholder="e.g. ProductId" />
+          <div class="hint">
+            หมายเหตุ: ตอนผูกจริงให้ส่งเป็น <b>ColumnId</b> ของฝั่งนี้ (ไม่ใช่ชื่อ)
+          </div>
+        </div>
+      }
+
+      @if (type === 'Formula') {
+        <div class="divider">Formula (JSON)</div>
+        <textarea class="input mt-1 font-mono text-xs h-36" [(ngModel)]="formulaRaw" name="formulaRaw"
+                  placeholder='เช่น {"type":"binary","+":[{"ref":"Price"},{"ref":"Qty"}]}'>
+        </textarea>
+        <div class="hint">เก็บเป็น JSON string ตามรูปแบบที่ <code>FormulaTranslator</code> ใช้</div>
+      }
+
+      @if (errorMsg()) {
+        <div class="error">{{ errorMsg() }}</div>
+      }
+
+      <div class="flex gap-3 justify-end pt-2">
+        <button type="button" class="btn-ghost-enhance" (click)="cancel()">Cancel</button>
+        <button type="button" class="btn-primary-enhance" [disabled]="saving()" (click)="submit()">
+          @if (!saving()) { <span>Create field</span> } @else { <span>Saving...</span> }
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
