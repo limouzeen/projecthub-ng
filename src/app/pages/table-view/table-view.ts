@@ -1,11 +1,6 @@
+// src/app/pages/table-view/table-view.ts
 import {
-  Component,
-  inject,
-  signal,
-  OnInit,
-  AfterViewInit,
-  ViewChild,
-  ElementRef,
+  Component, inject, signal, OnInit, AfterViewInit, ViewChild, ElementRef,
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ActivatedRoute } from '@angular/router';
@@ -27,23 +22,27 @@ export class TableView implements OnInit, AfterViewInit {
   private readonly api = inject(TableViewService);
   private readonly route = inject(ActivatedRoute);
 
-  /** ความสูงของรูปตัวอย่างต่อแถว (px) */
-  private readonly THUMB_H = 150;
+  /** ความสูงรูปในคอลัมน์ IMAGE เมื่อ rowHeight = 80 */
+  private readonly THUMB_H = 70;
 
   tableId = 0;
   columns = signal<ColumnDto[]>([]);
   rows = signal<RowDto[]>([]);
+
   fieldOpen = signal(false);
   rowOpen = signal(false);
   editingRow: RowDto | null = null;
 
   rowInitData: Record<string, any> | null = null;
-  newRowSeed: Record<string, any> | null = null;
 
   @ViewChild('tabGrid', { static: true }) tabGridEl!: ElementRef<HTMLDivElement>;
   private grid!: any;
 
   @ViewChild(FieldDialog) fieldDialog!: FieldDialog;
+
+  private viewReady = false;
+  private lastHasImageCol = false;
+  private lastColSig = ''; // ลายเซ็น schema คอลัมน์ (ไว้ตรวจว่าเปลี่ยนไหม)
 
   async ngOnInit() {
     this.tableId = Number(this.route.snapshot.paramMap.get('id'));
@@ -51,23 +50,34 @@ export class TableView implements OnInit, AfterViewInit {
   }
 
   ngAfterViewInit() {
-    this.buildTabulator();
-    this.syncDataToGrid();
+    this.viewReady = true;
+    this.ensureGridAndSync();
+  }
+
+  // ---------------- data ops ----------------
+  private hasImageColumn(): boolean {
+    return this.columns().some(c => (c.dataType || '').toUpperCase() === 'IMAGE');
+  }
+
+  private colSignature(): string {
+    return this.columns()
+      .map(c => `${c.name}:${(c.dataType || '').toUpperCase()}:${c.isPrimary ? 1 : 0}`)
+      .join('|');
   }
 
   async refresh() {
-    this.columns.set(await firstValueFrom(this.api.listColumns(this.tableId)));
-    this.rows.set(await firstValueFrom(this.api.listRows(this.tableId)));
-    this.syncDataToGrid();
+    const cols = await firstValueFrom(this.api.listColumns(this.tableId));
+    this.columns.set(cols);
+
+    const list = await firstValueFrom(this.api.listRows(this.tableId));
+    this.rows.set(list);
+
+    this.ensureGridAndSync();
   }
 
   parseData(json: string | null | undefined): any {
     if (!json) return {};
-    try {
-      return JSON.parse(json);
-    } catch {
-      return {};
-    }
+    try { return JSON.parse(json); } catch { return {}; }
   }
 
   setCell(r: RowDto, c: ColumnDto, val: any) {
@@ -77,17 +87,13 @@ export class TableView implements OnInit, AfterViewInit {
   }
 
   // ---------- Field ----------
-  onAddField() {
-    this.fieldOpen.set(true);
-  }
+  onAddField() { this.fieldOpen.set(true); }
 
   async onSaveField(model: any) {
     this.fieldOpen.set(false);
     await firstValueFrom(this.api.createColumn(this.tableId, model));
     await this.refresh();
-    try {
-      this.fieldDialog?.resetForm();
-    } catch {}
+    try { this.fieldDialog?.resetForm(); } catch {}
   }
 
   async onDeleteField(c: ColumnDto) {
@@ -100,15 +106,13 @@ export class TableView implements OnInit, AfterViewInit {
   // ---------- Row ----------
   onAddRow() {
     this.editingRow = null;
-
     if ((this.columns()?.length ?? 0) === 0) {
       alert('Please add at least 1 field before adding a row.');
       return;
     }
-
-    const pk = this.columns().find((c) => c.isPrimary)?.name;
+    const pk = this.columns().find(c => c.isPrimary)?.name;
     if (pk) {
-      firstValueFrom(this.api.nextRunningId(this.tableId, pk)).then((next) => {
+      firstValueFrom(this.api.nextRunningId(this.tableId, pk)).then(next => {
         this.rowInitData = { [pk]: next };
         this.rowOpen.set(true);
       });
@@ -153,15 +157,15 @@ export class TableView implements OnInit, AfterViewInit {
   onImagePicked(r: RowDto, c: ColumnDto, file: File) {
     this.api
       .uploadImage(file, { tableId: this.tableId, rowId: r.rowId, columnId: c.columnId })
-      .then((url) => {
+      .then(url => {
         this.setCell(r, c, url);
-        this.syncDataToGrid();
+        this.ensureGridAndSync();
       })
-      .catch((err) => console.error('upload failed', err));
+      .catch(err => console.error('upload failed', err));
   }
   onImageCleared(r: RowDto, c: ColumnDto) {
     this.setCell(r, c, '__NULL__');
-    this.syncDataToGrid();
+    this.ensureGridAndSync();
   }
 
   // =====================================================
@@ -190,7 +194,7 @@ export class TableView implements OnInit, AfterViewInit {
         case 'BOOLEAN':
           return { ...base, formatter: 'tickCross', editor: c.isPrimary ? false : 'tickCross' };
 
-        case 'IMAGE': {
+        case 'IMAGE':
           return {
             ...base,
             cssClass: 'cell-image',
@@ -200,35 +204,33 @@ export class TableView implements OnInit, AfterViewInit {
               const wrap = document.createElement('div');
               wrap.className = 'img-wrap';
               wrap.style.cssText = `
-        width:100%;
-        height:100%;
-        display:flex; align-items:center; justify-content:center;
-        overflow:hidden; border-radius:8px;
-      `;
+                width:100%;
+                height:${this.THUMB_H}px;
+                display:flex;align-items:center;justify-content:center;
+                overflow:hidden;border-radius:8px;
+              `;
 
               if (url) {
                 const img = document.createElement('img');
                 img.src = url;
                 img.style.cssText = `
-          height:100%; width:auto; border-radius:10px;
-          max-width:100%; object-fit:cover; display:block;
-        `;
+                  height:100%; width:auto; max-width:100%;
+                  object-fit:cover; display:block; border-radius:8px;
+                `;
                 wrap.appendChild(img);
               } else {
                 const ph = document.createElement('div');
                 ph.style.cssText = `
-          width:45%; height:calc(100% - 8px);
-          border:2px dashed rgba(0,0,0,.2); border-radius:10px;
-          background: repeating-linear-gradient(
-            45deg, rgba(0,0,0,.04), rgba(0,0,0,.04) 6px, transparent 6px, transparent 12px
-          );
-        `;
+                  width:55%; height:${this.THUMB_H - 10}px;
+                  border:2px dashed rgba(0,0,0,.2); border-radius:10px;
+                  background: repeating-linear-gradient(
+                    45deg, rgba(0,0,0,.04), rgba(0,0,0,.04) 6px, transparent 6px, transparent 12px
+                  );
+                `;
                 wrap.appendChild(ph);
               }
               return wrap;
             },
-
-            // 👇 ใส่กลับมาให้คลิกเซลล์เพื่อเลือกไฟล์ได้
             cellClick: (_e: any, cell: any) => {
               const fileInput = document.createElement('input');
               fileInput.type = 'file';
@@ -236,22 +238,21 @@ export class TableView implements OnInit, AfterViewInit {
               fileInput.onchange = () => {
                 const file = fileInput.files?.[0];
                 if (!file) return;
-
                 const data = cell.getRow().getData() as any;
                 const row = this.rows().find((r) => r.rowId === data.__rowId)!;
-                const col = this.columns().find((x) => x.name === cell.getField())!;
+                const col = cols.find((x) => x.name === cell.getField())!;
                 this.onImagePicked(row, col, file);
               };
               fileInput.click();
             },
           };
-        }
 
         default:
           return { ...base, editor: c.isPrimary ? false : 'input' };
       }
     });
 
+    // Actions
     defs.push({
       title: 'Actions',
       field: '__actions',
@@ -282,7 +283,7 @@ export class TableView implements OnInit, AfterViewInit {
 
   private buildDataForGrid(): any[] {
     const cols = this.columns();
-    return this.rows().map((r) => {
+    return this.rows().map(r => {
       const obj = this.parseData(r.data);
       const record: any = { __rowId: r.rowId };
       for (const c of cols) record[c.name] = obj?.[c.name] ?? null;
@@ -291,47 +292,67 @@ export class TableView implements OnInit, AfterViewInit {
   }
 
   private buildTabulator() {
-    const hasImageCol = this.columns().some((c) => (c.dataType || '').toUpperCase() === 'IMAGE');
-    const baseRowHeight = hasImageCol ? this.THUMB_H + 30 : 80; //ปรับคสูงแถว
+    const hasImageCol = this.hasImageColumn();
+    this.lastHasImageCol = hasImageCol;
+    this.lastColSig = this.colSignature();
+
+    const baseRowHeight = hasImageCol ? 80 : 44;
 
     this.grid = new Tabulator(this.tabGridEl.nativeElement, {
       data: [],
-      columns: this.buildColumnsForGrid(),
+      columns: this.buildColumnsForGrid(), // ส่ง columns ตอนสร้างเสมอ
       layout: 'fitColumns',
-
-      rowHeight: baseRowHeight, // ความสูงแถวคงที่ขั้นต่ำ (พอสำหรับรูป)
-      variableHeight: true, // ปิดเพื่อกันแถวซ้อน
+      rowHeight: baseRowHeight,
+      variableHeight: false,
       resizableRows: true,
-
       height: '100%',
       reactiveData: false,
-
       columnDefaults: {
         hozAlign: 'center',
         vertAlign: 'middle',
         widthGrow: 1,
         resizable: true,
       },
-
       placeholder: 'No rows yet.',
-
       cellEdited: (cell: any) => {
         const field = cell.getField();
         const data = cell.getRow().getData() as any;
-        const row = this.rows().find((r) => r.rowId === data.__rowId);
-        const col = this.columns().find((c) => c.name === field);
+        const row = this.rows().find(r => r.rowId === data.__rowId);
+        const col = this.columns().find(c => c.name === field);
         if (!row || !col) return;
         this.setCell(row, col, cell.getValue());
       },
     });
   }
 
-  private syncDataToGrid() {
-    if (!this.grid) return;
-    this.grid.setColumns(this.buildColumnsForGrid());
-    this.grid.replaceData(this.buildDataForGrid());
-    try {
-      this.grid.redraw(true);
-    } catch {}
+  /** สร้าง/รีบิลด์กริดตาม schema ปัจจุบัน แล้วอัปเดตเฉพาะ data */
+  private ensureGridAndSync() {
+    if (!this.viewReady) return;
+
+    const sig = this.colSignature();
+    const needImageMode = this.hasImageColumn();
+
+    let recreated = false;
+    if (!this.grid) {
+      this.buildTabulator();
+      recreated = true;
+    } else if (needImageMode !== this.lastHasImageCol || sig !== this.lastColSig) {
+      try { this.grid.destroy(); } catch {}
+      this.buildTabulator();
+      recreated = true;
+    }
+
+    const data = this.buildDataForGrid();
+
+    // ไม่เรียก setColumns อีก เพื่อเลี่ยง headersElement=null
+    if (recreated) {
+      setTimeout(() => {
+        this.grid.setData(data);
+        try { this.grid.redraw(true); } catch {}
+      }, 0);
+    } else {
+      this.grid.setData(data);
+      try { this.grid.redraw(true); } catch {}
+    }
   }
 }

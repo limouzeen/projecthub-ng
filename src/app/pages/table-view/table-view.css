@@ -1,25 +1,15 @@
 .grid-wrap { width: 100%; }
 
-/* บังคับให้กริดกว้างเต็ม */
-/* :host ::ng-deep .tabulator,
-:host ::ng-deep .tabulator .tabulator-tableholder,
-:host ::ng-deep .tabulator .tabulator-table {
-  width: 100% !important;
-} */
-
-
-/* padding ทั่วไป */
+/* padding ปกติของเซลล์ */
 :host ::ng-deep .tabulator .tabulator-row .tabulator-cell {
-  padding: 8px !important;         /* ✅ คง layout เดิมของ Tabulator */
+  padding: 8px !important;
   text-align: center;
 }
 
-
-/* เซลล์คอลัมน์รูป: padding น้อยลงเพื่อไม่ให้ตัดความสูง */
+/* เซลล์รูป: padding น้อยลงให้พื้นที่รูปเยอะขึ้น */
 :host ::ng-deep .tabulator .tabulator-row .tabulator-cell.cell-image {
-  padding: 4px !important;             /*  แถวจะสูง ~ THUMB_H + 8px */
+  padding: 5px !important;
 }
-
 
 /* หัวคอลัมน์จัดกลาง */
 :host ::ng-deep .tabulator .tabulator-header .tabulator-col .tabulator-col-content {
@@ -29,11 +19,15 @@
   text-align: center !important;
 }
 
-/* กล่องรูป */
-:host ::ng-deep .img-wrap { width:100%; height:100%; overflow:hidden; border-radius:8px; }
+/* กล่องรูป (กำหนดความสูงใน TS แล้ว) */
+:host ::ng-deep .img-wrap {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  border-radius: 8px;
+}
 
-
-/* tableholder เลื่อนแนวตั้งได้เมื่อแถวสูงขึ้น */
+/* ให้ tableholder เลื่อนแนวตั้งได้ */
 :host ::ng-deep .tabulator .tabulator-tableholder {
   overflow-y: auto;
 }
