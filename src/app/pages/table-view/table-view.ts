@@ -194,58 +194,64 @@ export class TableView implements OnInit, AfterViewInit {
         case 'BOOLEAN':
           return { ...base, formatter: 'tickCross', editor: c.isPrimary ? false : 'tickCross' };
 
-        case 'IMAGE':
-          return {
-            ...base,
-            cssClass: 'cell-image',
-            formatter: (cell: any) => {
-              const url = (cell.getValue() as string) || null;
+        case 'IMAGE': {
+  return {
+    ...base,
+    cssClass: 'cell-image',
+    formatter: (cell: any) => {
+      const url = (cell.getValue() as string) || null;
 
-              const wrap = document.createElement('div');
-              wrap.className = 'img-wrap';
-              wrap.style.cssText = `
-                width:100%;
-                height:${this.THUMB_H}px;
-                display:flex;align-items:center;justify-content:center;
-                overflow:hidden;border-radius:8px;
-              `;
+      const wrap = document.createElement('div');
+      wrap.className = 'img-wrap';
+      wrap.style.cssText = `
+        width:100%;
+        height:${this.THUMB_H}px;          /* สูงอิง rowHeight */
+        display:flex;align-items:center;justify-content:center;
+        overflow:hidden;border-radius:8px;
+      `;
 
-              if (url) {
-                const img = document.createElement('img');
-                img.src = url;
-                img.style.cssText = `
-                  height:100%; width:auto; max-width:100%;
-                  object-fit:cover; display:block; border-radius:8px;
-                `;
-                wrap.appendChild(img);
-              } else {
-                const ph = document.createElement('div');
-                ph.style.cssText = `
-                  width:55%; height:${this.THUMB_H - 10}px;
-                  border:2px dashed rgba(0,0,0,.2); border-radius:10px;
-                  background: repeating-linear-gradient(
-                    45deg, rgba(0,0,0,.04), rgba(0,0,0,.04) 6px, transparent 6px, transparent 12px
-                  );
-                `;
-                wrap.appendChild(ph);
-              }
-              return wrap;
-            },
-            cellClick: (_e: any, cell: any) => {
-              const fileInput = document.createElement('input');
-              fileInput.type = 'file';
-              fileInput.accept = 'image/*';
-              fileInput.onchange = () => {
-                const file = fileInput.files?.[0];
-                if (!file) return;
-                const data = cell.getRow().getData() as any;
-                const row = this.rows().find((r) => r.rowId === data.__rowId)!;
-                const col = cols.find((x) => x.name === cell.getField())!;
-                this.onImagePicked(row, col, file);
-              };
-              fileInput.click();
-            },
-          };
+      if (url) {
+        const img = document.createElement('img');
+        img.src = url;
+        img.style.cssText = `
+          height:100%;                  /* ให้รูปสูงเท่ากรอบ */
+          width:auto; max-width:100%;   /* แต่ไม่ล้นแนวนอน */
+          object-fit:cover; display:block; border-radius:8px;
+        `;
+        wrap.appendChild(img);
+      } else {
+        // กรอบเส้นประ: กว้าง "ยืดตามคอลัมน์" แต่มี min/max กันสุดโต่ง
+        const ph = document.createElement('div');
+        ph.style.cssText = `
+          /* ทำเป็นสี่เหลี่ยมผืนผ้าดูสมส่วน และยืดตามความกว้าง cell */
+          width: clamp(72px, 15%, 260px);   /* >=72px, ปกติ 70% ของ cell, แต่ไม่เกิน 260px */
+          height: calc(100% - 10px);        /* สูงตามแถว - เผื่อ padding เล็กน้อย */
+          border: 2px dashed rgba(0,0,0,.20);
+          border-radius: 10px;
+          background: repeating-linear-gradient(
+            45deg, rgba(0,0,0,.04), rgba(0,0,0,.04) 6px, transparent 6px, transparent 12px
+          );
+        `;
+        wrap.appendChild(ph);
+      }
+      return wrap;
+    },
+    cellClick: (_e: any, cell: any) => {
+      const fileInput = document.createElement('input');
+      fileInput.type = 'file';
+      fileInput.accept = 'image/*';
+      fileInput.onchange = () => {
+        const file = fileInput.files?.[0];
+        if (!file) return;
+        const data = cell.getRow().getData() as any;
+        const row = this.rows().find((r) => r.rowId === data.__rowId)!;
+        const col = cols.find((x) => x.name === cell.getField())!;
+        this.onImagePicked(row, col, file);
+      };
+      fileInput.click();
+    },
+  };
+}
 
         default:
           return { ...base, editor: c.isPrimary ? false : 'input' };
@@ -292,38 +298,40 @@ export class TableView implements OnInit, AfterViewInit {
   }
 
   private buildTabulator() {
-    const hasImageCol = this.hasImageColumn();
-    this.lastHasImageCol = hasImageCol;
-    this.lastColSig = this.colSignature();
+  const hasImageCol = this.hasImageColumn();
+  this.lastHasImageCol = hasImageCol;
+  this.lastColSig = this.colSignature();
 
-    const baseRowHeight = hasImageCol ? 80 : 44;
+  const baseRowHeight = hasImageCol ? 80 : 44;
 
-    this.grid = new Tabulator(this.tabGridEl.nativeElement, {
-      data: [],
-      columns: this.buildColumnsForGrid(), // ส่ง columns ตอนสร้างเสมอ
-      layout: 'fitColumns',
-      rowHeight: baseRowHeight,
-      variableHeight: false,
-      resizableRows: true,
-      height: '100%',
-      reactiveData: false,
-      columnDefaults: {
-        hozAlign: 'center',
-        vertAlign: 'middle',
-        widthGrow: 1,
-        resizable: true,
-      },
-      placeholder: 'No rows yet.',
-      cellEdited: (cell: any) => {
-        const field = cell.getField();
-        const data = cell.getRow().getData() as any;
-        const row = this.rows().find(r => r.rowId === data.__rowId);
-        const col = this.columns().find(c => c.name === field);
-        if (!row || !col) return;
-        this.setCell(row, col, cell.getValue());
-      },
-    });
-  }
+  this.grid = new Tabulator(this.tabGridEl.nativeElement, {
+    data: [],
+    columns: this.buildColumnsForGrid(),
+    layout: 'fitColumns',
+    rowHeight: baseRowHeight,
+    variableHeight: false,
+    resizableRows: true,
+    height: '100%',
+    reactiveData: false,
+    columnDefaults: { hozAlign:'center', vertAlign:'middle', widthGrow:1, resizable:true },
+    placeholder: 'No rows yet.',
+    // 👇 ให้ Tabulator ขอ redraw เมื่อมีการลากปรับคอลัมน์/เปลี่ยนเลย์เอาต์
+    columnResized: () => { try { this.grid.redraw(true); } catch {} },
+    dataLoaded:     () => { try { this.grid.redraw(true); } catch {} },
+    tableBuilt:     () => { try { this.grid.redraw(true); } catch {} },
+    layoutChanged:  () => { try { this.grid.redraw(true); } catch {} },
+
+    cellEdited: (cell: any) => {
+      const field = cell.getField();
+      const data  = cell.getRow().getData() as any;
+      const row   = this.rows().find(r => r.rowId === data.__rowId);
+      const col   = this.columns().find(c => c.name === field);
+      if (!row || !col) return;
+      this.setCell(row, col, cell.getValue());
+    },
+  });
+}
+
 
   /** สร้าง/รีบิลด์กริดตาม schema ปัจจุบัน แล้วอัปเดตเฉพาะ data */
   private ensureGridAndSync() {
