@@ -18,20 +18,22 @@ import { RowDialog } from './ui/row-dialog';
   styleUrl: './table-view.css',
 })
 export class TableView implements OnInit, AfterViewInit {
-  // สลับโหมดโหลดข้อมูล (ให้คงค่าตามที่คุณใช้อยู่)
-  private static readonly USE_REMOTE = false; // true = remote, false = local
+  private static readonly USE_REMOTE = false;
 
-  private readonly api = inject(TableViewService);
+  private readonly api   = inject(TableViewService);
   private readonly route = inject(ActivatedRoute);
 
   private readonly THUMB_H = 70;
 
   tableId = 0;
   columns = signal<ColumnDto[]>([]);
-  rows = signal<RowDto[]>([]);
+  rows    = signal<RowDto[]>([]);
+
+  /** ธงว่า table นี้เป็น auto-increment (จาก localStorage) */
+  isAutoTable = signal<boolean>(false);
 
   fieldOpen = signal(false);
-  rowOpen = signal(false);
+  rowOpen   = signal(false);
   editingRow: RowDto | null = null;
   rowInitData: Record<string, any> | null = null;
 
@@ -43,8 +45,6 @@ export class TableView implements OnInit, AfterViewInit {
   private viewReady = false;
   private lastHasImageCol = false;
   private lastColSig = '';
-
-  /** ใช้ในโหมด remote */
   private _lastPageFromServer = 1;
 
   async ngOnInit() {
@@ -70,12 +70,12 @@ export class TableView implements OnInit, AfterViewInit {
 
   // ---------------- data ops ----------------
   async refresh() {
-    // โหลดคอลัมน์ (ฝั่งหลังบ้าน/Mock จะมีคอลัมน์ ID เป็น PK ให้อัตโนมัติ ถ้า table นี้สร้างแบบ Auto-increment)
+    // อ่าน schema (service จะ auto สร้าง ID ให้ถ้าเป็น table auto)
     const cols = await firstValueFrom(this.api.listColumns(this.tableId));
+    this.columns.set(cols);
 
-    // (ออปชันเล็ก ๆ) จัดให้ PK แสดงก่อน เพื่อให้เห็น ID ชัดเจน — ไม่กระทบ UI สไตล์ที่คุณใช้
-    const sorted = [...cols].sort((a, b) => Number(b.isPrimary) - Number(a.isPrimary));
-    this.columns.set(sorted);
+    // ธง auto จาก localStorage
+    try { this.isAutoTable.set(localStorage.getItem('ph:auto:' + this.tableId) === '1'); } catch { this.isAutoTable.set(false); }
 
     this.rows.set([]);
     this.ensureGridAndSync();
@@ -104,14 +104,25 @@ export class TableView implements OnInit, AfterViewInit {
   onEditField(_c: ColumnDto) {}
 
   // ---------- Row ----------
-  onAddRow() {
+  async onAddRow() {
     this.editingRow = null;
+
+    // ต้องมีอย่างน้อย 1 ฟิลด์
     if ((this.columns()?.length ?? 0) === 0) {
       alert('Please add at least 1 field before adding a row.');
       return;
     }
-    // ✅ ฝั่ง FE ไม่ต้อง generate running id — ให้ BE/Mock เพิ่ม ID ให้อัตโนมัติ
-    this.rowInitData = null;
+
+    // ถ้าเป็น table auto → ดึง next ID มา “โชว์ล่วงหน้า” และล็อกแก้ไขใน dialog
+    if (this.isAutoTable()) {
+      const pk = this.columns().find(c => c.isPrimary)?.name || 'ID';
+      const next = await firstValueFrom(this.api.nextRunningId(this.tableId, pk));
+      this.rowInitData = { [pk]: next };
+    } else {
+      // ไม่ auto → ให้ผู้ใช้กรอกเอง
+      this.rowInitData = null;
+    }
+
     this.rowOpen.set(true);
   }
 
@@ -120,12 +131,10 @@ export class TableView implements OnInit, AfterViewInit {
     this.rowInitData = null;
 
     if (this.editingRow) {
-      // แก้ไขแถว → ส่งค่าทุกฟิลด์ (PK แก้ไม่ได้อยู่แล้วจาก editor)
       await firstValueFrom(this.api.updateRow(this.editingRow.rowId, newObj));
       if (TableView.USE_REMOTE) this.reloadRemoteCurrentPage();
       else this.reloadLocalCurrentPage();
     } else {
-      // เพิ่มแถว → ให้ mock createRow() ใส่ ID ให้อัตโนมัติ แล้วเราเพียงรีเฟรชดูค่า ID
       await firstValueFrom(this.api.createRow(this.tableId, newObj));
       if (TableView.USE_REMOTE) await this.reloadRemoteToLastPage();
       else await this.reloadLocalToLastPage();
@@ -192,14 +201,16 @@ export class TableView implements OnInit, AfterViewInit {
         editor: false,
       };
 
+      // ถ้าเป็น PK และเป็น auto table → ห้ามแก้ไข
+      const lock = c.isPrimary && this.isAutoTable();
+
       switch ((c.dataType || '').toUpperCase()) {
         case 'INTEGER':
         case 'REAL':
-          // PK (เช่น ID) จะไม่สามารถแก้ไขได้
-          return { ...base, editor: c.isPrimary ? false : 'number' };
+          return { ...base, editor: lock ? false : 'number' };
 
         case 'BOOLEAN':
-          return { ...base, formatter: 'tickCross', editor: c.isPrimary ? false : 'tickCross' };
+          return { ...base, formatter: 'tickCross', editor: lock ? false : 'tickCross' };
 
         case 'IMAGE': {
           return {
@@ -259,7 +270,7 @@ export class TableView implements OnInit, AfterViewInit {
         }
 
         default:
-          return { ...base, editor: c.isPrimary ? false : 'input' };
+          return { ...base, editor: lock ? false : 'input' };
       }
     });
 
@@ -292,16 +303,13 @@ export class TableView implements OnInit, AfterViewInit {
     return defs;
   }
 
-  /** แปลง RowDto[] -> records ที่ Tabulator ใช้ได้ */
   private buildDataForGridFromRows(rows: RowDto[]): any[] {
     const cols = this.columns();
     return rows.map(r => {
       let obj: any = {};
       try { obj = JSON.parse(r.data ?? '{}'); } catch {}
       const rec: any = { __rowId: r.rowId };
-      for (const c of cols) {
-        rec[c.name] = obj?.[c.name] ?? null;
-      }
+      for (const c of cols) rec[c.name] = obj?.[c.name] ?? null;
       return rec;
     });
   }
@@ -333,7 +341,6 @@ export class TableView implements OnInit, AfterViewInit {
   // ---------- Remote helpers ----------
   private reloadRemoteCurrentPage(goFirst = false) {
     const cur = goFirst ? 1 : (this.grid?.getPage?.() || 1);
-    // สำคัญ: ห้ามส่ง URL (จะไป 404) ให้เรียก setData() เปล่า ๆ
     this.grid.setData().then(() => {
       try { this.grid.setPage(cur); } catch {}
       try { this.grid.redraw(true); } catch {}
@@ -341,7 +348,7 @@ export class TableView implements OnInit, AfterViewInit {
   }
 
   private async reloadRemoteToLastPage() {
-    await this.grid.setData(); // ให้ ajaxRequestFunc ยิงใหม่ก่อน
+    await this.grid.setData();
     const max = Math.max(1, this._lastPageFromServer || 1);
     if (max > 1) { try { await this.grid.setPage(max); } catch {} }
     try { this.grid.redraw(true); } catch {}
@@ -385,11 +392,9 @@ export class TableView implements OnInit, AfterViewInit {
     };
 
     if (TableView.USE_REMOTE) {
-      // ---------- Remote ----------
       this.grid = new Tabulator(this.tabGridEl.nativeElement, {
         ...baseOptions,
         pagination: 'remote',
-        // ใส่ ajaxURL อะไรก็ได้เพื่อ “เปิดโหมด ajax”; Tabulator จะเรียก ajaxRequestFunc แทนการ fetch จริง
         ajaxURL: 'about:blank',
         paginationDataReceived: { last_page: 'last_page', data: 'data' },
         paginationDataSent: { page: 'page', size: 'size', sorters: 'sorters', filters: 'filters' },
@@ -402,7 +407,6 @@ export class TableView implements OnInit, AfterViewInit {
             const last_page = Math.max(1, Math.ceil(total / size));
             const data = this.buildDataForGridFromRows(res.rows as RowDto[]);
             this._lastPageFromServer = last_page;
-            console.log('[remote] total=', total, 'size=', size, 'page/last=', page, last_page);
             return { last_page, data };
           });
         },
@@ -424,7 +428,6 @@ export class TableView implements OnInit, AfterViewInit {
         },
       });
     } else {
-      // ---------- Local ----------
       this.grid = new Tabulator(this.tabGridEl.nativeElement, {
         ...baseOptions,
         pagination: 'local',
@@ -432,7 +435,6 @@ export class TableView implements OnInit, AfterViewInit {
     }
   }
 
-  /** สร้าง/รีบิลด์กริด แล้วโหลดข้อมูลตามโหมด */
   private ensureGridAndSync() {
     if (!this.viewReady) return;
 
@@ -451,7 +453,7 @@ export class TableView implements OnInit, AfterViewInit {
 
     if (recreated) {
       setTimeout(() => {
-        if (TableView.USE_REMOTE) { try { this.grid.setData(); } catch {} } // ← ห้ามส่ง URL
+        if (TableView.USE_REMOTE) { try { this.grid.setData(); } catch {} }
         else { this.loadLocalData(); }
       }, 0);
     } else {

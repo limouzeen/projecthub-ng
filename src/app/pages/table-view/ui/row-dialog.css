@@ -1,8 +1,6 @@
 .overlay{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(15,23,42,.35);backdrop-filter:blur(4px);z-index:50}
 .dialog{background:rgba(255,255,255,.8)}
 
-
-
 /* แต่งรูปภาพใน add row */
 .img-pv{
   width:100%;
@@ -28,66 +26,15 @@
 }
 
 /* field ภาพ */
-.img-field {
-  display: flex;
-  flex-direction: column;
-  gap: .5rem;
-}
+.img-field { display: flex; flex-direction: column; gap: .5rem; }
+.img-preview { border: 1px solid #e2e8f0; border-radius: 12px; overflow: hidden; max-height: 200px; }
+.img-preview img { display: block; width: 100%; height: auto; object-fit: cover; }
 
-/* กล่องพรีวิวให้ไม่ล้น */
-.img-preview {
-  border: 1px solid #e2e8f0;
-  border-radius: 12px;
-  overflow: hidden;
-  max-height: 200px;
-}
-.img-preview img {
-  display: block;
-  width: 100%;
-  height: auto;
-  object-fit: cover;
-}
-
-/* action line: ปุ่ม + ช่อง url ไม่ล้น และอยู่ในกรอบ */
-.img-actions {
-  display: flex;
-  align-items: center;
-  gap: .5rem;
-  flex-wrap: wrap;
-}
-
-/* ปุ่มไอคอน */
-.icon-btn {
-  width: 40px;
-  height: 40px;
-  border-radius: 10px;
-  border: 1px solid #cbd5e1;
-  background: #fff;
-  display: grid;
-  place-items: center;
-  cursor: pointer;
-  transition: transform .06s ease, background .15s ease;
-}
+.img-actions { display: flex; align-items: center; gap: .5rem; flex-wrap: wrap; }
+.icon-btn { width: 40px; height: 40px; border-radius: 10px; border: 1px solid #cbd5e1; background: #fff; display: grid; place-items: center; cursor: pointer; transition: transform .06s ease, background .15s ease; }
 .icon-btn:hover { background: #f8fafc; }
 .icon-btn:active { transform: translateY(1px); }
-
-.icon-btn.danger {
-  border-color: #fecaca;
-  background: #fff1f2;
-}
-.icon-btn.danger:hover {
-  background: #ffe4e6;
-}
-
-/* ข้อความ or เล็กๆ */
-.img-actions .or {
-  color: #94a3b8;
-  font-size: .85rem;
-  user-select: none;
-}
-
-/* ช่อง URL ให้ยืดได้ และไม่ล้น */
-.input.url {
-  flex: 1 1 220px;
-  min-width: 180px;
-}
+.icon-btn.danger { border-color: #fecaca; background: #fff1f2; }
+.icon-btn.danger:hover { background: #ffe4e6; }
+.img-actions .or { color: #94a3b8; font-size: .85rem; user-select: none; }
+.input.url { flex: 1 1 220px; min-width: 180px; }

@@ -49,8 +49,10 @@
 
   <ph-row-dialog
     [open]="rowOpen()"
+    [tableId]="tableId"
     [columns]="columns()"
     [initData]="rowInitData"
+    [isAutoTable]="isAutoTable()"
     (save)="onSaveRow($event)"
     (cancel)="rowOpen.set(false)">
   </ph-row-dialog>

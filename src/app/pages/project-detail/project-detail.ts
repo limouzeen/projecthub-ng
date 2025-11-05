@@ -56,16 +56,29 @@ export class ProjectDetail implements OnInit {
     this.dialogOpen.set(true);
   }
 
-  async onCreateTable(payload: { name: string; useAutoIncrement: boolean }) {
-    this.creating.set(true);
-    try {
-      await firstValueFrom(this.api.createTable(this.projectId, payload.name, payload.useAutoIncrement));
-      await this.refresh();
-    } finally {
-      this.creating.set(false);
-      this.dialogOpen.set(false);
+ async onCreateTable(payload: { name: string; useAutoIncrement: boolean }) {
+  this.creating.set(true);
+  try {
+    const created = await firstValueFrom(
+      this.api.createTable(this.projectId, payload.name, payload.useAutoIncrement)
+    );
+
+    // เก็บ flag จำว่า table นี้เป็น auto-increment (ใช้ตอนเปิด Table-view)
+    if (payload.useAutoIncrement) {
+      localStorage.setItem('ph:auto:' + created.tableId, '1');
+    } else {
+      localStorage.removeItem('ph:auto:' + created.tableId);
     }
+
+    await this.refresh();
+    // ไปหน้า table-view ก็ได้ ถ้าต้องการ
+    // this.router.navigate(['/table', created.tableId]);
+  } finally {
+    this.creating.set(false);
+    this.dialogOpen.set(false);
   }
+}
+
 
   async renameTable(t: TableDto) {
     const next = window.prompt('Rename table:', t.name);
@@ -81,16 +94,16 @@ export class ProjectDetail implements OnInit {
   }
 
   async deleteTable(t: TableDto) {
-    if (!window.confirm(`Delete table "${t.name}"?`)) return;
-
-    this.deletingId.set(t.tableId);
-    try {
-      await firstValueFrom(this.api.deleteTable(t.tableId));
-      await this.refresh();
-    } finally {
-      this.deletingId.set(null);
-    }
+  if (!window.confirm(`Delete table "${t.name}"?`)) return;
+  this.deletingId.set(t.tableId);
+  try {
+    await firstValueFrom(this.api.deleteTable(t.tableId));
+    localStorage.removeItem(`ph:auto:${t.tableId}`); // ล้าง flag
+    await this.refresh();
+  } finally {
+    this.deletingId.set(null);
   }
+}
 
   open(t: TableDto) {
     this.router.navigate(['/table', t.tableId]); // ไปหน้า table-view

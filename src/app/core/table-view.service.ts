@@ -38,17 +38,11 @@ export class TableViewService {
   // constructor(@Optional() private http: HttpClient) {}
 
   // ---------------- MOCK ----------------
-  /** ตารางตัวอย่าง: Products/Orders (ถือว่าไม่ได้สร้างแบบ auto-increment) */
   private MOCK_TABLES: TableListItem[] = [
     { tableId: 101, name: 'Products' },
     { tableId: 102, name: 'Orders'   },
   ];
 
-  /** คอลัมน์ของตารางตัวอย่าง
-   *  - Products ใช้ ProductId เป็น PK (ไม่ได้ใช้ชื่อ ID เพื่อโชว์เคส “ไม่เลือก auto-increment”)
-   *  - Orders ใช้ OrderId เป็น PK
-   *  ตารางใหม่ที่สร้างด้วย useAutoIncrement=true จะมีคอลัมน์ชื่อ "ID" เป็น PK เสมอ
-   */
   private MOCK_COLUMNS: Record<number, ColumnDto[]> = {
     101: [
       { columnId: 1, tableId: 101, name: 'ProductId', dataType: 'INTEGER', isPrimary: true,  isNullable: false },
@@ -74,108 +68,57 @@ export class TableViewService {
   };
   // --------------------------------------
 
-  // --------------------------------------
-  // Helpers
-  // --------------------------------------
-  private newId(max = 1e9) { return Math.floor(Math.random() * max); }
-
-  private getPrimaryKeyCol(tableId: number): ColumnDto | undefined {
-    return (this.MOCK_COLUMNS[tableId] ?? []).find(c => c.isPrimary);
+  /** util: ตรวจว่าตารางนี้ถูกสร้างแบบ auto-increment หรือไม่ (จำจาก localStorage) */
+  private isAutoTable(tableId: number): boolean {
+    try { return localStorage.getItem('ph:auto:' + tableId) === '1'; } catch { return false; }
   }
 
-  private ensureSinglePrimaryKey(tableId: number, keepColumnId: number) {
-    const cols = this.MOCK_COLUMNS[tableId] ?? [];
-    this.MOCK_COLUMNS[tableId] = cols.map(c => ({
-      ...c,
-      isPrimary: c.columnId === keepColumnId
-    }));
+  /** ถ้าเป็น table ใหม่ที่ยังไม่มี schema ใน mock → auto โผล่คอลัมน์ ID ให้อัตโนมัติ */
+  private ensureSchemaForNewTable(tableId: number) {
+    if (this.MOCK_COLUMNS[tableId]) return;
+
+    if (this.isAutoTable(tableId)) {
+      this.MOCK_COLUMNS[tableId] = [{
+        columnId: Math.floor(Math.random() * 1e6),
+        tableId,
+        name: 'ID',
+        dataType: 'INTEGER',
+        isPrimary: true,
+        isNullable: false,
+      }];
+      this.MOCK_ROWS[tableId] = [];
+    } else {
+      // ไม่ auto → ยังไม่มีคอลัมน์ใด ๆ จนกว่าจะ Add Field เอง
+      this.MOCK_COLUMNS[tableId] = [];
+      this.MOCK_ROWS[tableId] = [];
+    }
   }
 
-  // --------------------------------------
-  // Tables
-  // --------------------------------------
   listTables(): Observable<TableListItem[]> {
     return of(this.MOCK_TABLES).pipe(delay(100));
   }
 
-  /** ✅ สร้างตารางใหม่ (mock): ถ้า useAutoIncrement → แถมคอลัมน์ ID (INTEGER, PK, not null) */
-  createTable(name: string, useAutoIncrement: boolean): Observable<TableListItem> {
-    const tableId = this.newId();
-    const table: TableListItem = { tableId, name: name?.trim() || 'NewTable' };
-
-    // เพิ่มเข้า registry
-    this.MOCK_TABLES = [table, ...this.MOCK_TABLES];
-
-    // เตรียม columns/rows ว่าง
-    this.MOCK_COLUMNS[tableId] = [];
-    this.MOCK_ROWS[tableId] = [];
-
-    if (useAutoIncrement) {
-      const idCol: ColumnDto = {
-        columnId: this.newId(),
-        tableId,
-        name: 'ID',             // <— ตามสเปคคุณ
-        dataType: 'INTEGER',
-        isPrimary: true,
-        isNullable: false,
-      };
-      this.MOCK_COLUMNS[tableId].push(idCol);
-      // ให้แน่ใจว่ามี PK เดียว
-      this.ensureSinglePrimaryKey(tableId, idCol.columnId);
-    }
-
-    return of(table).pipe(delay(180));
-  }
-
-  /** (ออปชัน) เปลี่ยนชื่อ table */
-  renameTable(tableId: number, nextName: string): Observable<TableListItem> {
-    const idx = this.MOCK_TABLES.findIndex(t => t.tableId === tableId);
-    if (idx >= 0) {
-      this.MOCK_TABLES[idx] = { ...this.MOCK_TABLES[idx], name: nextName?.trim() || this.MOCK_TABLES[idx].name };
-      return of(this.MOCK_TABLES[idx]).pipe(delay(120));
-    }
-    return of(null as any).pipe(delay(120));
-  }
-
-  /** (ออปชัน) ลบ table */
-  deleteTable(tableId: number): Observable<void> {
-    this.MOCK_TABLES = this.MOCK_TABLES.filter(t => t.tableId !== tableId);
-    delete this.MOCK_COLUMNS[tableId];
-    delete this.MOCK_ROWS[tableId];
-    return of(void 0).pipe(delay(120));
-  }
-
-  // --------------------------------------
-  // Columns
-  // --------------------------------------
   listColumnsLite(tableId: number): Observable<ColumnListItem[]> {
+    this.ensureSchemaForNewTable(tableId);
     const items = (this.MOCK_COLUMNS[tableId] ?? []).map(c => ({ columnId: c.columnId, name: c.name }));
     return of(items).pipe(delay(100));
   }
 
   listColumns(tableId: number): Observable<ColumnDto[]> {
+    this.ensureSchemaForNewTable(tableId);
     return of(this.MOCK_COLUMNS[tableId] ?? []).pipe(delay(100));
   }
 
-  /** ✅ ถ้า col ใหม่ถูกตั้งเป็น PK → mock จะยกเลิก PK อื่น ๆ ให้อัตโนมัติ (เหลือ PK เดียว) */
   createColumn(tableId: number, dto: Partial<ColumnDto>): Observable<ColumnDto> {
     const col: ColumnDto = {
-      columnId: this.newId(1e6),
+      columnId: Math.floor(Math.random() * 1e6),
       tableId,
-      name: (dto.name ?? 'NewField').toString(),
-      dataType: (dto.dataType ?? 'TEXT').toString().toUpperCase(),
-      isPrimary: !!dto.isPrimary,
+      name: dto.name ?? 'NewField',
+      dataType: (dto.dataType ?? 'TEXT').toUpperCase(),
+      isPrimary: dto.isPrimary ?? false,
       isNullable: dto.isNullable ?? true,
     };
-
-    const cols = this.MOCK_COLUMNS[tableId] ?? [];
-    cols.push(col);
-    this.MOCK_COLUMNS[tableId] = cols;
-
-    if (col.isPrimary) {
-      this.ensureSinglePrimaryKey(tableId, col.columnId);
-    }
-
+    this.MOCK_COLUMNS[tableId] = [...(this.MOCK_COLUMNS[tableId] ?? []), col];
     return of(col).pipe(delay(120));
   }
 
@@ -184,13 +127,7 @@ export class TableViewService {
       const cols = this.MOCK_COLUMNS[tableId];
       const i = cols.findIndex(c => c.columnId === columnId);
       if (i >= 0) {
-        const next = { ...cols[i], ...patch };
-        // ถ้ามีการสลับเป็น PK → ให้เหลือ PK เดียว
-        if (patch.isPrimary) {
-          this.ensureSinglePrimaryKey(Number(tableId), columnId);
-          next.isPrimary = true;
-        }
-        cols[i] = next;
+        cols[i] = { ...cols[i], ...patch };
         return of(cols[i]).pipe(delay(120));
       }
     }
@@ -204,41 +141,40 @@ export class TableViewService {
     return of(void 0).pipe(delay(120));
   }
 
-  // --------------------------------------
-  // Rows
-  // --------------------------------------
+  // ---------- Rows ----------
   listRows(tableId: number): Observable<RowDto[]> {
+    this.ensureSchemaForNewTable(tableId);
     return of(this.MOCK_ROWS[tableId] ?? []).pipe(delay(120));
   }
 
-  /** ✅ Mock auto-increment:
-   *  - มี PK → ถ้า payload ไม่มี/ว่าง → เติมเป็น (max+1)
-   *  - ไม่มี PK → ไม่ยุ่ง
-   */
+  /** CreateRow: auto-run ID เฉพาะกรณีเป็น "auto table" และ PK ชื่อ 'ID' เท่านั้น */
   createRow(tableId: number, data: Record<string, any>): Observable<RowDto> {
-    const cols = this.MOCK_COLUMNS[tableId] ?? [];
-    const pkCol = cols.find(c => c.isPrimary);
-    const payload = { ...data };
+    this.ensureSchemaForNewTable(tableId);
 
-    if (pkCol) {
-      const pkName = pkCol.name;
-      const hasPk = payload[pkName] !== undefined && payload[pkName] !== null && payload[pkName] !== '';
+    const cols   = this.MOCK_COLUMNS[tableId] ?? [];
+    const pkCol  = cols.find(c => c.isPrimary);
+    const payload = { ...data };
+    const isAuto = this.isAutoTable(tableId);
+
+    if (isAuto && pkCol && pkCol.name === 'ID') {
+      const hasPk = payload['ID'] !== undefined && payload['ID'] !== null && payload['ID'] !== '';
       if (!hasPk) {
         const rows = this.MOCK_ROWS[tableId] ?? [];
         let max = 0;
         for (const r of rows) {
           try {
             const obj = JSON.parse(r.data || '{}');
-            const v = Number(obj[pkName]);
+            const v = Number(obj['ID']);
             if (!Number.isNaN(v)) max = Math.max(max, v);
           } catch {}
         }
-        payload[pkName] = max + 1; // running
+        payload['ID'] = max + 1;
       }
     }
+    // ไม่ auto → ไม่แตะต้องค่า PK ที่ผู้ใช้ส่งมา
 
     const row: RowDto = {
-      rowId: this.newId(1e9),
+      rowId: Math.floor(Math.random() * 1e9),
       tableId,
       data: JSON.stringify(payload),
       createdAt: new Date().toISOString(),
@@ -247,43 +183,26 @@ export class TableViewService {
     return of(row).pipe(delay(120));
   }
 
-  /** ✅ กันพลาด: แม้ FE จะส่งค่าใหม่ของ PK มา → mock จะ “ล็อก” ให้คงค่าเดิม */
   updateRow(rowId: number, data: Record<string, any>): Observable<RowDto> {
     for (const tableId in this.MOCK_ROWS) {
       const list = this.MOCK_ROWS[tableId];
       const idx = list.findIndex(r => r.rowId === rowId);
       if (idx >= 0) {
-        const oldObj = JSON.parse(list[idx].data || '{}');
-        const newObj = { ...data };
-
-        // ล็อกค่า PK ตามของเดิม
-        const pkCol = this.getPrimaryKeyCol(Number(tableId));
-        if (pkCol) {
-          const pkName = pkCol.name;
-          newObj[pkName] = oldObj[pkName];
-        }
-
-        list[idx] = { ...list[idx], data: JSON.stringify(newObj) };
+        list[idx] = { ...list[idx], data: JSON.stringify(data) };
         return of(list[idx]).pipe(delay(120));
       }
     }
     return of(null as any).pipe(delay(120));
   }
 
-  /** ✅ อัปเดต ‘ฟิลด์เดียว’ ของแถว — ใช้กับอัปโหลดรูป */
+  /** อัปเดตฟิลด์เดียว (เช่นอัปโหลดรูป) */
   updateRowField(rowId: number, field: string, value: any): Observable<RowDto> {
     for (const tableId in this.MOCK_ROWS) {
       const list = this.MOCK_ROWS[tableId];
       const idx = list.findIndex(r => r.rowId === rowId);
       if (idx >= 0) {
         const obj = JSON.parse(list[idx].data || '{}');
-
-        // ล็อก PK ไม่ให้แก้ โดยตรวจเทียบชื่อคอลัมน์
-        const pkCol = this.getPrimaryKeyCol(Number(tableId));
-        if (!pkCol || pkCol.name !== field) {
-          obj[field] = value;
-        }
-
+        obj[field] = value;
         list[idx] = { ...list[idx], data: JSON.stringify(obj) };
         return of(list[idx]).pipe(delay(100));
       }
@@ -298,7 +217,7 @@ export class TableViewService {
     return of(void 0).pipe(delay(100));
   }
 
-  // (ยังคงไว้ได้ แม้ UI จะไม่ใช้แล้ว)
+  /** still provided (ใช้แสดง preview ID ตอน Add Row) */
   nextRunningId(tableId: number, pkName: string): Observable<number> {
     const rows = this.MOCK_ROWS[tableId] ?? [];
     let max = 0;
