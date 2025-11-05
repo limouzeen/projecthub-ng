@@ -1,4 +1,3 @@
-// src/app/pages/table-view/table-view.ts
 import {
   Component, inject, signal, OnInit, AfterViewInit, ViewChild, ElementRef,
 } from '@angular/core';
@@ -19,10 +18,12 @@ import { RowDialog } from './ui/row-dialog';
   styleUrl: './table-view.css',
 })
 export class TableView implements OnInit, AfterViewInit {
+  //สลับโหมด
+  private static readonly USE_REMOTE = false; // true = remote, false = local
+
   private readonly api = inject(TableViewService);
   private readonly route = inject(ActivatedRoute);
 
-  /** ความสูงรูปในคอลัมน์ IMAGE เมื่อ rowHeight = 80 */
   private readonly THUMB_H = 70;
 
   tableId = 0;
@@ -32,7 +33,6 @@ export class TableView implements OnInit, AfterViewInit {
   fieldOpen = signal(false);
   rowOpen = signal(false);
   editingRow: RowDto | null = null;
-
   rowInitData: Record<string, any> | null = null;
 
   @ViewChild('tabGrid', { static: true }) tabGridEl!: ElementRef<HTMLDivElement>;
@@ -42,7 +42,10 @@ export class TableView implements OnInit, AfterViewInit {
 
   private viewReady = false;
   private lastHasImageCol = false;
-  private lastColSig = ''; // ลายเซ็น schema คอลัมน์ (ไว้ตรวจว่าเปลี่ยนไหม)
+  private lastColSig = '';
+
+  /** ใช้ในโหมด remote */
+  private _lastPageFromServer = 1;
 
   async ngOnInit() {
     this.tableId = Number(this.route.snapshot.paramMap.get('id'));
@@ -54,36 +57,28 @@ export class TableView implements OnInit, AfterViewInit {
     this.ensureGridAndSync();
   }
 
-  // ---------------- data ops ----------------
+  // ---------------- utils ----------------
   private hasImageColumn(): boolean {
-    return this.columns().some(c => (c.dataType || '').toUpperCase() === 'IMAGE');
+    return this.columns().some((c) => (c.dataType || '').toUpperCase() === 'IMAGE');
   }
 
   private colSignature(): string {
     return this.columns()
-      .map(c => `${c.name}:${(c.dataType || '').toUpperCase()}:${c.isPrimary ? 1 : 0}`)
+      .map((c) => `${c.name}:${(c.dataType || '').toUpperCase()}:${c.isPrimary ? 1 : 0}`)
       .join('|');
   }
 
+  // ---------------- data ops ----------------
   async refresh() {
     const cols = await firstValueFrom(this.api.listColumns(this.tableId));
     this.columns.set(cols);
-
-    const list = await firstValueFrom(this.api.listRows(this.tableId));
-    this.rows.set(list);
-
+    this.rows.set([]);
     this.ensureGridAndSync();
   }
 
   parseData(json: string | null | undefined): any {
     if (!json) return {};
     try { return JSON.parse(json); } catch { return {}; }
-  }
-
-  setCell(r: RowDto, c: ColumnDto, val: any) {
-    const obj = this.parseData(r.data);
-    obj[c.name] = val === '__NULL__' ? null : val;
-    r.data = JSON.stringify(obj);
   }
 
   // ---------- Field ----------
@@ -110,9 +105,9 @@ export class TableView implements OnInit, AfterViewInit {
       alert('Please add at least 1 field before adding a row.');
       return;
     }
-    const pk = this.columns().find(c => c.isPrimary)?.name;
+    const pk = this.columns().find((c) => c.isPrimary)?.name;
     if (pk) {
-      firstValueFrom(this.api.nextRunningId(this.tableId, pk)).then(next => {
+      firstValueFrom(this.api.nextRunningId(this.tableId, pk)).then((next) => {
         this.rowInitData = { [pk]: next };
         this.rowOpen.set(true);
       });
@@ -127,16 +122,20 @@ export class TableView implements OnInit, AfterViewInit {
     this.rowInitData = null;
     if (this.editingRow) {
       await firstValueFrom(this.api.updateRow(this.editingRow.rowId, newObj));
+      if (TableView.USE_REMOTE) this.reloadRemoteCurrentPage();
+      else this.reloadLocalCurrentPage();
     } else {
       await firstValueFrom(this.api.createRow(this.tableId, newObj));
+      if (TableView.USE_REMOTE) await this.reloadRemoteToLastPage();
+      else await this.reloadLocalToLastPage();
     }
-    await this.refresh();
   }
 
   async onDeleteRow(r: RowDto) {
     if (!confirm('Delete this row?')) return;
     await firstValueFrom(this.api.deleteRow(r.rowId));
-    await this.refresh();
+    if (TableView.USE_REMOTE) this.reloadRemoteCurrentPage(true);
+    else this.reloadLocalCurrentPage(true);
   }
 
   private async saveRowByRecord(record: any) {
@@ -144,28 +143,34 @@ export class TableView implements OnInit, AfterViewInit {
     const payload: Record<string, any> = {};
     for (const c of this.columns()) payload[c.name] = record[c.name];
     await firstValueFrom(this.api.updateRow(rowId, payload));
-    await this.refresh();
+    if (TableView.USE_REMOTE) this.reloadRemoteCurrentPage();
+    else this.reloadLocalCurrentPage();
   }
 
   private async deleteRowByRecord(record: any) {
     const rowId = record.__rowId as number;
     if (!confirm('Delete this row?')) return;
     await firstValueFrom(this.api.deleteRow(rowId));
-    await this.refresh();
+    if (TableView.USE_REMOTE) this.reloadRemoteCurrentPage(true);
+    else this.reloadLocalCurrentPage(true);
   }
 
-  onImagePicked(r: RowDto, c: ColumnDto, file: File) {
+  private onImagePicked(record: any, fieldName: string, file: File) {
     this.api
-      .uploadImage(file, { tableId: this.tableId, rowId: r.rowId, columnId: c.columnId })
-      .then(url => {
-        this.setCell(r, c, url);
-        this.ensureGridAndSync();
+      .uploadImage(file, { tableId: this.tableId, rowId: record.__rowId })
+      .then(async (url) => {
+        try {
+          if (typeof (this.api as any).updateRowField === 'function') {
+            await firstValueFrom(this.api.updateRowField(record.__rowId, fieldName, url as any));
+          } else {
+            await firstValueFrom(this.api.updateRow(record.__rowId, { ...record, [fieldName]: url }));
+          }
+        } catch {}
+        try { record[fieldName] = url; } catch {}
+        if (TableView.USE_REMOTE) this.reloadRemoteCurrentPage();
+        else this.reloadLocalCurrentPage();
       })
-      .catch(err => console.error('upload failed', err));
-  }
-  onImageCleared(r: RowDto, c: ColumnDto) {
-    this.setCell(r, c, '__NULL__');
-    this.ensureGridAndSync();
+      .catch((err) => console.error('upload failed', err));
   }
 
   // =====================================================
@@ -195,63 +200,61 @@ export class TableView implements OnInit, AfterViewInit {
           return { ...base, formatter: 'tickCross', editor: c.isPrimary ? false : 'tickCross' };
 
         case 'IMAGE': {
-  return {
-    ...base,
-    cssClass: 'cell-image',
-    formatter: (cell: any) => {
-      const url = (cell.getValue() as string) || null;
+          return {
+            ...base,
+            cssClass: 'cell-image',
+            formatter: (cell: any) => {
+              const url = (cell.getValue() as string) || null;
 
-      const wrap = document.createElement('div');
-      wrap.className = 'img-wrap';
-      wrap.style.cssText = `
-        width:100%;
-        height:${this.THUMB_H}px;          /* สูงอิง rowHeight */
-        display:flex;align-items:center;justify-content:center;
-        overflow:hidden;border-radius:8px;
-      `;
+              const wrap = document.createElement('div');
+              wrap.className = 'img-wrap';
+              wrap.style.cssText = `
+                width:100%;
+                height:${this.THUMB_H}px;
+                display:flex;align-items:center;justify-content:center;
+                overflow:hidden;border-radius:8px;
+              `;
 
-      if (url) {
-        const img = document.createElement('img');
-        img.src = url;
-        img.style.cssText = `
-          height:100%;                  /* ให้รูปสูงเท่ากรอบ */
-          width:auto; max-width:100%;   /* แต่ไม่ล้นแนวนอน */
-          object-fit:cover; display:block; border-radius:8px;
-        `;
-        wrap.appendChild(img);
-      } else {
-        // กรอบเส้นประ: กว้าง "ยืดตามคอลัมน์" แต่มี min/max กันสุดโต่ง
-        const ph = document.createElement('div');
-        ph.style.cssText = `
-          /* ทำเป็นสี่เหลี่ยมผืนผ้าดูสมส่วน และยืดตามความกว้าง cell */
-          width: clamp(72px, 15%, 260px);   /* >=72px, ปกติ 70% ของ cell, แต่ไม่เกิน 260px */
-          height: calc(100% - 10px);        /* สูงตามแถว - เผื่อ padding เล็กน้อย */
-          border: 2px dashed rgba(0,0,0,.20);
-          border-radius: 10px;
-          background: repeating-linear-gradient(
-            45deg, rgba(0,0,0,.04), rgba(0,0,0,.04) 6px, transparent 6px, transparent 12px
-          );
-        `;
-        wrap.appendChild(ph);
-      }
-      return wrap;
-    },
-    cellClick: (_e: any, cell: any) => {
-      const fileInput = document.createElement('input');
-      fileInput.type = 'file';
-      fileInput.accept = 'image/*';
-      fileInput.onchange = () => {
-        const file = fileInput.files?.[0];
-        if (!file) return;
-        const data = cell.getRow().getData() as any;
-        const row = this.rows().find((r) => r.rowId === data.__rowId)!;
-        const col = cols.find((x) => x.name === cell.getField())!;
-        this.onImagePicked(row, col, file);
-      };
-      fileInput.click();
-    },
-  };
-}
+              if (url) {
+                const img = document.createElement('img');
+                img.src = url;
+                img.style.cssText = `
+                  height:100%;
+                  width:auto; max-width:100%;
+                  object-fit:cover; display:block; border-radius:8px;
+                `;
+                img.onload = () => { try { cell.getRow().normalizeHeight(); } catch {} };
+                wrap.appendChild(img);
+              } else {
+                const ph = document.createElement('div');
+                ph.style.cssText = `
+                  width: clamp(72px, 15%, 260px);
+                  height: calc(100% - 10px);
+                  border: 2px dashed rgba(0,0,0,.20);
+                  border-radius: 10px;
+                  background: repeating-linear-gradient(
+                    45deg, rgba(0,0,0,.04), rgba(0,0,0,.04) 6px, transparent 6px, transparent 12px
+                  );
+                `;
+                wrap.appendChild(ph);
+              }
+              return wrap;
+            },
+            cellClick: (_e: any, cell: any) => {
+              const fileInput = document.createElement('input');
+              fileInput.type = 'file';
+              fileInput.accept = 'image/*';
+              fileInput.onchange = () => {
+                const file = fileInput.files?.[0];
+                if (!file) return;
+                const record = cell.getRow().getData() as any;
+                const fieldName = cell.getField() as string;
+                this.onImagePicked(record, fieldName, file);
+              };
+              fileInput.click();
+            },
+          };
+        }
 
         default:
           return { ...base, editor: c.isPrimary ? false : 'input' };
@@ -287,53 +290,148 @@ export class TableView implements OnInit, AfterViewInit {
     return defs;
   }
 
-  private buildDataForGrid(): any[] {
-    const cols = this.columns();
-    return this.rows().map(r => {
-      const obj = this.parseData(r.data);
-      const record: any = { __rowId: r.rowId };
-      for (const c of cols) record[c.name] = obj?.[c.name] ?? null;
-      return record;
-    });
-  }
-
-  private buildTabulator() {
-  const hasImageCol = this.hasImageColumn();
-  this.lastHasImageCol = hasImageCol;
-  this.lastColSig = this.colSignature();
-
-  const baseRowHeight = hasImageCol ? 80 : 44;
-
-  this.grid = new Tabulator(this.tabGridEl.nativeElement, {
-    data: [],
-    columns: this.buildColumnsForGrid(),
-    layout: 'fitColumns',
-    rowHeight: baseRowHeight,
-    variableHeight: false,
-    resizableRows: true,
-    height: '100%',
-    reactiveData: false,
-    columnDefaults: { hozAlign:'center', vertAlign:'middle', widthGrow:1, resizable:true },
-    placeholder: 'No rows yet.',
-    // 👇 ให้ Tabulator ขอ redraw เมื่อมีการลากปรับคอลัมน์/เปลี่ยนเลย์เอาต์
-    columnResized: () => { try { this.grid.redraw(true); } catch {} },
-    dataLoaded:     () => { try { this.grid.redraw(true); } catch {} },
-    tableBuilt:     () => { try { this.grid.redraw(true); } catch {} },
-    layoutChanged:  () => { try { this.grid.redraw(true); } catch {} },
-
-    cellEdited: (cell: any) => {
-      const field = cell.getField();
-      const data  = cell.getRow().getData() as any;
-      const row   = this.rows().find(r => r.rowId === data.__rowId);
-      const col   = this.columns().find(c => c.name === field);
-      if (!row || !col) return;
-      this.setCell(row, col, cell.getValue());
-    },
+  /** แปลง RowDto[] -> records ที่ Tabulator ใช้ได้ */
+private buildDataForGridFromRows(rows: RowDto[]): any[] {
+  const cols = this.columns();
+  return rows.map(r => {
+    let obj: any = {};
+    try { obj = JSON.parse(r.data ?? '{}'); } catch {}
+    const rec: any = { __rowId: r.rowId };
+    for (const c of cols) {
+      rec[c.name] = obj?.[c.name] ?? null;
+    }
+    return rec;
   });
 }
 
 
-  /** สร้าง/รีบิลด์กริดตาม schema ปัจจุบัน แล้วอัปเดตเฉพาะ data */
+  // ---------- Local helpers ----------
+  private async loadLocalData(goLast = false) {
+    const rows = await firstValueFrom(this.api.listRows(this.tableId));
+    const data = this.buildDataForGridFromRows(rows);
+    await this.grid.setData(data);
+    if (goLast) {
+      let max = 1;
+      try { max = Number(this.grid.getPageMax?.() || 1); } catch {}
+      try { if (max > 1) this.grid.setPage(max); } catch {}
+    }
+    try { this.grid.redraw(true); } catch {}
+  }
+
+  private reloadLocalCurrentPage(goFirst = false) {
+    const cur = goFirst ? 1 : (this.grid?.getPage?.() || 1);
+    this.loadLocalData().then(() => {
+      try { this.grid.setPage(cur); } catch {}
+    });
+  }
+
+  private async reloadLocalToLastPage() {
+    await this.loadLocalData(true);
+  }
+
+  // ---------- Remote helpers ----------
+  private reloadRemoteCurrentPage(goFirst = false) {
+    const cur = goFirst ? 1 : (this.grid?.getPage?.() || 1);
+    // สำคัญ: ห้ามส่ง URL (จะไป 404) ให้เรียก setData() เปล่า ๆ
+    this.grid.setData().then(() => {
+      try { this.grid.setPage(cur); } catch {}
+      try { this.grid.redraw(true); } catch {}
+    });
+  }
+
+  private async reloadRemoteToLastPage() {
+    await this.grid.setData(); // ให้ ajaxRequestFunc ยิงใหม่ก่อน
+    const max = Math.max(1, this._lastPageFromServer || 1);
+    if (max > 1) { try { await this.grid.setPage(max); } catch {} }
+    try { this.grid.redraw(true); } catch {}
+  }
+
+  // =====================================================
+  //                 BUILD TABULATOR
+  // =====================================================
+  private buildTabulator() {
+    const hasImageCol = this.hasImageColumn();
+    this.lastHasImageCol = hasImageCol;
+    this.lastColSig = this.colSignature();
+
+    const baseRowHeight = hasImageCol ? 80 : 44;
+
+    const baseOptions: any = {
+      columns: this.buildColumnsForGrid(),
+      layout: 'fitColumns',
+      rowHeight: baseRowHeight,
+      variableHeight: true,
+      resizableRows: true,
+
+      paginationSize: 10,
+      paginationSizeSelector: [10, 20, 50, 100],
+      paginationCounter: 'pages',
+
+      height: '100%',
+      reactiveData: false,
+      columnDefaults: { hozAlign: 'center', vertAlign: 'middle', widthGrow: 1, resizable: true },
+      placeholder: 'No rows yet.',
+
+      columnResized: () => { try { this.grid.redraw(true); } catch {} },
+      tableBuilt:    () => { try { this.grid.redraw(true); } catch {} },
+      layoutChanged: () => { try { this.grid.redraw(true); } catch {} },
+
+      cellEdited: (cell: any) => {
+        const field = cell.getField();
+        const rec   = cell.getRow().getData() as any;
+        rec[field]  = cell.getValue();
+      },
+    };
+
+    if (TableView.USE_REMOTE) {
+      // ---------- Remote ----------
+      this.grid = new Tabulator(this.tabGridEl.nativeElement, {
+        ...baseOptions,
+        pagination: 'remote',
+        // ใส่ ajaxURL อะไรก็ได้เพื่อ “เปิดโหมด ajax”; Tabulator จะเรียก ajaxRequestFunc แทนการ fetch จริง
+        ajaxURL: 'about:blank',
+        paginationDataReceived: { last_page: 'last_page', data: 'data' },
+        paginationDataSent: { page: 'page', size: 'size', sorters: 'sorters', filters: 'filters' },
+
+        ajaxRequestFunc: (_url: string, _config: any, params: any) => {
+          const page = Number(params?.page ?? 1);
+          const size = Number(params?.size ?? 10);
+          return firstValueFrom(this.api.listRowsPaged(this.tableId, page, size)).then((res) => {
+            const total = Number(res.total ?? 0);
+            const last_page = Math.max(1, Math.ceil(total / size));
+            const data = this.buildDataForGridFromRows(res.rows as RowDto[]);
+            this._lastPageFromServer = last_page;
+            console.log('[remote] total=', total, 'size=', size, 'page/last=', page, last_page);
+            return { last_page, data };
+          });
+        },
+
+        ajaxResponse: (_url: string, _params: any, response: any) => {
+          return response?.data ?? [];
+        },
+
+        pageLoaded: () => {
+          try {
+            const lp = Math.max(1, this._lastPageFromServer || 1);
+            if (this.grid?.modules?.page) {
+              this.grid.modules.page.max = lp;
+              const cur = Number(this.grid?.getPage?.() || 1);
+              try { this.grid.setPage(cur); } catch {}
+            }
+            this.grid.redraw(true);
+          } catch {}
+        },
+      });
+    } else {
+      // ---------- Local ----------
+      this.grid = new Tabulator(this.tabGridEl.nativeElement, {
+        ...baseOptions,
+        pagination: 'local',
+      });
+    }
+  }
+
+  /** สร้าง/รีบิลด์กริด แล้วโหลดข้อมูลตามโหมด */
   private ensureGridAndSync() {
     if (!this.viewReady) return;
 
@@ -350,17 +448,14 @@ export class TableView implements OnInit, AfterViewInit {
       recreated = true;
     }
 
-    const data = this.buildDataForGrid();
-
-    // ไม่เรียก setColumns อีก เพื่อเลี่ยง headersElement=null
     if (recreated) {
       setTimeout(() => {
-        this.grid.setData(data);
-        try { this.grid.redraw(true); } catch {}
+        if (TableView.USE_REMOTE) { try { this.grid.setData(); } catch {} } // ← ห้ามส่ง URL
+        else { this.loadLocalData(); }
       }, 0);
     } else {
-      this.grid.setData(data);
-      try { this.grid.redraw(true); } catch {}
+      if (TableView.USE_REMOTE) { try { this.grid.setData(); } catch {} }
+      else { this.loadLocalData(); }
     }
   }
 }

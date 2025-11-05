@@ -35,3 +35,5 @@
 .btn-disabled {
   @apply bg-slate-300 text-slate-500 px-4 py-2 rounded-lg cursor-not-allowed opacity-70;
 }
+
+
