@@ -1,4 +1,3 @@
-<!-- src/app/pages/table-view/table-view.html -->
 <section class="p-6 space-y-6">
   <div class="flex justify-between items-center">
     <h1 class="text-xl font-semibold">Table #{{ tableId }}</h1>
@@ -11,48 +10,41 @@
           'btn-primary-enhance': columns().length > 0,
           'btn-disabled': columns().length === 0
         }"
-         [title]="columns().length === 0 ? 'Add at least one field first' : ''"
+        [title]="columns().length === 0 ? 'Add at least one field first' : ''"
       >
         Add Row
       </button>
     </div>
   </div>
 
-  <!-- ให้ wrapper กว้างเต็ม และสูงพอดี -->
   <div class="grid-wrap">
-    <!-- กริดจะกินความกว้าง 100% และสูงตาม calc -->
-    <div #tabGrid class="tab-root w-full h-[calc(100vh-260px)]"></div>
+    <div #tabGrid class=" tab-root w-full h-[calc(100vh-260px)]"></div>
   </div>
 
-  <!-- รายชื่อฟิลด์ (คงเดิม) -->
   <div class="mt-2">
     <div class="text-slate-600 text-sm font-semibold mb-1">Fields</div>
     <ul class="space-y-1">
       @for (c of columns(); track c.columnId) {
-      <li class="flex justify-between text-sm">
-        <span>
-          {{ c.name }}
-          <small class="text-slate-400">({{ c.dataType }})</small>
-          @if (c.isPrimary) { <small class="text-slate-400">— PK</small> } @if (c.dataType ===
-          'Lookup') { <small class="text-slate-400">— lookup</small> } @if (c.dataType ===
-          'Formula') { <small class="text-slate-400">— formula</small> }
-        </span>
-        <span class="flex gap-3">
-          <button class="link" (click)="onEditField(c)">Edit</button>
-          <button class="link link-danger" (click)="onDeleteField(c)">Delete</button>
-        </span>
-      </li>
+        <li class="flex justify-between text-sm">
+          <span>
+            {{ c.name }}
+            <small class="text-slate-400">({{ c.dataType }})</small>
+            @if (c.isPrimary) { <small class="text-slate-400">— PK</small> }
+          </span>
+          <span class="flex gap-3">
+            <button class="link" (click)="onEditField(c)">Edit</button>
+            <button class="link link-danger" (click)="onDeleteField(c)">Delete</button>
+          </span>
+        </li>
       }
     </ul>
   </div>
 
-  <!-- dialogs (คงเดิม) -->
   <ph-field-dialog
     [open]="fieldOpen()"
     [tableId]="tableId"
     (save)="onSaveField($event)"
-    (cancel)="fieldOpen.set(false)"
-  >
+    (cancel)="fieldOpen.set(false)">
   </ph-field-dialog>
 
   <ph-row-dialog
@@ -60,7 +52,6 @@
     [columns]="columns()"
     [initData]="rowInitData"
     (save)="onSaveRow($event)"
-    (cancel)="rowOpen.set(false)"
-  >
+    (cancel)="rowOpen.set(false)">
   </ph-row-dialog>
 </section>

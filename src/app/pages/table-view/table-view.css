@@ -1,23 +1,27 @@
-/* ให้กรอบกว้างเต็ม */
 .grid-wrap { width: 100%; }
 
-/* บังคับ Tabulator ให้กว้างเต็ม parent */
-:host ::ng-deep .tabulator,
+/* บังคับให้กริดกว้างเต็ม */
+/* :host ::ng-deep .tabulator,
 :host ::ng-deep .tabulator .tabulator-tableholder,
 :host ::ng-deep .tabulator .tabulator-table {
   width: 100% !important;
-}
+} */
 
-/* จัดกลาง "ทุกเซลล์" ทั้งแนวตั้ง/แนวนอน (กันเคสที่ hozAlign โดน style อื่นทับ) */
+
+/* padding ทั่วไป */
 :host ::ng-deep .tabulator .tabulator-row .tabulator-cell {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  text-align: center !important;
-  padding: 0.5rem !important;
+  padding: 8px !important;         /* ✅ คง layout เดิมของ Tabulator */
+  text-align: center;
 }
 
-/* จัดกลางหัวคอลัมน์ด้วย */
+
+/* เซลล์คอลัมน์รูป: padding น้อยลงเพื่อไม่ให้ตัดความสูง */
+:host ::ng-deep .tabulator .tabulator-row .tabulator-cell.cell-image {
+  padding: 4px !important;             /*  แถวจะสูง ~ THUMB_H + 8px */
+}
+
+
+/* หัวคอลัมน์จัดกลาง */
 :host ::ng-deep .tabulator .tabulator-header .tabulator-col .tabulator-col-content {
   display: flex;
   align-items: center;
@@ -25,19 +29,15 @@
   text-align: center !important;
 }
 
-/* ไม่มีคอลัมน์ตรึงแล้ว พื้นที่ขวาจะไม่เกิด
-   แต่กันไว้: ไม่ให้เกิดแถบ/พื้นที่เลื่อนประหลาด */
+/* กล่องรูป */
+:host ::ng-deep .img-wrap { width:100%; height:100%; overflow:hidden; border-radius:8px; }
+
+
+/* tableholder เลื่อนแนวตั้งได้เมื่อแถวสูงขึ้น */
 :host ::ng-deep .tabulator .tabulator-tableholder {
-  overflow-x: auto;
-  overflow-y: hidden;
+  overflow-y: auto;
 }
 
-
-.btn-primary {
-  @apply bg-indigo-600 text-white px-4 py-2 rounded-lg transition hover:bg-indigo-700;
-}
-
-/* ปุ่มเทาเวลา disabled */
 .btn-disabled {
   @apply bg-slate-300 text-slate-500 px-4 py-2 rounded-lg cursor-not-allowed opacity-70;
 }
