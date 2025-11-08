@@ -70,30 +70,40 @@ export class TableView implements OnInit, AfterViewInit {
   private _lastPageFromServer = 1;
 
   constructor() {
-    // เมื่อ keyword เปลี่ยน → filter ใน Tabulator ให้ทันที
-    effect(() => {
-      const q = this.keyword().trim().toLowerCase();
-      if (!this.grid) return;
+  effect(() => {
+    const q = this.keyword().trim().toLowerCase();
+    if (!this.grid) return;
 
-      if (!q) {
-        try {
-          this.grid.clearFilter(true);
-        } catch {}
-        return;
-      }
-
+    // ล้าง filter ถ้าไม่มีคำค้น
+    if (!q) {
       try {
-        this.grid.setFilter((row: any) => {
-          const data = row.getData?.() || {};
-          return Object.keys(data).some((k) => {
-            if (k === '__rowId') return false;
-            const v = data[k];
-            return v != null && String(v).toLowerCase().includes(q);
-          });
-        });
+        this.grid.clearFilter();
       } catch {}
-    });
-  }
+      return;
+    }
+
+    try {
+      // ใช้ custom filter ให้เข้ากับ Tabulator:
+      // param = row data object ไม่ใช่ RowComponent
+      this.grid.setFilter((data: any) => {
+        if (!data) return false;
+
+        return Object.keys(data).some((key) => {
+          // ไม่ต้องค้นใน meta fields
+          if (key === '__rowId' || key === '__actions') return false;
+
+          const value = data[key];
+
+          // ข้าม null/undefined
+          if (value === null || value === undefined) return false;
+
+          return String(value).toLowerCase().includes(q);
+        });
+      });
+    } catch {}
+  });
+}
+
 
   async ngOnInit() {
     this.tableId = Number(this.route.snapshot.paramMap.get('id'));
@@ -283,9 +293,12 @@ export class TableView implements OnInit, AfterViewInit {
 
   // ---------- Image Dialog (ใช้กับ toolbar ใน cell IMAGE) ----------
   private openImageUrlDialog(record: any, field: string, currentUrl: string) {
+    // อนุญาตเฉพาะลิงก์ HTTP(S) จริง ๆ เท่านั้น
+    const publicUrl = currentUrl && /^https?:\/\//i.test(currentUrl) ? currentUrl : '';
+
     this.imageDlgRecord = record;
     this.imageDlgField = field;
-    this.imageDlgUrl = currentUrl || '';
+    this.imageDlgUrl = publicUrl;
     this.imageDlgMode = 'url';
     this.imageDlgOpen.set(true);
   }
@@ -369,127 +382,205 @@ export class TableView implements OnInit, AfterViewInit {
           };
 
         case 'IMAGE': {
-          return {
-            ...base,
-            cssClass: 'cell-image',
-            formatter: (cell: any) => {
-              const url = (cell.getValue() as string) || null;
+  return {
+    ...base,
+    cssClass: 'cell-image',
+    minWidth: 160,
+    formatter: (cell: any) => {
+      const current = (cell.getValue() as string) || null;
 
-              const wrap = document.createElement('div');
-              wrap.style.cssText = `
+      const wrap = document.createElement('div');
+      wrap.style.cssText = `
         position:relative;
         width:100%;
         height:${this.THUMB_H}px;
         display:flex;
         align-items:center;
         justify-content:center;
-        overflow:visible;
+        box-sizing:border-box;
+        overflow:hidden;
       `;
 
-              if (url) {
-                const img = document.createElement('img');
-                img.src = url;
-                img.style.cssText = `
-          max-height:${this.THUMB_H - 8}px;
+      // ---------- content ----------
+      if (current) {
+        const img = document.createElement('img');
+        img.src = current;
+        img.style.cssText = `
+          max-height:${this.THUMB_H - 10}px;
           max-width:100%;
           object-fit:contain;
           display:block;
+          margin:0 auto;
           border-radius:10px;
           box-shadow:0 4px 14px rgba(15,23,42,0.12);
         `;
-                img.onload = () => {
-                  try {
-                    cell.getRow().normalizeHeight();
-                  } catch {}
-                };
-                wrap.appendChild(img);
-              } else {
-                // placeholder แบบบาง ๆ ไม่มีกล่องขาวหนา
-                const ph = document.createElement('div');
-                ph.textContent = 'Drop / Click to upload';
-                ph.style.cssText = `
-          padding:7px 14px;
+        img.onload = () => {
+          try { cell.getRow().normalizeHeight(); } catch {}
+        };
+        wrap.appendChild(img);
+      } else {
+        const ph = document.createElement('div');
+        ph.textContent = 'Drop / Click to upload';
+        ph.style.cssText = `
+          padding:6px 12px;
           border-radius:999px;
           border:1px dashed rgba(129,140,248,0.9);
-          background:rgba(248,250,252,0.55);
-          font-size:10px;
-          color:rgba(99,102,241,0.9);
+          background:rgba(248,250,252,0.75);
+          font-size:9px;
+          line-height:1.2;
+          color:rgba(99,102,241,0.98);
           display:flex;
           align-items:center;
           justify-content:center;
-          backdrop-filter:blur(4px);
+          max-width:100%;
+          box-sizing:border-box;
+          white-space:nowrap;
+          overflow:hidden;
+          text-overflow:ellipsis;
         `;
-                wrap.appendChild(ph);
-              }
+        wrap.appendChild(ph);
+      }
 
-              // toolbar ปุ่ม 🔗 / 🗑 เล็ก ๆ มุมขวา
-              const tools = document.createElement('div');
-              tools.style.cssText = `
+      // ---------- toolbar: link / delete (vertical) ----------
+      const tools = document.createElement('div');
+      tools.style.cssText = `
         position:absolute;
-        top:4px;
+        top:50%;
         right:4px;
+        transform:translateY(-50%);
         display:flex;
-        gap:4px;
+        flex-direction:column;
+        align-items:center;
+        gap:10px;
         z-index:10;
       `;
 
-              const mkBtn = (label: string) => {
-                const b = document.createElement('button');
-                b.type = 'button';
-                b.innerText = label;
-                b.style.cssText = `
-    width:20px;height:20px;
-    border:none;
-    border-radius:999px;
-    font-size:11px;
-    line-height:20px;
-    padding:0;
-    cursor:pointer;
-    background:rgba(255,255,255,0.98);
-    color:#6366f1; /* 🔗 และ 🗑 ใช้สีเดียวกัน */
-    box-shadow:0 2px 6px rgba(15,23,42,0.18);
-    display:flex;
-    align-items:center;
-    justify-content:center;
-  `;
-                return b;
-              };
+      const mkBtn = (label: string) => {
+        const b = document.createElement('button');
+        b.type = 'button';
+        b.innerText = label;
+        b.style.cssText = `
+          width:20px;height:20px;
+          border:none;
+          border-radius:999px;
+          font-size:11px;
+          line-height:20px;
+          padding:0;
+          cursor:pointer;
+          background:rgba(255,255,255,0.98);
+          color:#6366f1;
+          box-shadow:0 1px 2px rgba(15,23,42,0.18);
+          display:flex;
+          align-items:center;
+          justify-content:center;
+        `;
+        return b;
+      };
 
-              const btnUrl = mkBtn('🔗');
-              btnUrl.title = 'Set image URL';
+      const btnUrl = mkBtn('🔗');
+      btnUrl.title = 'Set image URL';
+      btnUrl.onclick = (ev) => {
+        ev.stopPropagation();
+        const rec = cell.getRow().getData() as any;
+        const f = cell.getField() as string;
+        const val = (cell.getValue() as string) || '';
 
-              const btnClear = mkBtn('🗑');
-              btnClear.title = 'Remove image';
-              btnClear.onclick = (ev) => {
-                ev.stopPropagation();
-                const rec = cell.getRow().getData() as any;
-                const f = cell.getField() as string;
-                const current = (cell.getValue() as string) || '';
-                if (!current) return;
-                this.openImageDeleteDialog(rec, f, current);
-              };
+        // dialog ไว้ใส่ URL public เท่านั้น: ถ้าเป็น data: ให้เคลียร์
+        const isDataUrl = val.startsWith('data:');
+        const clean = isDataUrl ? '' : val;
 
-              tools.appendChild(btnUrl);
-              tools.appendChild(btnClear);
-              wrap.appendChild(tools);
+        this.openImageUrlDialog(rec, f, clean);
+      };
 
-              return wrap;
-            },
-            cellClick: (_e: any, cell: any) => {
-              const fileInput = document.createElement('input');
-              fileInput.type = 'file';
-              fileInput.accept = 'image/*';
-              fileInput.onchange = () => {
-                const file = fileInput.files?.[0];
-                if (!file) return;
-                const record = cell.getRow().getData() as any;
-                const fieldName = cell.getField() as string;
-                this.onImagePicked(record, fieldName, file);
-              };
-              fileInput.click();
-            },
-          };
+      const btnClear = mkBtn('🗑');
+      btnClear.title = 'Remove image';
+      btnClear.onclick = (ev) => {
+        ev.stopPropagation();
+        const rec = cell.getRow().getData() as any;
+        const f = cell.getField() as string;
+        const val = (cell.getValue() as string) || '';
+        if (!val) return;
+        this.openImageDeleteDialog(rec, f, val);
+      };
+
+      tools.appendChild(btnUrl);
+      tools.appendChild(btnClear);
+      wrap.appendChild(tools);
+
+      // ---------- drag & drop upload ----------
+      const setDragVisual = (on: boolean) => {
+        wrap.style.boxShadow = on
+          ? '0 0 0 1px rgba(129,140,248,0.85), 0 8px 24px rgba(79,70,229,0.25)'
+          : 'none';
+        wrap.style.background =
+          on && !current
+            ? 'rgba(239,246,255,0.9)'
+            : 'transparent';
+      };
+
+      const handleFiles = (files: FileList | null) => {
+        const file = files?.[0];
+        if (!file) return;
+        const record = cell.getRow().getData() as any;
+        const fieldName = cell.getField() as string;
+        this.onImagePicked(record, fieldName, file);
+      };
+
+      wrap.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        setDragVisual(true);
+      });
+
+      wrap.addEventListener('dragenter', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        setDragVisual(true);
+      });
+
+      wrap.addEventListener('dragleave', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        setDragVisual(false);
+      });
+
+      wrap.addEventListener('drop', (e: DragEvent) => {
+        e.preventDefault();
+        e.stopPropagation();
+        setDragVisual(false);
+
+        const dt = e.dataTransfer;
+        if (!dt) return;
+        if (dt.files && dt.files.length) {
+          handleFiles(dt.files);
         }
+      });
+
+      return wrap;
+    },
+
+    // click พื้นที่ cell (ไม่ใช่ปุ่ม) = เลือกไฟล์
+    cellClick: (e: any, cell: any) => {
+      // กันไม่ให้คลิกปุ่มแล้วเด้ง input
+      const target = e.target as HTMLElement;
+      if (target.closest('button')) return;
+
+      const fileInput = document.createElement('input');
+      fileInput.type = 'file';
+      fileInput.accept = 'image/*';
+      fileInput.onchange = () => {
+        const file = fileInput.files?.[0];
+        if (!file) return;
+        const record = cell.getRow().getData() as any;
+        const fieldName = cell.getField() as string;
+        this.onImagePicked(record, fieldName, file);
+      };
+      fileInput.click();
+    },
+  };
+}
+
+
 
         case 'FORMULA': {
           let formulaFn: ((record: any) => any) | null = null;

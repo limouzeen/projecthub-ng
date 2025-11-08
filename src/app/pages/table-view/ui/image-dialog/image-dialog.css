@@ -1,66 +1,205 @@
-.overlay {
+/* ===== Backdrop ===== */
+.ph-imgdlg-backdrop {
   position: fixed;
   inset: 0;
-  background: rgba(15,23,42,0.35);
-  backdrop-filter: blur(6px);
+  z-index: 80;
+  background: radial-gradient(
+      circle at top left,
+      rgba(99, 102, 241, 0.14),
+      transparent 65%
+    ),
+    radial-gradient(
+      circle at bottom right,
+      rgba(56, 189, 248, 0.14),
+      transparent 70%
+    ),
+    rgba(15, 23, 42, 0.22);
+  backdrop-filter: blur(14px);
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: 80;
 }
 
-.dialog.glass {
-  background: radial-gradient(circle at top left,
-      rgba(129,140,248,0.09),
-      rgba(255,255,255,0.98));
+/* กล่องกลาง */
+.ph-imgdlg-wrap {
+  max-width: 720px;
+  width: min(720px, 92vw);
+}
+
+/* ===== Card หลัก ===== */
+.ph-imgdlg-card {
+  position: relative;
+  padding: 22px 28px 18px;
+  border-radius: 22px;
+  background:
+    radial-gradient(
+      circle at top left,
+      rgba(129, 140, 248, 0.14),
+      transparent 65%
+    ),
+    radial-gradient(
+      circle at bottom right,
+      rgba(56, 189, 248, 0.09),
+      transparent 70%
+    ),
+    rgba(248, 250, 252, 0.98);
   box-shadow:
-    0 18px 55px rgba(15,23,42,0.18),
-    0 0 0 1px rgba(255,255,255,0.9);
+    0 20px 70px rgba(15, 23, 42, 0.18),
+    0 0 0 1px rgba(255, 255, 255, 0.65) inset;
+  backdrop-filter: blur(10px) saturate(145%);
+  color: #0f172a;
+  overflow: hidden;
+  animation: ph-imgdlg-pop 0.18s ease-out;
 }
 
-.title {
+/* glow ขอบนอกบาง ๆ */
+.ph-imgdlg-card::before {
+  content: '';
+  position: absolute;
+  inset: -10px;
+  border-radius: inherit;
+  background: radial-gradient(
+    circle at top right,
+    rgba(129, 140, 248, 0.16),
+    transparent 65%
+  );
+  opacity: 0.9;
+  pointer-events: none;
+  z-index: -1;
+}
+
+/* โหมดลบ: glow โทนแดงชมพู */
+.ph-imgdlg-card.ph-imgdlg-danger::before {
+  background: radial-gradient(
+    circle at top right,
+    rgba(248, 113, 113, 0.22),
+    transparent 70%
+  );
+}
+
+/* ===== Text ===== */
+.ph-imgdlg-title {
+  font-size: 18px;
   font-weight: 600;
-  font-size: 1.05rem;
+  margin: 0 0 6px;
+}
+
+.ph-imgdlg-sub {
+  margin: 0 0 16px;
+  font-size: 13px;
+  line-height: 1.5;
+  color: #6b7280;
+}
+
+/* ===== Input (สำหรับโหมด URL) ===== */
+.ph-imgdlg-input-wrap {
+  margin-bottom: 18px;
+}
+
+.ph-imgdlg-input {
+  width: 100%;
+  padding: 10px 12px;
+  border-radius: 14px;
+  border: 1px solid rgba(226, 232, 240, 1);
+  background: rgba(255, 255, 255, 0.98);
+  font-size: 13px;
+  outline: none;
   color: #0f172a;
 }
 
-.input {
-  width: 100%;
-  padding: 0.6rem 0.8rem;
-  border-radius: 0.75rem;
-  border: 1px solid #e2e8f0;
-  background: rgba(255,255,255,0.98);
-  font-size: 0.85rem;
-  outline: none;
-}
-.input:focus {
-  border-color: #818cf8;
-  box-shadow: 0 0 0 3px rgba(129,140,248,0.2);
+.ph-imgdlg-input::placeholder {
+  color: #9ca3af;
 }
 
-.btn-primary,
-.btn-ghost,
-.btn-danger {
-  padding: 0.45rem 0.9rem;
-  border-radius: 999px;
-  font-size: 0.8rem;
+.ph-imgdlg-input:focus {
+  border-color: #6366f1;
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.16);
+}
+
+/* ===== ปุ่ม ===== */
+.ph-imgdlg-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.ph-btn {
+  min-width: 88px;
+  padding: 8px 16px;
+  border-radius: 10px;
+  font-size: 13px;
   font-weight: 500;
   border: none;
   cursor: pointer;
+  transition: all 0.18s ease;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  white-space: nowrap;
 }
 
-.btn-primary {
-  background: linear-gradient(to right, #4f46e5, #06b6d4);
-  color: #fff;
-  box-shadow: 0 8px 18px rgba(79,70,229,0.35);
+/* ปุ่ม Cancel */
+.ph-btn-ghost {
+  background: rgba(248, 250, 252, 0.98);
+  color: #6b7280;
+  box-shadow: 0 1px 3px rgba(148, 163, 253, 0.15);
 }
 
-.btn-ghost {
-  background: rgba(248,250,252,0.95);
-  color: #475569;
+.ph-btn-ghost:hover {
+  background: rgba(241, 245, 249, 1);
+  transform: translateY(-1px);
 }
 
-.btn-danger {
-  background: #fee2e2;
-  color: #dc2626;
+/* ปุ่ม Save (โหมด URL) */
+.ph-btn-primary {
+  background: linear-gradient(to right, #6366f1, #22c1c3);
+  color: #ffffff;
+  box-shadow: 0 8px 22px rgba(99, 102, 241, 0.35);
+}
+
+.ph-btn-primary:disabled {
+  opacity: 0.4;
+  box-shadow: none;
+  cursor: default;
+  transform: none;
+}
+
+.ph-btn-primary:not(:disabled):hover {
+  transform: translateY(-1px);
+  box-shadow: 0 10px 26px rgba(79, 70, 229, 0.42);
+}
+
+/* ปุ่ม Remove (โหมด delete) */
+.ph-btn-danger {
+  background: linear-gradient(to right, #f97373, #fb7185);
+  color: #ffffff;
+  box-shadow: 0 6px 16px rgba(248, 113, 113, 0.32);
+}
+
+.ph-btn-danger:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 8px 22px rgba(220, 38, 38, 0.4);
+}
+
+/* ===== Animation ===== */
+@keyframes ph-imgdlg-pop {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+/* Responsive จอเล็ก: ขยับ padding นิดหน่อย */
+@media (max-width: 480px) {
+  .ph-imgdlg-card {
+    padding: 18px 16px 14px;
+    border-radius: 18px;
+  }
+  .ph-imgdlg-title {
+    font-size: 16px;
+  }
 }
