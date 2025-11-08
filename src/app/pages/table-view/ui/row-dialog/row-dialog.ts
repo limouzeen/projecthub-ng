@@ -10,7 +10,7 @@ import {
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 
-import { TableViewService } from '../../../core/table-view.service';
+import { TableViewService } from '../../../../core/table-view.service';
 
 export type RowDialogSave = Record<string, any>;
 

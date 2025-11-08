@@ -1,6 +1,6 @@
-<section class="min-h-[100svh] flex flex-col gap-4 ">
+<section class="min-h-[100svh] flex flex-col gap-4">
   <!-- Toolbar -->
-  <div class="sticky top-0 z-30 bg-white/70  border-b border-white/40">
+  <div class="sticky top-0 z-30 bg-white/70 border-b border-white/40">
     <div class="max-w-6xl mx-auto px-4 py-3 flex items-center gap-3">
       <button
         class="p-2 rounded-lg hover:bg-slate-100"
@@ -55,78 +55,89 @@
 
       <!-- แสดงรูปภาพโปรไฟล์และชื่อของผู้ใช้งานด้านหลัง Nav bar -->
       <!-- โปรไฟล์ขวาบน -->
-<div class="ml-4 relative" (click)="$event.stopPropagation()">
-  <button
-    class="flex items-center gap-2 pl-2 pr-2 py-1 rounded-xl hover:bg-white/60 transition"
-    (click)="toggleProfileMenu()"
-    aria-haspopup="menu"
-    [attr.aria-expanded]="profileOpen()"
-  >
-    <!-- <span class="text-sm font-semibold text-slate-900">Phakin K.</span> -->
-    <img
-      src="/assets/ph_profile.png"
-      alt="Profile"
-      class="w-8 h-8 rounded-full ring-1 ring-white/60"
-    />
-  </button>
+      <div class="ml-4 relative" (click)="$event.stopPropagation()">
+        <button
+          class="flex items-center gap-2 pl-2 pr-2 py-1 rounded-xl hover:bg-white/60 transition"
+          (click)="toggleProfileMenu()"
+          aria-haspopup="menu"
+          [attr.aria-expanded]="profileOpen()"
+        >
+          <!-- <span class="text-sm font-semibold text-slate-900">Phakin K.</span> -->
+          <img
+            src="/assets/ph_profile.png"
+            alt="Profile"
+            class="w-8 h-8 rounded-full ring-1 ring-white/60"
+          />
+        </button>
 
-  @if (profileOpen()) {
-    <!-- Popover -->
-    <div
-      class="absolute right-0 top-full mt-2 w-72 rounded-2xl
-             bg-white/80 backdrop-blur border border-white/40
-             shadow-md z-[70] overflow-hidden"
-      role="menu"
-    >
-      <!-- ส่วนหัว: รูป + ชื่อ + อีเมล -->
-      <div class="p-4 flex items-center gap-3">
-        <img src="/assets/ph_profile.png" alt="" class="w-12 h-12 rounded-full ring-1 ring-white/70" />
-        <div class="min-w-0">
-          <div class="font-semibold text-slate-900 truncate">Phakin Kamwilaisak</div>
-          <div class="text-xs text-slate-500 truncate">s65524100xx@sau.ac.th</div>
+        @if (profileOpen()) {
+        <!-- Popover -->
+        <div
+          class="absolute right-0 top-full mt-2 w-72 rounded-2xl bg-white/80 backdrop-blur border border-white/40 shadow-md z-[70] overflow-hidden"
+          role="menu"
+        >
+          <!-- ส่วนหัว: รูป + ชื่อ + อีเมล -->
+          <div class="p-4 flex items-center gap-3">
+            <img
+              src="/assets/ph_profile.png"
+              alt=""
+              class="w-12 h-12 rounded-full ring-1 ring-white/70"
+            />
+            <div class="min-w-0">
+              <div class="font-semibold text-slate-900 truncate">Phakin Kamwilaisak</div>
+              <div class="text-xs text-slate-500 truncate">s65524100xx@sau.ac.th</div>
+            </div>
+          </div>
+
+          <!-- เส้นคั่น -->
+          <div class="h-px bg-gradient-to-r from-transparent via-slate-200 to-transparent"></div>
+
+          <!-- เมนู: Edit Profile / Logout -->
+          <div class="p-2">
+            <button
+              class="w-full flex items-center gap-3 px-3 py-2 rounded-xl hover:bg-slate-100/60 text-slate-700 transition"
+              (click)="onEditProfile()"
+            >
+              <!-- icon: pencil -->
+              <svg
+                class="w-5 h-5 text-indigo-500"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
+                <path d="M12 20h9"></path>
+                <path d="M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4 12.5-12.5z"></path>
+              </svg>
+              <span class="text-sm font-medium">Edit Profile</span>
+            </button>
+
+            <button
+              class="w-full flex items-center gap-3 px-3 py-2 rounded-xl hover:bg-rose-50 text-rose-600 transition"
+              (click)="onLogout()"
+            >
+              <!-- icon: logout -->
+              <svg
+                class="w-5 h-5"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
+                <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
+                <path d="M16 17l5-5-5-5"></path>
+                <path d="M21 12H9"></path>
+              </svg>
+              <span class="text-sm font-medium">Logout</span>
+            </button>
+          </div>
         </div>
+        }
       </div>
-
-      <!-- เส้นคั่น -->
-      <div class="h-px bg-gradient-to-r from-transparent via-slate-200 to-transparent"></div>
-
-      <!-- เมนู: Edit Profile / Logout -->
-      <div class="p-2">
-        <button
-          class="w-full flex items-center gap-3 px-3 py-2 rounded-xl
-                 hover:bg-slate-100/60 text-slate-700 transition"
-          (click)="onEditProfile()"
-        >
-          <!-- icon: pencil -->
-          <svg class="w-5 h-5 text-indigo-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-               stroke-linecap="round" stroke-linejoin="round">
-            <path d="M12 20h9"></path>
-            <path d="M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4 12.5-12.5z"></path>
-          </svg>
-          <span class="text-sm font-medium">Edit Profile</span>
-        </button>
-
-        <button
-          class="w-full flex items-center gap-3 px-3 py-2 rounded-xl
-                 hover:bg-rose-50 text-rose-600 transition"
-          (click)="onLogout()"
-        >
-          <!-- icon: logout -->
-          <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-               stroke-linecap="round" stroke-linejoin="round">
-            <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
-            <path d="M16 17l5-5-5-5"></path>
-            <path d="M21 12H9"></path>
-          </svg>
-          <span class="text-sm font-medium">Logout</span>
-        </button>
-      </div>
-    </div>
-  }
-
-
-</div>
-
     </div>
   </div>
 
@@ -239,30 +250,22 @@
       </a>
     </nav>
 
-
-    
-
-
     <!-- Footer of the drawer -->
-<div class="mt-auto p-3">
-  <div class="flex items-center justify-between text-xs">
-    <div class="text-slate-500 select-none">© ProjectHub</div>
+    <div class="mt-auto p-3">
+      <div class="flex items-center justify-between text-xs">
+        <div class="text-slate-500 select-none">© ProjectHub</div>
 
-    <!-- About us link (same visual weight/size, right aligned) -->
-    <a
-      routerLink="/about"
-      (click)="asideOpen.set(false)"
-      class="text-slate-500 hover:text-slate-700 rounded-lg px-2 py-1
-             hover:bg-white/50 border border-transparent hover:border-white/40
-             transition underline-offset-2 hover:underline"
-      aria-label="About us"
-    >
-      About us
-    </a>
-  </div>
-</div>
-
-    
+        <!-- About us link (same visual weight/size, right aligned) -->
+        <a
+          routerLink="/about"
+          (click)="asideOpen.set(false)"
+          class="text-slate-500 hover:text-slate-700 rounded-lg px-2 py-1 hover:bg-white/50 border border-transparent hover:border-white/40 transition underline-offset-2 hover:underline"
+          aria-label="About us"
+        >
+          About us
+        </a>
+      </div>
+    </div>
   </aside>
 
   <!-- คอนเทนต์รายการ -->
@@ -362,58 +365,53 @@
   </div>
 
   <!-- Pagination bar -->
-<div #pagerZone class="max-w-6xl mx-auto px-4 mt-6 mb-10">
-  <div class="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4">
-    <!-- Summary -->
-    <div class="text-xs sm:text-sm text-slate-600">
-      Showing
-      {{ pageIndex() * pageSize() + (filtered().length ? 1 : 0) }}
-      -
-{{ Math.min((pageIndex() + 1) * pageSize(), filtered().length) }}
-    </div>
+  <div #pagerZone class="max-w-6xl mx-auto px-4 mt-6 mb-10">
+    <div class="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4">
+      <!-- Summary -->
+      <div class="text-xs sm:text-sm text-slate-600">
+        Showing
+        {{ pageIndex() * pageSize() + (filtered().length ? 1 : 0) }}
+        -
+        {{ Math.min((pageIndex() + 1) * pageSize(), filtered().length) }}
+      </div>
 
-    <!-- Controls -->
-    <div class="sm:ml-auto flex items-center gap-1">
-      <button
-        class="px-3 py-2 rounded-xl border border-slate-200 bg-white/70 hover:bg-white
-               text-slate-700 disabled:opacity-50 disabled:pointer-events-none transition"
-        (click)="prevPage()"
-        [disabled]="pageIndex() === 0"
-        aria-label="Previous"
-      >
-        ‹ Prev
-      </button>
+      <!-- Controls -->
+      <div class="sm:ml-auto flex items-center gap-1">
+        <button
+          class="px-3 py-2 rounded-xl border border-slate-200 bg-white/70 hover:bg-white text-slate-700 disabled:opacity-50 disabled:pointer-events-none transition"
+          (click)="prevPage()"
+          [disabled]="pageIndex() === 0"
+          aria-label="Previous"
+        >
+          ‹ Prev
+        </button>
 
-      <!-- page numbers (ซ่อนไปในจอแคบ, โชว์จอกว้าง) -->
-      <div class="hidden sm:flex items-center gap-1">
-        @for (n of pages(); track n) {
+        <!-- page numbers (ซ่อนไปในจอแคบ, โชว์จอกว้าง) -->
+        <div class="hidden sm:flex items-center gap-1">
+          @for (n of pages(); track n) {
           <button
             (click)="gotoPage(n)"
             [ngClass]="{
-              'bg-gradient-to-r from-indigo-600 to-cyan-500 text-white':
-                pageIndex() === n,
-              'bg-white/70 text-slate-700 hover:bg-white border border-slate-200':
-                pageIndex() !== n
+              'bg-gradient-to-r from-indigo-600 to-cyan-500 text-white': pageIndex() === n,
+              'bg-white/70 text-slate-700 hover:bg-white border border-slate-200': pageIndex() !== n
             }"
             class="px-3 py-2 rounded-xl transition"
             aria-label="Go to page {{ n + 1 }}"
           >
             {{ n + 1 }}
           </button>
-        }
-      </div>
+          }
+        </div>
 
-      <button
-        class="px-3 py-2 rounded-xl border border-slate-200 bg-white/70 hover:bg-white
-               text-slate-700 disabled:opacity-50 disabled:pointer-events-none transition"
-        (click)="nextPage()"
-        [disabled]="pageIndex() >= pageCount() - 1"
-        aria-label="Next"
-      >
-        Next ›
-      </button>
+        <button
+          class="px-3 py-2 rounded-xl border border-slate-200 bg-white/70 hover:bg-white text-slate-700 disabled:opacity-50 disabled:pointer-events-none transition"
+          (click)="nextPage()"
+          [disabled]="pageIndex() >= pageCount() - 1"
+          aria-label="Next"
+        >
+          Next ›
+        </button>
+      </div>
     </div>
   </div>
-</div>
-
 </section>

@@ -6,32 +6,51 @@ import {
   AfterViewInit,
   ViewChild,
   ElementRef,
+  HostListener,
+  effect,
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { ActivatedRoute } from '@angular/router';
+import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { firstValueFrom } from 'rxjs';
 import { TabulatorFull as Tabulator } from 'tabulator-tables/dist/js/tabulator_esm.js';
 
 import { TableViewService, ColumnDto, RowDto } from '../../core/table-view.service';
-import { FieldDialog } from './ui/field-dialog';
-import { RowDialog } from './ui/row-dialog';
+import { FieldDialog } from './ui/field-dialog/field-dialog';
+import { RowDialog } from './ui/row-dialog/row-dialog';
 import { ImageDialog } from './ui/image-dialog/image-dialog';
-
 
 @Component({
   selector: 'app-table-view',
   standalone: true,
-  imports: [CommonModule, FieldDialog, RowDialog, ImageDialog],
+  imports: [CommonModule, RouterLink, FieldDialog, RowDialog, ImageDialog],
   templateUrl: './table-view.html',
   styleUrl: './table-view.css',
 })
 export class TableView implements OnInit, AfterViewInit {
   private static readonly USE_REMOTE = false;
 
-  private readonly api   = inject(TableViewService);
+  private readonly api = inject(TableViewService);
   private readonly route = inject(ActivatedRoute);
+  private readonly router = inject(Router);
 
   private readonly THUMB_H = 70;
+
+  tableId = 0;
+  columns = signal<ColumnDto[]>([]);
+  rows = signal<RowDto[]>([]);
+
+  // layout / nav
+  asideOpen = signal(false);
+  profileOpen = signal(false);
+  keyword = signal(''); // search text
+
+  /** auto-increment flag */
+  isAutoTable = signal<boolean>(false);
+
+  fieldOpen = signal(false);
+  rowOpen = signal(false);
+  editingRow: RowDto | null = null;
+  rowInitData: Record<string, any> | null = null;
 
   // image dialog state
   imageDlgOpen = signal(false);
@@ -39,19 +58,6 @@ export class TableView implements OnInit, AfterViewInit {
   imageDlgField = '';
   imageDlgRecord: any = null;
   imageDlgUrl = '';
-  //  -----------------------
-
-  tableId = 0;
-  columns = signal<ColumnDto[]>([]);
-  rows    = signal<RowDto[]>([]);
-
-  /** ธงว่า table นี้เป็น auto-increment (จำจาก localStorage) */
-  isAutoTable = signal<boolean>(false);
-
-  fieldOpen = signal(false);
-  rowOpen   = signal(false);
-  editingRow: RowDto | null = null;
-  rowInitData: Record<string, any> | null = null;
 
   @ViewChild('tabGrid', { static: true }) tabGridEl!: ElementRef<HTMLDivElement>;
   private grid!: any;
@@ -63,6 +69,32 @@ export class TableView implements OnInit, AfterViewInit {
   private lastColSig = '';
   private _lastPageFromServer = 1;
 
+  constructor() {
+    // เมื่อ keyword เปลี่ยน → filter ใน Tabulator ให้ทันที
+    effect(() => {
+      const q = this.keyword().trim().toLowerCase();
+      if (!this.grid) return;
+
+      if (!q) {
+        try {
+          this.grid.clearFilter(true);
+        } catch {}
+        return;
+      }
+
+      try {
+        this.grid.setFilter((row: any) => {
+          const data = row.getData?.() || {};
+          return Object.keys(data).some((k) => {
+            if (k === '__rowId') return false;
+            const v = data[k];
+            return v != null && String(v).toLowerCase().includes(q);
+          });
+        });
+      } catch {}
+    });
+  }
+
   async ngOnInit() {
     this.tableId = Number(this.route.snapshot.paramMap.get('id'));
     await this.refresh();
@@ -73,18 +105,49 @@ export class TableView implements OnInit, AfterViewInit {
     this.ensureGridAndSync();
   }
 
-  // ---------------- utils ----------------
-  private hasImageColumn(): boolean {
-    return this.columns().some((c) => (c.dataType || '').toUpperCase() === 'IMAGE');
+  // ================= Layout / Nav =================
+
+  toggleAside() {
+    const next = !this.asideOpen();
+    this.asideOpen.set(next);
+    if (typeof document !== 'undefined') {
+      document.body.style.overflow = next ? 'hidden' : '';
+    }
   }
 
-  private colSignature(): string {
-    return this.columns()
-      .map((c) => `${c.name}:${(c.dataType || '').toUpperCase()}:${c.isPrimary ? 1 : 0}`)
-      .join('|');
+  toggleProfileMenu() {
+    this.profileOpen.update((v) => !v);
   }
 
-  // ---------------- data ops ----------------
+  onEditProfile() {
+    this.profileOpen.set(false);
+    this.router.navigateByUrl('/profile/edit');
+  }
+
+  onLogout() {
+    this.profileOpen.set(false);
+    this.router.navigateByUrl('/login');
+  }
+
+  @HostListener('document:click')
+  onDocClick() {
+    if (this.profileOpen()) this.profileOpen.set(false);
+  }
+
+  @HostListener('document:keydown.escape')
+  onEsc() {
+    if (this.profileOpen()) {
+      this.profileOpen.set(false);
+      return;
+    }
+    if (this.asideOpen()) {
+      this.asideOpen.set(false);
+      if (typeof document !== 'undefined') document.body.style.overflow = '';
+    }
+  }
+
+  // ================= data ops =================
+
   async refresh() {
     const cols = await firstValueFrom(this.api.listColumns(this.tableId));
     this.columns.set(cols);
@@ -101,17 +164,25 @@ export class TableView implements OnInit, AfterViewInit {
 
   parseData(json: string | null | undefined): any {
     if (!json) return {};
-    try { return JSON.parse(json); } catch { return {}; }
+    try {
+      return JSON.parse(json);
+    } catch {
+      return {};
+    }
   }
 
   // ---------- Field ----------
-  onAddField() { this.fieldOpen.set(true); }
+  onAddField() {
+    this.fieldOpen.set(true);
+  }
 
   async onSaveField(model: any) {
     this.fieldOpen.set(false);
     await firstValueFrom(this.api.createColumn(this.tableId, model));
     await this.refresh();
-    try { this.fieldDialog?.resetForm(); } catch {}
+    try {
+      this.fieldDialog?.resetForm();
+    } catch {}
   }
 
   async onDeleteField(c: ColumnDto) {
@@ -131,7 +202,7 @@ export class TableView implements OnInit, AfterViewInit {
     }
 
     if (this.isAutoTable()) {
-      const pk = this.columns().find(c => c.isPrimary)?.name || 'ID';
+      const pk = this.columns().find((c) => c.isPrimary)?.name || 'ID';
       const next = await firstValueFrom(this.api.nextRunningId(this.tableId, pk));
       this.rowInitData = { [pk]: next };
     } else {
@@ -190,7 +261,6 @@ export class TableView implements OnInit, AfterViewInit {
       .catch((err) => console.error('upload failed', err));
   }
 
-  /** ตั้งค่า URL หรือเคลียร์รูปใน cell (ใช้ทั้งปุ่ม 🔗 และ 🗑) */
   private async setImageUrl(record: any, fieldName: string, url: string | null) {
     const rowId = record.__rowId as number;
     try {
@@ -211,11 +281,8 @@ export class TableView implements OnInit, AfterViewInit {
     }
   }
 
-
-
-  //Image Dialog in Grid
-
-    private openImageUrlDialog(record: any, field: string, currentUrl: string) {
+  // ---------- Image Dialog (ใช้กับ toolbar ใน cell IMAGE) ----------
+  private openImageUrlDialog(record: any, field: string, currentUrl: string) {
     this.imageDlgRecord = record;
     this.imageDlgField = field;
     this.imageDlgUrl = currentUrl || '';
@@ -259,10 +326,19 @@ export class TableView implements OnInit, AfterViewInit {
     this.imageDlgMode = 'url';
   }
 
-
   // =====================================================
   //                 TABULATOR CONFIG
   // =====================================================
+  private hasImageColumn(): boolean {
+    return this.columns().some((c) => (c.dataType || '').toUpperCase() === 'IMAGE');
+  }
+
+  private colSignature(): string {
+    return this.columns()
+      .map((c) => `${c.name}:${(c.dataType || '').toUpperCase()}:${c.isPrimary ? 1 : 0}`)
+      .join('|');
+  }
+
   private buildColumnsForGrid(): any[] {
     const cols = this.columns();
 
@@ -298,102 +374,92 @@ export class TableView implements OnInit, AfterViewInit {
             cssClass: 'cell-image',
             formatter: (cell: any) => {
               const url = (cell.getValue() as string) || null;
+
               const wrap = document.createElement('div');
-              wrap.className = 'img-wrap';
               wrap.style.cssText = `
-                position:relative;
-                width:100%;
-                height:${this.THUMB_H}px;
-                display:flex;
-                align-items:center;
-                justify-content:center;
-                overflow:hidden;
-                border-radius:8px;
-              `;
+        position:relative;
+        width:100%;
+        height:${this.THUMB_H}px;
+        display:flex;
+        align-items:center;
+        justify-content:center;
+        overflow:visible;
+      `;
 
               if (url) {
                 const img = document.createElement('img');
                 img.src = url;
                 img.style.cssText = `
-                  height:100%;
-                  width:auto;
-                  max-width:100%;
-                  object-fit:cover;
-                  display:block;
-                  border-radius:8px;
-                `;
+          max-height:${this.THUMB_H - 8}px;
+          max-width:100%;
+          object-fit:contain;
+          display:block;
+          border-radius:10px;
+          box-shadow:0 4px 14px rgba(15,23,42,0.12);
+        `;
                 img.onload = () => {
-                  try { cell.getRow().normalizeHeight(); } catch {}
+                  try {
+                    cell.getRow().normalizeHeight();
+                  } catch {}
                 };
                 wrap.appendChild(img);
               } else {
+                // placeholder แบบบาง ๆ ไม่มีกล่องขาวหนา
                 const ph = document.createElement('div');
+                ph.textContent = 'Drop / Click to upload';
                 ph.style.cssText = `
-                  width: clamp(72px, 40%, 260px);
-                  height: calc(100% - 10px);
-                  border: 2px dashed rgba(0,0,0,.18);
-                  border-radius: 10px;
-                  background: repeating-linear-gradient(
-                    45deg,
-                    rgba(0,0,0,.03),
-                    rgba(0,0,0,.03) 6px,
-                    transparent 6px,
-                    transparent 12px
-                  );
-                `;
+          padding:7px 14px;
+          border-radius:999px;
+          border:1px dashed rgba(129,140,248,0.9);
+          background:rgba(248,250,252,0.55);
+          font-size:10px;
+          color:rgba(99,102,241,0.9);
+          display:flex;
+          align-items:center;
+          justify-content:center;
+          backdrop-filter:blur(4px);
+        `;
                 wrap.appendChild(ph);
               }
 
-              // toolbar
+              // toolbar ปุ่ม 🔗 / 🗑 เล็ก ๆ มุมขวา
               const tools = document.createElement('div');
-              tools.className = 'img-tools';
               tools.style.cssText = `
-                position:absolute;
-                top:4px;
-                right:4px;
-                display:flex;
-                gap:4px;
-                z-index:5;
-              `;
+        position:absolute;
+        top:4px;
+        right:4px;
+        display:flex;
+        gap:4px;
+        z-index:10;
+      `;
 
-                            const btnUrl = document.createElement('button');
-              btnUrl.type = 'button';
-              btnUrl.innerText = '🔗';
-              btnUrl.title = 'Set image URL';
-              btnUrl.style.cssText = `
-                width:20px;height:20px;
-                border:none;
-                border-radius:999px;
-                font-size:12px;
-                line-height:20px;
-                padding:0;
-                cursor:pointer;
-                background:rgba(248,250,252,.95);
-                color:#ef4444;
-              `;
-              btnUrl.onclick = (ev) => {
-                ev.stopPropagation();
-                const rec = cell.getRow().getData() as any;
-                const f = cell.getField() as string;
-                const current = (cell.getValue() as string) || '';
-                this.openImageUrlDialog(rec, f, current);
+              const mkBtn = (label: string) => {
+                const b = document.createElement('button');
+                b.type = 'button';
+                b.innerText = label;
+                b.style.cssText = `
+    width:20px;height:20px;
+    border:none;
+    border-radius:999px;
+    font-size:11px;
+    line-height:20px;
+    padding:0;
+    cursor:pointer;
+    background:rgba(255,255,255,0.98);
+    color:#6366f1; /* 🔗 และ 🗑 ใช้สีเดียวกัน */
+    box-shadow:0 2px 6px rgba(15,23,42,0.18);
+    display:flex;
+    align-items:center;
+    justify-content:center;
+  `;
+                return b;
               };
 
-              const btnClear = document.createElement('button');
-              btnClear.type = 'button';
-              btnClear.innerText = '🗑';
+              const btnUrl = mkBtn('🔗');
+              btnUrl.title = 'Set image URL';
+
+              const btnClear = mkBtn('🗑');
               btnClear.title = 'Remove image';
-              btnClear.style.cssText = `
-                width:20px;height:20px;
-                border:none;
-                border-radius:999px;
-                font-size:12px;
-                line-height:20px;
-                padding:0;
-                cursor:pointer;
-                background:rgba(248,250,252,.95);
-                color:#ef4444;
-              `;
               btnClear.onclick = (ev) => {
                 ev.stopPropagation();
                 const rec = cell.getRow().getData() as any;
@@ -403,16 +469,13 @@ export class TableView implements OnInit, AfterViewInit {
                 this.openImageDeleteDialog(rec, f, current);
               };
 
-
               tools.appendChild(btnUrl);
               tools.appendChild(btnClear);
               wrap.appendChild(tools);
 
               return wrap;
             },
-            // คลิกพื้นที่ cell (ไม่ใช่ปุ่ม) = อัปโหลดไฟล์
             cellClick: (_e: any, cell: any) => {
-              // note: ปุ่มใช้ ev.stopPropagation() แล้ว
               const fileInput = document.createElement('input');
               fileInput.type = 'file';
               fileInput.accept = 'image/*';
@@ -431,7 +494,7 @@ export class TableView implements OnInit, AfterViewInit {
         case 'FORMULA': {
           let formulaFn: ((record: any) => any) | null = null;
           try {
-            const raw = c.formulaDefinition || '';
+            const raw: any = (c as any).formulaDefinition || '';
             if (raw) {
               const def = JSON.parse(raw);
               if (def.type === 'operator' && def.value && def.left && def.right) {
@@ -441,20 +504,23 @@ export class TableView implements OnInit, AfterViewInit {
 
                 formulaFn = (rec: any) => {
                   const leftVal =
-                    left.type === 'column'
-                      ? Number(rec[left.name] ?? 0)
-                      : Number(left.value ?? 0);
+                    left.type === 'column' ? Number(rec[left.name] ?? 0) : Number(left.value ?? 0);
                   const rightVal =
                     right.type === 'column'
                       ? Number(rec[right.name] ?? 0)
                       : Number(right.value ?? 0);
 
                   switch (op) {
-                    case '+': return leftVal + rightVal;
-                    case '-': return leftVal - rightVal;
-                    case '*': return leftVal * rightVal;
-                    case '/': return rightVal !== 0 ? leftVal / rightVal : null;
-                    default: return null;
+                    case '+':
+                      return leftVal + rightVal;
+                    case '-':
+                      return leftVal - rightVal;
+                    case '*':
+                      return leftVal * rightVal;
+                    case '/':
+                      return rightVal !== 0 ? leftVal / rightVal : null;
+                    default:
+                      return null;
                   }
                 };
               }
@@ -471,7 +537,7 @@ export class TableView implements OnInit, AfterViewInit {
               const v = formulaFn ? formulaFn(rec) : '';
               return `<div>${v ?? ''}</div>`;
             },
-            tooltip: c.formulaDefinition ? `Formula: ${c.formulaDefinition}` : '',
+            tooltip: (c as any).formulaDefinition ? `Formula: ${(c as any).formulaDefinition}` : '',
           };
         }
 
@@ -480,19 +546,19 @@ export class TableView implements OnInit, AfterViewInit {
       }
     });
 
-    // Actions
+    // Actions column
     defs.push({
       title: 'Actions',
       field: '__actions',
-      width: 160,
+      width: 140,
       headerHozAlign: 'center',
       hozAlign: 'center',
       vertAlign: 'middle',
       widthGrow: 0,
       formatter: () => `
-        <div style="display:flex;gap:8px;justify-content:center">
-          <button data-action="save"   class="underline text-emerald-600">Save</button>
-          <button data-action="delete" class="underline text-red-600">Delete</button>
+        <div class="ph-actions-cell">
+          <button data-action="save"   class="ph-link ph-link-save">Save</button>
+          <button data-action="delete" class="ph-link ph-link-del">Delete</button>
         </div>
       `,
       cellClick: async (e: any, cell: any) => {
@@ -500,7 +566,7 @@ export class TableView implements OnInit, AfterViewInit {
         if (!btn) return;
         const action = btn.getAttribute('data-action');
         const record = cell.getRow().getData() as any;
-        if (action === 'save')   await this.saveRowByRecord(record);
+        if (action === 'save') await this.saveRowByRecord(record);
         if (action === 'delete') await this.deleteRowByRecord(record);
       },
       resizable: false,
@@ -509,12 +575,13 @@ export class TableView implements OnInit, AfterViewInit {
     return defs;
   }
 
-  // ---------- build data ----------
   private buildDataForGridFromRows(rows: RowDto[]): any[] {
     const cols = this.columns();
-    return rows.map(r => {
+    return rows.map((r) => {
       let obj: any = {};
-      try { obj = JSON.parse(r.data ?? '{}'); } catch {}
+      try {
+        obj = JSON.parse(r.data ?? '{}');
+      } catch {}
       const rec: any = { __rowId: r.rowId };
       for (const c of cols) rec[c.name] = obj?.[c.name] ?? null;
       return rec;
@@ -528,16 +595,24 @@ export class TableView implements OnInit, AfterViewInit {
     await this.grid.setData(data);
     if (goLast) {
       let max = 1;
-      try { max = Number(this.grid.getPageMax?.() || 1); } catch {}
-      try { if (max > 1) this.grid.setPage(max); } catch {}
+      try {
+        max = Number(this.grid.getPageMax?.() || 1);
+      } catch {}
+      try {
+        if (max > 1) this.grid.setPage(max);
+      } catch {}
     }
-    try { this.grid.redraw(true); } catch {}
+    try {
+      this.grid.redraw(true);
+    } catch {}
   }
 
   private reloadLocalCurrentPage(goFirst = false) {
-    const cur = goFirst ? 1 : (this.grid?.getPage?.() || 1);
+    const cur = goFirst ? 1 : this.grid?.getPage?.() || 1;
     this.loadLocalData().then(() => {
-      try { this.grid.setPage(cur); } catch {}
+      try {
+        this.grid.setPage(cur);
+      } catch {}
     });
   }
 
@@ -547,18 +622,28 @@ export class TableView implements OnInit, AfterViewInit {
 
   // ---------- Remote helpers (mock) ----------
   private reloadRemoteCurrentPage(goFirst = false) {
-    const cur = goFirst ? 1 : (this.grid?.getPage?.() || 1);
+    const cur = goFirst ? 1 : this.grid?.getPage?.() || 1;
     this.grid.setData().then(() => {
-      try { this.grid.setPage(cur); } catch {}
-      try { this.grid.redraw(true); } catch {}
+      try {
+        this.grid.setPage(cur);
+      } catch {}
+      try {
+        this.grid.redraw(true);
+      } catch {}
     });
   }
 
   private async reloadRemoteToLastPage() {
     await this.grid.setData();
     const max = Math.max(1, this._lastPageFromServer || 1);
-    if (max > 1) { try { await this.grid.setPage(max); } catch {} }
-    try { this.grid.redraw(true); } catch {}
+    if (max > 1) {
+      try {
+        await this.grid.setPage(max);
+      } catch {}
+    }
+    try {
+      this.grid.redraw(true);
+    } catch {}
   }
 
   // =====================================================
@@ -569,7 +654,7 @@ export class TableView implements OnInit, AfterViewInit {
     this.lastHasImageCol = hasImageCol;
     this.lastColSig = this.colSignature();
 
-    const baseRowHeight = hasImageCol ? 80 : 44;
+    const baseRowHeight = hasImageCol ? 90 : 46;
 
     const baseOptions: any = {
       columns: this.buildColumnsForGrid(),
@@ -577,24 +662,39 @@ export class TableView implements OnInit, AfterViewInit {
       rowHeight: baseRowHeight,
       variableHeight: true,
       resizableRows: true,
-
       paginationSize: 10,
       paginationSizeSelector: [10, 20, 50, 100],
       paginationCounter: 'pages',
-
       height: '100%',
       reactiveData: false,
-      columnDefaults: { hozAlign: 'center', vertAlign: 'middle', widthGrow: 1, resizable: true },
+      columnDefaults: {
+        hozAlign: 'center',
+        vertAlign: 'middle',
+        widthGrow: 1,
+        resizable: true,
+      },
       placeholder: 'No rows yet.',
 
-      columnResized: () => { try { this.grid.redraw(true); } catch {} },
-      tableBuilt:    () => { try { this.grid.redraw(true); } catch {} },
-      layoutChanged: () => { try { this.grid.redraw(true); } catch {} },
+      columnResized: () => {
+        try {
+          this.grid.redraw(true);
+        } catch {}
+      },
+      tableBuilt: () => {
+        try {
+          this.grid.redraw(true);
+        } catch {}
+      },
+      layoutChanged: () => {
+        try {
+          this.grid.redraw(true);
+        } catch {}
+      },
 
       cellEdited: (cell: any) => {
         const field = cell.getField();
-        const rec   = cell.getRow().getData() as any;
-        rec[field]  = cell.getValue();
+        const rec = cell.getRow().getData() as any;
+        rec[field] = cell.getValue();
       },
     };
 
@@ -605,7 +705,6 @@ export class TableView implements OnInit, AfterViewInit {
         ajaxURL: 'about:blank',
         paginationDataReceived: { last_page: 'last_page', data: 'data' },
         paginationDataSent: { page: 'page', size: 'size', sorters: 'sorters', filters: 'filters' },
-
         ajaxRequestFunc: (_url: string, _config: any, params: any) => {
           const page = Number(params?.page ?? 1);
           const size = Number(params?.size ?? 10);
@@ -617,18 +716,16 @@ export class TableView implements OnInit, AfterViewInit {
             return { last_page, data };
           });
         },
-
-        ajaxResponse: (_url: string, _params: any, response: any) => {
-          return response?.data ?? [];
-        },
-
+        ajaxResponse: (_url: string, _params: any, response: any) => response?.data ?? [],
         pageLoaded: () => {
           try {
             const lp = Math.max(1, this._lastPageFromServer || 1);
             if (this.grid?.modules?.page) {
               this.grid.modules.page.max = lp;
               const cur = Number(this.grid?.getPage?.() || 1);
-              try { this.grid.setPage(cur); } catch {}
+              try {
+                this.grid.setPage(cur);
+              } catch {}
             }
             this.grid.redraw(true);
           } catch {}
@@ -653,19 +750,31 @@ export class TableView implements OnInit, AfterViewInit {
       this.buildTabulator();
       recreated = true;
     } else if (needImageMode !== this.lastHasImageCol || sig !== this.lastColSig) {
-      try { this.grid.destroy(); } catch {}
+      try {
+        this.grid.destroy();
+      } catch {}
       this.buildTabulator();
       recreated = true;
     }
 
     if (recreated) {
       setTimeout(() => {
-        if (TableView.USE_REMOTE) { try { this.grid.setData(); } catch {} }
-        else { this.loadLocalData(); }
+        if (TableView.USE_REMOTE) {
+          try {
+            this.grid.setData();
+          } catch {}
+        } else {
+          this.loadLocalData();
+        }
       }, 0);
     } else {
-      if (TableView.USE_REMOTE) { try { this.grid.setData(); } catch {} }
-      else { this.loadLocalData(); }
+      if (TableView.USE_REMOTE) {
+        try {
+          this.grid.setData();
+        } catch {}
+      } else {
+        this.loadLocalData();
+      }
     }
   }
 }

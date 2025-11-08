@@ -1,65 +1,43 @@
 @if (open) {
-  <div class="overlay">
-    <div class="dialog glass rounded-2xl p-5 max-w-md w-[92vw]">
+  <div class="overlay" (click)="onCancel()">
+    <div class="dialog glass rounded-2xl p-5 w-[92vw] max-w-md"
+         (click)="$event.stopPropagation()">
+
       @if (mode === 'url') {
-        <div class="title mb-3">Set image URL</div>
-
-        <div class="space-y-3">
-          <input
-            class="input w-full"
-            type="text"
-            [(ngModel)]="url"
-            name="url"
-            placeholder="https://example.com/image.png" />
-
-          <div class="hint text-xs text-slate-500">
-            วางลิงก์รูปภาพที่เข้าถึงได้ เช่น CDN หรือไฟล์สาธารณะ หรือ URL ที่สามารถเปิดในเบราว์เซอร์
-          </div>
-        </div>
-
-        <div class="flex gap-3 justify-end mt-4">
-          <button
-            class="btn-ghost-enhance"
-            type="button"
-            (click)="onCancel()">
-            Cancel
-          </button>
-          <button
-            class="btn-primary-enhance"
-            type="button"
-            [disabled]="!(url.trim())"
-            (click)="onSaveUrl()">
-            Save
-          </button>
-        </div>
-      } @else {
-        <div class="title mb-3">Remove image</div>
-
-        <p class="text-sm text-slate-600 mb-4">
-          ต้องการลบรูปนี้ออกจากแถวนี้หรือไม่? 
+        <div class="title mb-2">Set image URL</div>
+        <p class="text-xs text-slate-500 mb-3">
+          วางลิงก์รูปภาพที่ต้องการแสดงในเซลล์นี้ สามารถใช้ลิงก์จาก CDN / รูปสาธารณะได้
         </p>
 
-        @if (currentUrl) {
-          <div class="mb-4 flex justify-center">
-            <img
-              [src]="currentUrl"
-              alt="Image preview"
-              class="h-24 max-w-full rounded-lg object-contain shadow-sm" />
-          </div>
-        }
+        <form (submit)="$event.preventDefault(); onSubmitUrl()" class="space-y-3">
+          <input
+            class="input w-full"
+            type="url"
+            [(ngModel)]="modelUrl"
+            name="imageUrl"
+            placeholder="https://example.com/image.png" />
 
-        <div class="flex gap-3 justify-end">
-          <button
-            class="btn-ghost-enhance"
-            type="button"
-            (click)="onCancel()">
-            Cancel
-          </button>
-          <button
-            class="btn-danger"
-            type="button"
-            (click)="onConfirmDelete()">
-            Delete
+          <div class="flex justify-end gap-2 pt-1">
+            <button type="button" class="btn-ghost" (click)="onCancel()">Cancel</button>
+            <button
+              type="submit"
+              class="btn-primary"
+              [disabled]="!(modelUrl.trim())">
+              Save
+            </button>
+          </div>
+        </form>
+      }
+
+      @if (mode === 'delete') {
+        <div class="title mb-2">Remove image</div>
+        <p class="text-xs text-slate-600 mb-4">
+          ต้องการลบรูปภาพนี้ออกจากเซลล์ใช่หรือไม่? ข้อมูลอื่นในแถวจะไม่ถูกลบ
+        </p>
+        <div class="flex justify-end gap-2">
+          <button type="button" class="btn-ghost" (click)="onCancel()">Cancel</button>
+          <button type="button" class="btn-danger" (click)="onConfirmDelete()">
+            Remove
           </button>
         </div>
       }

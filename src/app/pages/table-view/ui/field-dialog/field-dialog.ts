@@ -18,7 +18,7 @@ import {
   TableListItem,
   ColumnListItem,
   ColumnDto,
-} from '../../../core/table-view.service';
+} from '../../../../core/table-view.service';
 
 type Preset =
   | 'Identifier'

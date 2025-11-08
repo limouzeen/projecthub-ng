@@ -1,15 +1,6 @@
-import {
-  Component,
-  Input,
-  Output,
-  EventEmitter,
-  OnChanges,
-  SimpleChanges,
-} from '@angular/core';
+import { Component, EventEmitter, Input, Output } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-
-export type ImageDialogMode = 'url' | 'delete';
 
 @Component({
   selector: 'ph-image-dialog',
@@ -18,37 +9,49 @@ export type ImageDialogMode = 'url' | 'delete';
   templateUrl: './image-dialog.html',
   styleUrls: ['./image-dialog.css'],
 })
-export class ImageDialog implements OnChanges {
+export class ImageDialog {
+  /** เปิด/ปิด dialog */
   @Input() open = false;
-  @Input() mode: ImageDialogMode = 'url';
-  @Input() currentUrl: string | null = null;
 
+  /** โหมด: 'url' = แก้/ใส่ URL, 'delete' = ยืนยันลบ */
+  @Input() mode: 'url' | 'delete' = 'url';
+
+  /** ค่า URL ปัจจุบัน (จาก parent) */
+  @Input() url: string = '';
+
+  /** ส่ง URL ที่แก้กลับไปให้ parent */
   @Output() saveUrl = new EventEmitter<string>();
+
+  /** ยืนยันลบรูป */
   @Output() confirmDelete = new EventEmitter<void>();
+
+  /** ปิด dialog เฉย ๆ */
   @Output() cancel = new EventEmitter<void>();
 
-  url = '';
+  // internal model (เอาไว้ bind กับ input)
+  modelUrl = '';
 
-  ngOnChanges(changes: SimpleChanges): void {
-    if (changes['open'] && this.open && this.mode === 'url') {
-      this.url = this.currentUrl || '';
-    }
-    if (changes['mode'] && this.mode === 'url' && this.open) {
-      this.url = this.currentUrl || '';
+  ngOnChanges() {
+    // sync url เข้า input เวลาเปิด dialog
+    if (this.open && this.mode === 'url') {
+      this.modelUrl = this.url || '';
     }
   }
 
-  onCancel() {
-    this.cancel.emit();
-  }
-
-  onSaveUrl() {
-    const trimmed = (this.url || '').trim();
-    if (!trimmed) return;
-    this.saveUrl.emit(trimmed);
+  onSubmitUrl() {
+    const v = (this.modelUrl || '').trim();
+    if (!v) {
+      // บังคับให้ต้องมีค่าเล็กน้อยก่อน save
+      return;
+    }
+    this.saveUrl.emit(v);
   }
 
   onConfirmDelete() {
     this.confirmDelete.emit();
+  }
+
+  onCancel() {
+    this.cancel.emit();
   }
 }

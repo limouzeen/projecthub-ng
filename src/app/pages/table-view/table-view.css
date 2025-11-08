@@ -1,62 +1,85 @@
-.grid-wrap {
-  overflow: hidden;
-  box-shadow: 0 18px 50px rgba(15, 23, 42, 0.06);
-  background: rgba(255, 255, 255, 0.9);
-}
 
-/* ปุ่ม state */
-.btn-primary-enhance {
-  @apply px-4 py-2 rounded-full text-white font-semibold;
-  background: linear-gradient(to right, #4f46e5, #06b6d4);
-  box-shadow: 0 10px 25px rgba(79, 70, 229, 0.35);
-}
-.btn-disabled {
-  @apply px-4 py-2 rounded-full font-semibold cursor-not-allowed;
-  background: #e5e7eb;
-  color: #9ca3af;
-}
-
-/* ลิงก์ action ด้านล่าง */
-.link {
-  color: #2563eb;
-  cursor: pointer;
-}
-.link-danger {
-  color: #ef4444;
-}
-
-/* Tabulator wrapper */
 .tab-root .tabulator {
-  border: none;
-  font-size: 13px;
+  background: rgba(255,255,255,0.96);
+  border: 1px solid rgba(203,213,225,0.95); /* เส้นกรอบบาง ๆ */
+  box-shadow: 0 14px 40px rgba(15,23,42,0.06);
+  border-radius: 14px; /* อยากเหลี่ยมสนิท ลบบรรทัดนี้ได้เลย */
 }
+
 .tab-root .tabulator-header {
-  background: #f9fafb;
+  background: rgba(248,250,252,0.98);
+  border-bottom: 1px solid rgba(226,232,240,0.95);
+  font-weight: 600;
+  color: #0f172a;
 }
-.tab-root .tabulator-col {
-  border-right: 1px solid #e5e7eb;
+
+.tab-root .tabulator-col,
+.tab-root .tabulator-col-title {
+  border: none;
 }
+
 .tab-root .tabulator-row {
-  border-bottom: 1px solid #eef2ff;
+  background: rgba(255,255,255,0.98);
+  border-bottom: 1px solid rgba(241,245,249,0.98);
 }
 
-/* image cell */
-.cell-image .img-wrap {
-  position: relative;
-}
-.cell-image .img-wrap img {
-  display: block;
-}
-.cell-image .img-tools button {
-  transition: transform 0.12s ease, box-shadow 0.12s ease, opacity 0.12s ease;
-}
-.cell-image .img-wrap:hover .img-tools button {
-  opacity: 1;
-  transform: translateY(0);
-}
-.cell-image .img-tools button {
-  opacity: 0.9;
-  transform: translateY(-1px);
+.tab-root .tabulator-row.tabulator-row-even {
+  background: rgba(248,250,252,0.98);
 }
 
-/* Dialog base (ถ้าไม่ได้ใช้ Tailwind ที่อื่น) สามารถปรับเพิ่มได้ตามดีไซน์คุณ */
+.tab-root .tabulator-row:hover {
+  background: rgba(239,246,255,1);
+}
+
+
+
+/* เติมความละมุนให้การ์ด */
+.glass-subtle {
+
+  background: linear-gradient(
+    145deg,
+    rgba(255, 255, 255, 0.95) 0%,     /* ขาวสว่าง */
+    rgba(245, 250, 255, 0.85) 20%,    /* ฟ้าอ่อนจาง */
+    rgba(230, 245, 255, 0.75) 80%    /* ขาวอมฟ้าเล็กน้อย */
+  );
+  backdrop-filter: blur(10px) saturate(150%);
+  border: 1px solid rgba(255, 255, 255, 0.6);
+  box-shadow:
+    0 10px 40px rgba(79, 70, 229, 0.08), /* เงาอมม่วงเล็กน้อย */
+    0 4px 20px rgba(34, 211, 238, 0.06), /* เงาอมฟ้า */ั
+    inset 0 0 25px rgba(255, 255, 255, 0.25); /* glow ขาวข้างใน */
+  border-radius: 1.25rem;
+}
+
+/* เพิ่ม glow gradient ออร่าฟ้าเล็กน้อย */
+.glass-subtle::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: radial-gradient(
+    circle at top left,
+    rgba(99, 102, 241, 0.08),     /* indigo glow */
+    rgba(34, 211, 238, 0.08),
+    transparent 50%
+  );
+  pointer-events: none;
+}
+
+
+.input { background: rgba(255,255,255,.9); border: 1px solid rgba(226,232,240,1); border-radius: .75rem; padding: .5rem .75rem; outline: none; }
+.input:focus { box-shadow: 0 0 0 3px rgba(99,102,241,.15); border-color: rgb(165,180,252); }
+
+/* ให้การ์ดใน aside เนียนขึ้น (ออปชัน) */
+aside.glass-subtle { box-shadow: 0 20px 50px rgba(30,41,59,.12); }
+
+.input:focus {
+  /* คุณมีอยู่แล้ว: แค่ปรับโทนให้ใกล้ปุ่มหลัก */
+  box-shadow: 0 0 0 3px rgba(99,102,241,.18), 0 0 0 6px rgba(34,211,238,.12);
+  border-color: rgb(165,180,252);
+}
+
+
+
+
+
