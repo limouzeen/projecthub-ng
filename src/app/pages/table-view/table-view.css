@@ -210,3 +210,104 @@ aside.glass-subtle { box-shadow: 0 20px 50px rgba(30,41,59,.12); }
   transform: translateY(-1px);
   box-shadow: 0 10px 26px rgba(79, 70, 229, 0.4);
 }
+
+
+
+/* Back to Project*/
+.ph-back-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(148, 163, 253, 0.65);
+  background:
+    radial-gradient(circle at top left,
+      rgba(129,140,248,0.14),
+      rgba(56,189,248,0.06),
+      transparent 70%)
+    ,
+    rgba(255,255,255,0.94);
+  box-shadow:
+    0 8px 24px rgba(15,23,42,0.08),
+    0 0 0 1px rgba(255,255,255,0.65) inset;
+  color: #4f46e5;
+  font-size: 11px;
+  font-weight: 500;
+  cursor: pointer;
+  overflow: hidden;
+  width: auto;
+  max-width: 42px; /* 🟦 ตอนแรกเห็นลูกศร */
+  transition:
+    max-width 0.25s cubic-bezier(.33,.02,.17,.99),
+    background 0.25s ease,
+    box-shadow 0.25s ease,
+    border-color 0.25s ease,
+    transform 0.25s ease;
+}
+
+.ph-back-pill-icon {
+  display: inline-flex;
+  width: 16px;
+  height: 16px;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.ph-back-pill-icon svg {
+  width: 100%;
+  height: 100%;
+}
+
+/* ข้อความซ่อนตอนปกติ */
+.ph-back-pill-label {
+  white-space: nowrap;
+  opacity: 0;
+  transform: translateX(-6px);
+  color: #0f172a;
+  transition: opacity 0.18s ease, transform 0.18s ease;
+}
+
+/* hover = ยืด pill + โชว์ข้อความ (ไม่เปลี่ยนสีพื้น/ตัวอักษร แต่โปร่งใสขึ้นเล็กน้อย) */
+.ph-back-pill:hover {
+  max-width: 175px; /* ขยายให้เห็นข้อความ */
+  background:
+    radial-gradient(circle at top left,
+      rgba(129,140,248,0.12),
+      rgba(56,189,248,0.05),
+      transparent 70%)
+    ,
+    rgba(255,255,255,0.3);  /* โปร่งใสขึ้นเล็กน้อย */
+  backdrop-filter: blur(8px) saturate(160%); /* ใสขึ้นแบบ glassy */
+  box-shadow:
+    0 10px 26px rgba(15,23,42,0.12),
+    0 0 0 1px rgba(255,255,255,0.45) inset;
+  transform: translateY(-1px);
+  transition:
+    background 0.25s ease,
+    backdrop-filter 0.25s ease,
+    box-shadow 0.25s ease,
+    max-width 0.25s cubic-bezier(.33,.02,.17,.99);
+}
+
+.ph-back-pill:hover .ph-back-pill-label {
+  opacity: 0.8;                 /* จางลงเล็กน้อย */
+  transform: translateX(0);
+  color: rgba(15, 23, 42, 0.8);  /* เทาเข้มโปร่ง 80% */
+  filter: blur(0.3px);           /* เบลอเบา ๆ */
+  transition:
+    opacity 0.25s ease,
+    transform 0.25s ease,
+    filter 0.25s ease;
+}
+
+
+
+/* โฟกัสด้วยคีย์บอร์ด */
+.ph-back-pill:focus-visible {
+  outline: none;
+  box-shadow:
+    0 0 0 1px rgba(129,140,248,0.5),
+    0 0 0 3px rgba(56,189,248,0.25);
+}

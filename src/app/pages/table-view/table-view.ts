@@ -9,7 +9,7 @@ import {
   HostListener,
   effect,
 } from '@angular/core';
-import { CommonModule } from '@angular/common';
+import { CommonModule , Location } from '@angular/common';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { firstValueFrom } from 'rxjs';
 import { TabulatorFull as Tabulator } from 'tabulator-tables/dist/js/tabulator_esm.js';
@@ -32,12 +32,17 @@ export class TableView implements OnInit, AfterViewInit {
   private readonly api = inject(TableViewService);
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
+  private readonly location = inject(Location); 
 
   private readonly THUMB_H = 70;
 
   tableId = 0;
   columns = signal<ColumnDto[]>([]);
   rows = signal<RowDto[]>([]);
+
+  // สำหรับ back pill
+  projectId: number | null = null;
+  projectName: string | null = null;
 
   // layout / nav
   asideOpen = signal(false);
@@ -110,10 +115,16 @@ export class TableView implements OnInit, AfterViewInit {
 }
 
 
-  async ngOnInit() {
-    this.tableId = Number(this.route.snapshot.paramMap.get('id'));
-    await this.refresh();
-  }
+async ngOnInit() {
+  this.tableId = Number(this.route.snapshot.paramMap.get('id'));
+
+  // ดึง projectId จาก query param (รองรับ refresh)
+  const fromQuery = this.route.snapshot.queryParamMap.get('projectId');
+  this.projectId = fromQuery ? Number(fromQuery) : null;
+
+  await this.refresh();
+}
+
 
   ngAfterViewInit() {
     this.viewReady = true;
@@ -934,4 +945,15 @@ export class TableView implements OnInit, AfterViewInit {
       }
     }
   }
+
+  // ====== BACK 2 Project ==========
+  onBackToProject() {
+  if (this.projectId) {
+    this.router.navigate(['/projects', this.projectId]);
+  } else {
+    // fallback ถ้าไม่มี projectId (เช่น เข้ามาจาก URL ตรง)
+    this.router.navigate(['/projects']);
+  }
+}
+
 }

@@ -191,8 +191,36 @@
 
     <!-- header + actions -->
     <div class="flex flex-wrap items-center justify-between gap-3 mt-3">
-      <div>
-        <h1 class="text-xl font-semibold text-slate-900">
+      
+      <!-- Back 2 Project -->
+        <div class="space-y-1 mt-3">
+      @if (projectId) {
+  <button
+    class="ph-back-pill"
+    type="button"
+    (click)="onBackToProject()">
+
+    <span class="ph-back-pill-icon">
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <path
+          d="M14.5 5.5L8 12l6.5 6.5"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+          stroke-linecap="round"
+          stroke-linejoin="round" />
+      </svg>
+    </span>
+
+    <span class="ph-back-pill-label">
+      Back
+    </span>
+  </button>
+}
+
+
+       <!-- ======================================================================================= -->
+        <h1 class="text-xl font-semibold text-slate-900 pt-2">
           Table #{{ tableId }}
         </h1>
         <p class="text-xs text-slate-500 mt-1">
@@ -224,7 +252,7 @@
 
 
     <!-- field list -->
-    <div class="mt-2">
+    <div class="pt-10 px-40">
       <div class="text-slate-600 text-sm font-semibold mb-1">Fields</div>
       <ul class="space-y-1">
         @for (c of columns(); track c.columnId) {

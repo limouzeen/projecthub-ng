@@ -106,6 +106,11 @@ export class ProjectDetail implements OnInit {
 }
 
   open(t: TableDto) {
-    this.router.navigate(['/table', t.tableId]); // ไปหน้า table-view
-  }
+  this.router.navigate(
+    ['/table', t.tableId],
+    { queryParams: { projectId: this.projectId } }
+  );
+}
+
+
 }
