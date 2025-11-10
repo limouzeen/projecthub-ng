@@ -273,4 +273,51 @@
     (cancel)="onImageDialogCancel()">
   </ph-image-dialog>
 
+
+
+  <!-- ===================Edit Field ======================= -->
+
+    <!-- Edit Field Dialog (rename only) -->
+  @if (editFieldOpen()) {
+    <div class="ph-editcol-backdrop" (click)="onCancelEditField()">
+      <div class="ph-editcol-wrap" (click)="$event.stopPropagation()">
+        <div class="ph-editcol-card">
+          <h2 class="ph-editcol-title">Rename field</h2>
+          <p class="ph-editcol-sub">
+            เปลี่ยนชื่อฟิลด์เพื่อให้สอดคล้องกับข้อมูลของคุณ
+            (ชนิดข้อมูลและการตั้งค่าอื่นจะยังเหมือนเดิม)
+          </p>
+
+          <div class="ph-editcol-input-wrap">
+            <label class="ph-editcol-label">Field name</label>
+            <input
+              class="ph-editcol-input"
+              [value]="editFieldName()"
+              (input)="editFieldName.set($any($event.target).value)"
+              maxlength="100"
+              autofocus
+            />
+          </div>
+
+          <div class="ph-editcol-actions">
+            <button
+              type="button"
+              class="ph-btn ph-btn-ghost"
+              (click)="onCancelEditField()">
+              Cancel
+            </button>
+            <button
+              type="button"
+              class="ph-btn ph-btn-primary"
+              [disabled]="!editFieldName().trim()"
+              (click)="onSaveEditField()">
+              Save
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  }
+
+
 </section>

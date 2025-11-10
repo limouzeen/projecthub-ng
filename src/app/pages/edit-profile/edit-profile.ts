@@ -1,5 +1,5 @@
 import { Component, OnInit, OnDestroy, signal, computed, inject } from '@angular/core';
-import { CommonModule } from '@angular/common';
+import { CommonModule, Location } from '@angular/common';
 import { RouterLink } from '@angular/router';
 import { FooterStateService } from '../../core/footer-state.service';
 import { UsersService, MeDto } from '../../core/users.service';
@@ -20,7 +20,7 @@ type UpdateStatus = 'idle' | 'success' | 'error';
 @Component({
   selector: 'app-edit-profile',
   standalone: true,
-  imports: [CommonModule, RouterLink],
+  imports: [CommonModule],
   templateUrl: './edit-profile.html',
   styleUrl: './edit-profile.css',
 })
@@ -71,6 +71,10 @@ export class EditProfile implements OnInit, OnDestroy {
     ['Too weak', 'Weak', 'Fair', 'Good', 'Strong', 'Very strong'][this.strength()]
   );
 
+
+  // ----- constructor -----
+   constructor(private location: Location) {}
+
   // ----- lifecycle -----
   async ngOnInit() {
     // ย่อ footer อัตโนมัติถ้าจอเตี้ย
@@ -98,6 +102,10 @@ export class EditProfile implements OnInit, OnDestroy {
   }
 
   // ----- UI helpers -----
+  onBack() {
+    this.location.back();
+  }
+
   toggleShowCurrent() { this.showCurrent.update(v => !v); }
   toggleShowNew()     { this.showNew.update(v => !v); }
 

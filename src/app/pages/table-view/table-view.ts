@@ -52,6 +52,11 @@ export class TableView implements OnInit, AfterViewInit {
   editingRow: RowDto | null = null;
   rowInitData: Record<string, any> | null = null;
 
+  // --- edit field (rename only) ---
+  editFieldOpen = signal(false);
+  editFieldName = signal('');
+  editingColumn: ColumnDto | null = null;
+
   // image dialog state
   imageDlgOpen = signal(false);
   imageDlgMode: 'url' | 'delete' = 'url';
@@ -114,6 +119,7 @@ export class TableView implements OnInit, AfterViewInit {
     this.viewReady = true;
     this.ensureGridAndSync();
   }
+
 
   // ================= Layout / Nav =================
 
@@ -200,7 +206,67 @@ export class TableView implements OnInit, AfterViewInit {
     await firstValueFrom(this.api.deleteColumn(c.columnId));
     await this.refresh();
   }
-  onEditField(_c: ColumnDto) {}
+
+  // ===== Edit Field========
+
+    onEditField(c: ColumnDto) {
+    this.editingColumn = c;
+    this.editFieldName.set(c.name);
+    this.editFieldOpen.set(true);
+  }
+
+    onCancelEditField() {
+    this.editFieldOpen.set(false);
+    this.editFieldName.set('');
+    this.editingColumn = null;
+  }
+
+  async onSaveEditField() {
+    const col = this.editingColumn;
+    const newName = this.editFieldName().trim();
+
+    if (!col) {
+      this.onCancelEditField();
+      return;
+    }
+
+    // ถ้าไม่ได้เปลี่ยนชื่อ ไม่ต้องยิงอะไร
+    if (!newName || newName === col.name) {
+      this.onCancelEditField();
+      return;
+    }
+
+    try {
+      // ---------- MOCK (ใช้ TableViewService เดิมของคุณ) ----------
+      await firstValueFrom(
+        this.api.updateColumn(col.columnId, {
+          name: newName,
+        } as any)
+      );
+
+      // ---------- REAL API (comment ไว้รอเชื่อม backend จริง) ----------
+      /*
+      await this.http.put<ColumnDto>(`/api/columns/${col.columnId}`, {
+        columnId: col.columnId,
+        newName: newName,
+        newDataType: col.dataType,
+        newIsPrimary: col.isPrimary,
+        newIsNullable: col.isNullable,
+      }).toPromise();
+      */
+
+      // โหลด schema + grid ใหม่ให้ชื่อ field อัปเดตทุกที่
+      await this.refresh();
+    } catch (err) {
+      console.error('update column failed', err);
+      alert('Cannot rename field right now.');
+    } finally {
+      this.onCancelEditField();
+    }
+  }
+
+
+
 
   // ---------- Row ----------
   async onAddRow() {

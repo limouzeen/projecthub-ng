@@ -83,3 +83,130 @@ aside.glass-subtle { box-shadow: 0 20px 50px rgba(30,41,59,.12); }
 
 
 
+/* =================== Edit Field ===================== */
+
+/* ===== Edit Field (Rename) Dialog ===== */
+
+.ph-editcol-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(15, 23, 42, 0.22);
+  backdrop-filter: blur(14px);
+}
+
+.ph-editcol-wrap {
+  width: min(480px, 92vw);
+}
+
+.ph-editcol-card {
+  position: relative;
+  padding: 22px 24px 18px;
+  border-radius: 22px;
+  background: radial-gradient(circle at top left,
+      rgba(255, 255, 255, 0.98),
+      rgba(241, 245, 255, 0.96));
+  box-shadow:
+    0 20px 70px rgba(15, 23, 42, 0.25),
+    0 0 0 1px rgba(255, 255, 255, 0.6) inset;
+  backdrop-filter: blur(10px) saturate(150%);
+  color: #0f172a;
+}
+
+.ph-editcol-card::before {
+  content: '';
+  position: absolute;
+  inset: -6px;
+  border-radius: inherit;
+  background: radial-gradient(circle at top right,
+      rgba(99, 102, 241, 0.12),
+      rgba(34, 211, 238, 0.10),
+      transparent 65%);
+  pointer-events: none;
+  z-index: -1;
+}
+
+.ph-editcol-title {
+  font-size: 18px;
+  font-weight: 600;
+  margin: 0 0 4px;
+}
+
+.ph-editcol-sub {
+  margin: 0 0 14px;
+  font-size: 12px;
+  color: #6b7280;
+}
+
+.ph-editcol-input-wrap {
+  margin-bottom: 16px;
+}
+
+.ph-editcol-label {
+  display: block;
+  font-size: 11px;
+  color: #9ca3af;
+  margin-bottom: 4px;
+}
+
+.ph-editcol-input {
+  width: 100%;
+  padding: 9px 12px;
+  border-radius: 14px;
+  border: 1px solid rgba(226, 232, 240, 1);
+  background: rgba(255, 255, 255, 0.98);
+  font-size: 13px;
+  outline: none;
+}
+
+.ph-editcol-input:focus {
+  border-color: #6366f1;
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.16);
+}
+
+.ph-editcol-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+/* reuse ph-btn styles from image dialog for consistency */
+.ph-btn {
+  min-width: 82px;
+  padding: 7px 16px;
+  border-radius: 10px;
+  font-size: 12px;
+  font-weight: 500;
+  border: none;
+  cursor: pointer;
+  transition: all 0.18s ease;
+}
+
+.ph-btn-ghost {
+  background: rgba(248, 250, 252, 0.96);
+  color: #6b7280;
+}
+
+.ph-btn-ghost:hover {
+  background: rgba(241, 245, 249, 1);
+}
+
+.ph-btn-primary {
+  background: linear-gradient(to right, #6366f1, #22c1c3);
+  color: #ffffff;
+  box-shadow: 0 8px 22px rgba(99, 102, 241, 0.35);
+}
+
+.ph-btn-primary:disabled {
+  opacity: 0.4;
+  box-shadow: none;
+  cursor: default;
+}
+
+.ph-btn-primary:not(:disabled):hover {
+  transform: translateY(-1px);
+  box-shadow: 0 10px 26px rgba(79, 70, 229, 0.4);
+}
