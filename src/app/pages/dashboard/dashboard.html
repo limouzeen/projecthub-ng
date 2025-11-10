@@ -231,7 +231,7 @@
         Recently Used
       </a>
 
-      <a routerLink="/settings" class="menu-item">
+      <a routerLink="/favorites" class="menu-item">
         <svg
           class="w-5 h-5 text-indigo-400"
           fill="none"
@@ -302,7 +302,8 @@
           fill="currentColor"
           [attr.fill]="p.favorite ? 'currentColor' : 'none'"
           [attr.stroke]="p.favorite ? 'currentColor' : 'currentColor'"
-        >
+          [ngClass]="p.favorite ? 'text-gray-600' : 'text-slate-300'">
+          >
           <path
             d="M12 17.3l-6.2 3.3 1.2-6.7L2 8.9l6.9-1 3.1-6.2 3.1 6.2 6.9 1-5 5 1.2 6.7z"
             stroke-width="2"

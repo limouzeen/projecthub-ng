@@ -3,14 +3,14 @@ import {
   ElementRef, AfterViewInit, OnDestroy
 } from '@angular/core';
 import { RouterLink, Router } from '@angular/router';
-import { DatePipe, NgClass } from '@angular/common';
+import { DatePipe, NgClass, CommonModule } from '@angular/common';
 import { ProjectsService, Project } from '../../core/projects.service';
 import { FooterStateService } from '../../core/footer-state.service';
 
 @Component({
   selector: 'app-dashboard',
   standalone: true,
-  imports: [RouterLink, DatePipe, NgClass],
+  imports: [RouterLink, DatePipe, NgClass, CommonModule],
   templateUrl: './dashboard.html',
   styleUrl: './dashboard.css',
 })
