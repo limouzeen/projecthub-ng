@@ -1,0 +1,46 @@
+/* เติมความละมุนให้การ์ด */
+.glass-subtle {
+
+  background: linear-gradient(
+    145deg,
+    rgba(255, 255, 255, 0.95) 0%,     /* ขาวสว่าง */
+    rgba(245, 250, 255, 0.85) 20%,    /* ฟ้าอ่อนจาง */
+    rgba(230, 245, 255, 0.75) 80%    /* ขาวอมฟ้าเล็กน้อย */
+  );
+  backdrop-filter: blur(10px) saturate(150%);
+  border: 1px solid rgba(255, 255, 255, 0.6);
+  box-shadow:
+    0 10px 40px rgba(79, 70, 229, 0.08), /* เงาอมม่วงเล็กน้อย */
+    0 4px 20px rgba(34, 211, 238, 0.06), /* เงาอมฟ้า */ั
+    inset 0 0 25px rgba(255, 255, 255, 0.25); /* glow ขาวข้างใน */
+  border-radius: 1.25rem;
+}
+
+/* เพิ่ม glow gradient ออร่าฟ้าเล็กน้อย */
+.glass-subtle::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: radial-gradient(
+    circle at top left,
+    rgba(99, 102, 241, 0.08),     /* indigo glow */
+    rgba(34, 211, 238, 0.08),
+    transparent 50%
+  );
+  pointer-events: none;
+}
+
+
+.input { background: rgba(255,255,255,.9); border: 1px solid rgba(226,232,240,1); border-radius: .75rem; padding: .5rem .75rem; outline: none; }
+.input:focus { box-shadow: 0 0 0 3px rgba(99,102,241,.15); border-color: rgb(165,180,252); }
+
+/* ให้การ์ดใน aside เนียนขึ้น (ออปชัน) */
+aside.glass-subtle { box-shadow: 0 20px 50px rgba(30,41,59,.12); }
+
+.input:focus {
+  /* คุณมีอยู่แล้ว: แค่ปรับโทนให้ใกล้ปุ่มหลัก */
+  box-shadow: 0 0 0 3px rgba(99,102,241,.18), 0 0 0 6px rgba(34,211,238,.12);
+  border-color: rgb(165,180,252);
+}
+

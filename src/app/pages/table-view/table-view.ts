@@ -3,6 +3,7 @@ import {
   inject,
   signal,
   OnInit,
+  OnDestroy,
   AfterViewInit,
   ViewChild,
   ElementRef,
@@ -18,6 +19,7 @@ import { TableViewService, ColumnDto, RowDto } from '../../core/table-view.servi
 import { FieldDialog } from './ui/field-dialog/field-dialog';
 import { RowDialog } from './ui/row-dialog/row-dialog';
 import { ImageDialog } from './ui/image-dialog/image-dialog';
+import { FooterStateService } from '../../core/footer-state.service';
 
 @Component({
   selector: 'app-table-view',
@@ -26,7 +28,7 @@ import { ImageDialog } from './ui/image-dialog/image-dialog';
   templateUrl: './table-view.html',
   styleUrl: './table-view.css',
 })
-export class TableView implements OnInit, AfterViewInit {
+export class TableView implements OnInit, OnDestroy, AfterViewInit {
   private static readonly USE_REMOTE = false;
 
   private readonly api = inject(TableViewService);
@@ -79,7 +81,7 @@ export class TableView implements OnInit, AfterViewInit {
   private lastColSig = '';
   private _lastPageFromServer = 1;
 
-  constructor() {
+  constructor(private footer: FooterStateService) {
   effect(() => {
     const q = this.keyword().trim().toLowerCase();
     if (!this.grid) return;
@@ -116,6 +118,11 @@ export class TableView implements OnInit, AfterViewInit {
 
 
 async ngOnInit() {
+
+  // Footer
+  this.footer.setThreshold(719);
+  this.footer.setForceCompact(null); // ให้ทำงานแบบ auto ตาม threshold
+
   this.tableId = Number(this.route.snapshot.paramMap.get('id'));
 
   // ดึง projectId จาก query param (รองรับ refresh)
@@ -124,6 +131,11 @@ async ngOnInit() {
 
   await this.refresh();
 }
+
+
+  ngOnDestroy(): void {
+    this.footer.resetAll();
+  }
 
 
   ngAfterViewInit() {

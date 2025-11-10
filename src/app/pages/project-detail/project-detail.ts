@@ -1,4 +1,4 @@
-import { Component, OnInit, signal, computed, inject } from '@angular/core';
+import { Component, OnInit, signal, computed, inject, HostListener, } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { RouterLink, Router, ActivatedRoute } from '@angular/router';
 import { firstValueFrom } from 'rxjs';
@@ -9,7 +9,7 @@ import { CreateTableDialog } from './ui/create-table-dialog';
 @Component({
   selector: 'app-project-detail',
   standalone: true,
-  imports: [CommonModule, CreateTableDialog],
+  imports: [CommonModule, CreateTableDialog, RouterLink],
   templateUrl: './project-detail.html',
   styleUrl: './project-detail.css',
 })
@@ -36,6 +36,12 @@ export class ProjectDetail implements OnInit {
     const keyword = this.q().toLowerCase().trim();
     return !keyword ? this.tables() : this.tables().filter(t => t.name.toLowerCase().includes(keyword));
   });
+
+
+    // layout / nav
+  asideOpen = signal(false);
+  profileOpen = signal(false);
+
 
   async ngOnInit() {
     const fromRoute = Number(this.route.snapshot.paramMap.get('projectId') ?? this.route.snapshot.paramMap.get('id') ?? '0');
@@ -112,5 +118,48 @@ export class ProjectDetail implements OnInit {
   );
 }
 
+
+
+
+  // ================= Layout / Nav =================
+
+  toggleAside() {
+    const next = !this.asideOpen();
+    this.asideOpen.set(next);
+    if (typeof document !== 'undefined') {
+      document.body.style.overflow = next ? 'hidden' : '';
+    }
+  }
+
+  toggleProfileMenu() {
+    this.profileOpen.update((v) => !v);
+  }
+
+  onEditProfile() {
+    this.profileOpen.set(false);
+    this.router.navigateByUrl('/profile/edit');
+  }
+
+  onLogout() {
+    this.profileOpen.set(false);
+    this.router.navigateByUrl('/login');
+  }
+
+  @HostListener('document:click')
+  onDocClick() {
+    if (this.profileOpen()) this.profileOpen.set(false);
+  }
+
+  @HostListener('document:keydown.escape')
+  onEsc() {
+    if (this.profileOpen()) {
+      this.profileOpen.set(false);
+      return;
+    }
+    if (this.asideOpen()) {
+      this.asideOpen.set(false);
+      if (typeof document !== 'undefined') document.body.style.overflow = '';
+    }
+  }
 
 }
