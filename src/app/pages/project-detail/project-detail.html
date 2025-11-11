@@ -1,6 +1,6 @@
-<section class="min-h-[100svh] ">
+<section class="min-h-[100svh]">
 
-    <!-- Top Toolbar -->
+  <!-- Top Toolbar -->
   <div class="sticky top-0 z-30 bg-white/70 border-b border-white/40 mb-8">
     <div class="max-w-6xl mx-auto px-4 py-3 flex items-center gap-3">
 
@@ -20,7 +20,6 @@
       <img src="/assets/h_noname_logo.png" class="w-7 h-7 rounded-lg shadow mr-2" alt="" />
       <span class="font-semibold text-slate-900">ProjectHub</span>
 
-
       <!-- Profile -->
       <div class="ml-auto relative" (click)="$event.stopPropagation()">
         <button
@@ -37,7 +36,7 @@
         @if (profileOpen()) {
           <div
             class="absolute right-0 top-full mt-2 w-72 rounded-2xl
-                   bg-white  border border-white/40
+                   bg-white border border-white/40
                    shadow-md z-[70] overflow-hidden"
             role="menu">
             <div class="p-4 flex items-center gap-3">
@@ -168,117 +167,113 @@
     </div>
   </aside>
 
-
-
-
+  <!-- Title row + search -->
   <div class="flex items-center justify-between max-w-5xl mx-auto mb-4">
-  <div class="flex items-center gap-3">
-    <!-- ปุ่ม Back pill -->
-    <button
-      class="ph-back-pill"
-      type="button"
-      (click)="onBackToDashboard()">
-      <span class="ph-back-pill-icon">
-        <svg viewBox="0 0 24 24" aria-hidden="true">
-          <path
-            d="M14.5 5.5L8 12l6.5 6.5"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="2"
-            stroke-linecap="round"
-            stroke-linejoin="round" />
-        </svg>
-      </span>
-      <span class="ph-back-pill-label">Back</span>
-    </button>
-
-    <!-- Title -->
-    <div class="text-xl font-semibold">Project tables</div>
-  </div>
-
-  <div class="flex gap-2">
-    <input
-      class="input w-56"
-      placeholder="Filter tables..."
-      [value]="q()"
-      (input)="onSearch($any($event.target).value)" />
-    <button
-      class="btn-primary-enhance"
-      (click)="openCreateDialog()"
-      [disabled]="creating()">
-      @if (creating()) {Creating...} @else {Create Table}
-    </button>
-  </div>
-</div>
-
-
-  <div class="grid md:grid-cols-2 gap-6 max-w-5xl mx-auto">
-    <div class="glass rounded-3xl p-5">
-  <div class="text-sm text-slate-500 mb-3">Tables</div>
-  <div class="space-y-2">
-    @for (t of paged(); track t.tableId) {
-
-      <div
-        class="flex items-center justify-between gap-3
-               rounded-2xl px-3 py-2 bg-white/70 shadow
-               max-w-full overflow-hidden">
-        
-        <!-- ฝั่งชื่อ: ให้ตัดบรรทัด/ตัดเกิน -->
-        <div class="font-medium text-slate-800 truncate min-w-0">
-          {{ t.name }}
-        </div>
-
-        <!-- ฝั่งปุ่ม: ไม่ให้โดนบีบ ไม่ล้นออก -->
-        <div class="flex gap-2 flex-shrink-0">
-          <button class="btn-ghost-enhance" (click)="open(t)">Open</button>
-          <button
-            class="btn-ghost-enhance"
-            (click)="renameTable(t)"
-            [disabled]="renamingId()===t.tableId">
-            @if (renamingId()===t.tableId) {Renaming...} @else {Rename}
-          </button>
-          <button
-            class="btn-ghost-enhance text-rose-600"
-            (click)="deleteTable(t)"
-            [disabled]="deletingId()===t.tableId">
-            @if (deletingId()===t.tableId) {Deleting...} @else {Delete}
-          </button>
-        </div>
-
-      </div>
-        } @empty {
-      <div class="text-sm text-slate-500">No tables yet.</div>
-    }
-  </div>
-
-  @if (totalPages() > 1) {
-    <div class="flex items-center justify-end gap-2 mt-3 text-xs text-slate-500">
+    <div class="flex items-center gap-3">
       <button
-        class="btn-ghost-enhance px-3 py-1"
+        class="ph-back-pill"
         type="button"
-        (click)="prevPage()"
-        [disabled]="page() === 1">
-        Prev
+        (click)="onBackToDashboard()">
+        <span class="ph-back-pill-icon">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path
+              d="M14.5 5.5L8 12l6.5 6.5"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round" />
+          </svg>
+        </span>
+        <span class="ph-back-pill-label">Back</span>
       </button>
-      <span>Page {{ page() }} / {{ totalPages() }}</span>
+
+      <div class="text-xl font-semibold">Project tables</div>
+    </div>
+
+    <div class="flex gap-2">
+      <input
+        class="input w-56"
+        placeholder="Filter tables..."
+        [value]="q()"
+        (input)="onSearch($any($event.target).value)" />
       <button
-        class="btn-ghost-enhance px-3 py-1"
-        type="button"
-        (click)="nextPage()"
-        [disabled]="page() === totalPages()">
-        Next
+        class="btn-primary-enhance"
+        (click)="openCreateDialog()"
+        [disabled]="creating()">
+        @if (creating()) {Creating...} @else {Create Table}
       </button>
     </div>
-  }
-</div>
+  </div>
 
+  <!-- Main cards -->
+  <div class="grid md:grid-cols-2 items-start gap-6 max-w-5xl mx-auto">
+    <!-- Left: Tables -->
+    <div class="glass rounded-3xl p-5 flex flex-col gap-3">
+      <div class="text-sm text-slate-500">Tables</div>
 
+      <!-- list with scroll when many items -->
+      <div class="space-y-2 max-h-[420px] overflow-y-auto pr-1">
+        @for (t of paged(); track t.tableId) {
+          <div
+            class="flex items-center justify-between gap-3
+                   rounded-2xl px-3 py-2 bg-white/70 shadow
+                   max-w-full overflow-hidden">
+            <div class="font-medium text-slate-800 truncate min-w-0">
+              {{ t.name }}
+            </div>
+            <div class="flex gap-2 flex-shrink-0">
+              <button class="btn-ghost-enhance" (click)="open(t)">Open</button>
+              <button
+                class="btn-ghost-enhance"
+                (click)="renameTable(t)"
+                [disabled]="renamingId()===t.tableId">
+                @if (renamingId()===t.tableId) {Renaming...} @else {Rename}
+              </button>
+              <button
+                class="btn-ghost-enhance text-rose-600"
+                (click)="deleteTable(t)"
+                [disabled]="deletingId()===t.tableId">
+                @if (deletingId()===t.tableId) {Deleting...} @else {Delete}
+              </button>
+            </div>
+          </div>
+        } @empty {
+          <div class="text-sm text-slate-500">No tables yet.</div>
+        }
+      </div>
 
-    <div class="glass rounded-3xl p-5">
+      @if (totalPages() > 1) {
+        <div class="flex items-center justify-end gap-2 pt-1 text-xs text-slate-500">
+          <button
+            class="btn-ghost-enhance px-3 py-1"
+            type="button"
+            (click)="prevPage()"
+            [disabled]="page() === 1">
+            Prev
+          </button>
+          <span>Page {{ page() }} / {{ totalPages() }}</span>
+          <button
+            class="btn-ghost-enhance px-3 py-1"
+            type="button"
+            (click)="nextPage()"
+            [disabled]="page() === totalPages()">
+            Next
+          </button>
+        </div>
+      }
+    </div>
+
+    <!-- Right: Tips -->
+    <div class="glass rounded-3xl p-5 flex flex-col">
       <div class="text-sm text-slate-500 mb-3">Tips</div>
       <ul class="list-disc pl-4 text-sm text-slate-600 space-y-1">
-        <li>ติ๊ก <strong>Auto-increment</strong> เพื่อให้ระบบสร้างคอลัมน์ <b>ID</b> (PK) ให้อัตโนมัติ</li>
-        <li>หน้า Table-view จะล็อกฟิลด์ PK ไม่ให้แก้ไข และเวลากด Add Row จะดึงเลขรันอัตโนมัติ</li>
+        <li>
+          ติ๊ก <strong>Auto-increment</strong> เพื่อให้ระบบสร้างคอลัมน์ <b>ID</b> (PK) ให้อัตโนมัติ
+        </li>
+        <li>
+          หน้า Table-view จะล็อกฟิลด์ PK ไม่ให้แก้ไข และเวลากด Add Row จะดึงเลขรันอัตโนมัติ
+        </li>
       </ul>
     </div>
   </div>

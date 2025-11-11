@@ -1,11 +1,11 @@
-import { Component, OnInit, signal, computed, inject, HostListener, } from '@angular/core';
+import { Component, OnInit, OnDestroy, signal, computed, inject, HostListener, } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { RouterLink, Router, ActivatedRoute } from '@angular/router';
 import { firstValueFrom } from 'rxjs';
 
 import { ProjectDetailService, TableDto } from '../../core/project-detail.service';
 import { CreateTableDialog } from './ui/create-table-dialog';
-
+import { FooterStateService } from '../../core/footer-state.service';
 @Component({
   selector: 'app-project-detail',
   standalone: true,
@@ -43,11 +43,35 @@ export class ProjectDetail implements OnInit {
   profileOpen = signal(false);
 
 
+
+  //======== Constructor ==========
+
+  constructor(
+    private footer: FooterStateService
+  ) {}
+
+
+
   async ngOnInit() {
+
+
+    //  ตั้ง threshold เฉพาะหน้า Login: ย่อเมื่อสูง < 719px
+    this.footer.setThreshold(719);
+    this.footer.setForceCompact(null); // ให้ทำงานแบบ auto ตาม threshold
+
+
     const fromRoute = Number(this.route.snapshot.paramMap.get('projectId') ?? this.route.snapshot.paramMap.get('id') ?? '0');
     if (!Number.isNaN(fromRoute) && fromRoute > 0) this.projectId = fromRoute;
     await this.refresh();
   }
+
+
+
+  // ออกจากหน้านี้ให้คืนค่ากลับปกติ
+  ngOnDestroy(): void {
+    this.footer.resetAll();
+  }
+
 
   async refresh() {
   this.loading.set(true);
