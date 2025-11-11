@@ -1,15 +1,18 @@
 // src/app/core/users.service.ts
-import { Injectable /*, inject*/ } from '@angular/core';
-// import { HttpClient, HttpHeaders } from '@angular/common/http'; // TODO(WIRE-BACKEND): เปิดเมื่อผูก API จริง
-// import { firstValueFrom } from 'rxjs';                          // TODO(WIRE-BACKEND): เปิดเมื่อผูก API จริง
-import { HttpHeaders } from '@angular/common/http'; // ใช้เฉพาะสร้าง header ให้ตัวอย่าง mock
+import { Injectable, inject } from '@angular/core';
+import { HttpClient, HttpHeaders } from '@angular/common/http';
+import { firstValueFrom } from 'rxjs';
+import { environment } from '../../environments/environment';
 
 /* ============================
- * DTOs ที่ใช้ข้ามชั้น
+ * DTOs (Frontend)
  * ============================ */
+
+/** ตาม /api/users/me — รองรับทั้ง username/name เผื่อฝั่งหลังบ้านใช้ชื่อไหน */
 export type MeDto = {
   sub?: string | null;
   email?: string | null;
+  username?: string | null;
   name?: string | null;
   avatarUrl?: string | null;
 };
@@ -24,23 +27,31 @@ export type ChangePasswordDto = {
   newPassword: string;
 };
 
+export type LoginRequestDto = {
+  email: string;
+  password: string;
+};
+
+/** ต้องเช็คกับ TokenResponseDto ฝั่ง API ให้ตรงชื่อ field */
+export type TokenResponseDto = {
+  accessToken: string;
+  refreshToken?: string;
+  expiresAt?: string;
+};
+
 @Injectable({ providedIn: 'root' })
 export class UsersService {
-  // ===== ต่อ API จริง (คอมเมนต์ไว้ก่อน) =====
-  // private readonly http = inject(HttpClient);     // TODO(WIRE-BACKEND)
-  // private readonly base = '/api/users';           // TODO(WIRE-BACKEND)  [Route("api/[controller]")]
+  private readonly http = inject(HttpClient);
+  private readonly base = `${environment.apiBase}/api/users`;
 
-  /* ============================
-   * MOCK CONFIG
-   * ============================ */
-  // TODO(REMOVE-MOCK): ลบ mock เมื่อผูก API จริง
+  // ===== MOCK CONFIG =====
+  // TODO(REMOVE-MOCK): ปิด mock เมื่อใช้ API จริง
   private readonly USE_MOCK = true;
 
-  // TODO(REMOVE-MOCK): mock data ใช้ทดสอบหน้าฟอร์มเท่านั้น
   private mockMe: MeDto = {
     sub: '9',
     email: 's65524100xx@sau.ac.th',
-    name: 'Phakin Kamwilaisak',
+    username: 'Phakin Kamwilaisak',
     avatarUrl: '/assets/ph_profile.png',
   };
   private mockPassword = '12345678';
@@ -48,15 +59,40 @@ export class UsersService {
   /* ============================
    * Helpers
    * ============================ */
-  // TODO(REMOVE-HARDCODE): เปลี่ยนการเก็บ token ให้ปลอดภัย
+
   private authHeaders(): HttpHeaders {
     const token = localStorage.getItem('access_token');
     return new HttpHeaders(token ? { Authorization: `Bearer ${token}` } : {});
   }
 
-  /** ใช้เป็น fallback ให้ TypeScript เห็นว่าเมธอดมี return ทุกเส้นทาง */
   private notWired<T>(what: string): Promise<T> {
     return Promise.reject(new Error(`TODO(WIRE-BACKEND): ${what} not implemented`));
+  }
+
+  /* ============================
+   * POST /api/users/login
+   * ============================ */
+  async login(dto: LoginRequestDto): Promise<TokenResponseDto> {
+    if (this.USE_MOCK) {
+      await new Promise(r => setTimeout(r, 250));
+
+      if (dto.email !== this.mockMe.email || dto.password !== this.mockPassword) {
+        throw new Error('Invalid email or password.');
+      }
+
+      const token: TokenResponseDto = { accessToken: 'mock-access-token' };
+      localStorage.setItem('access_token', token.accessToken);
+      return token;
+    }
+
+    // ===== REAL API (เปิดใช้เมื่อพร้อม) =====
+    // const res = await firstValueFrom(
+    //   this.http.post<TokenResponseDto>(`${this.base}/login`, dto)
+    // );
+    // localStorage.setItem('access_token', res.accessToken);
+    // return res;
+
+    return this.notWired<TokenResponseDto>('POST /api/users/login');
   }
 
   /* ============================
@@ -64,11 +100,11 @@ export class UsersService {
    * ============================ */
   async getMe(): Promise<MeDto> {
     if (this.USE_MOCK) {
-      await new Promise(r => setTimeout(r, 250)); // mock delay
+      await new Promise(r => setTimeout(r, 200));
       return { ...this.mockMe };
     }
 
-    // ===== REAL API (คอมเมนต์ไว้) =====
+    // ===== REAL API =====
     // return await firstValueFrom(
     //   this.http.get<MeDto>(`${this.base}/me`, { headers: this.authHeaders() })
     // );
@@ -77,16 +113,20 @@ export class UsersService {
   }
 
   /* ============================
-   * PUT /api/users/me (แก้ไขข้อมูลผู้ใช้)
+   * PUT /api/users/me (Profile)
    * ============================ */
   async updateProfile(dto: UpdateProfileDto): Promise<MeDto> {
     if (this.USE_MOCK) {
-      await new Promise(r => setTimeout(r, 350));
-      this.mockMe = { ...this.mockMe, name: dto.username, email: dto.email };
+      await new Promise(r => setTimeout(r, 250));
+      this.mockMe = {
+        ...this.mockMe,
+        username: dto.username,
+        email: dto.email,
+      };
       return { ...this.mockMe };
     }
 
-    // ===== REAL API (คอมเมนต์ไว้) =====
+    // ===== REAL API =====
     // return await firstValueFrom(
     //   this.http.put<MeDto>(`${this.base}/me`, dto, { headers: this.authHeaders() })
     // );
@@ -95,11 +135,11 @@ export class UsersService {
   }
 
   /* ============================
-   * PUT /api/users/me/password (เปลี่ยนรหัสผ่าน)
+   * PUT /api/users/me/password
    * ============================ */
   async changePassword(dto: ChangePasswordDto): Promise<{ ok: true }> {
     if (this.USE_MOCK) {
-      await new Promise(r => setTimeout(r, 300));
+      await new Promise(r => setTimeout(r, 250));
       if (dto.currentPassword !== this.mockPassword) {
         throw new Error('Current password is incorrect.');
       }
@@ -107,35 +147,37 @@ export class UsersService {
       return { ok: true };
     }
 
-    // ===== REAL API (คอมเมนต์ไว้) =====
-    // return await firstValueFrom(
-    //   this.http.put<{ ok: true }>(`${this.base}/me/password`, dto, {
+    // ===== REAL API =====
+    // await firstValueFrom(
+    //   this.http.put<void>(`${this.base}/me/password`, dto, {
     //     headers: this.authHeaders(),
     //   })
     // );
+    // return { ok: true };
 
     return this.notWired<{ ok: true }>('PUT /api/users/me/password');
   }
 
   /* ============================
-   * POST /api/users/me/avatar (อัปโหลดรูป)
+   * POST /api/users/me/avatar
    * ============================ */
   async uploadAvatar(file: File): Promise<{ url: string }> {
     if (this.USE_MOCK) {
-      await new Promise(r => setTimeout(r, 300));
+      await new Promise(r => setTimeout(r, 250));
       const url = URL.createObjectURL(file);
       this.mockMe = { ...this.mockMe, avatarUrl: url };
       return { url };
     }
 
-    // ===== REAL API (คอมเมนต์ไว้) =====
+    // ===== REAL API =====
     // const form = new FormData();
     // form.append('file', file);
-    // return await firstValueFrom(
+    // const res = await firstValueFrom(
     //   this.http.post<{ url: string }>(`${this.base}/me/avatar`, form, {
     //     headers: this.authHeaders(),
     //   })
     // );
+    // return res;
 
     return this.notWired<{ url: string }>('POST /api/users/me/avatar');
   }
@@ -145,13 +187,15 @@ export class UsersService {
    * ============================ */
   async deleteUser(userId: number): Promise<void> {
     if (this.USE_MOCK) {
-      await new Promise(r => setTimeout(r, 200));
+      await new Promise(r => setTimeout(r, 150));
       return;
     }
 
-    // ===== REAL API (คอมเมนต์ไว้) =====
+    // ===== REAL API =====
     // await firstValueFrom(
-    //   this.http.delete<void>(`${this.base}/${userId}`, { headers: this.authHeaders() })
+    //   this.http.delete<void>(`${this.base}/${userId}`, {
+    //     headers: this.authHeaders(),
+    //   })
     // );
 
     return this.notWired<void>('DELETE /api/users/{id}');

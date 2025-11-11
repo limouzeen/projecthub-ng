@@ -2,45 +2,85 @@
   class="min-h-[calc(100vh-6rem)] relative flex items-center justify-center
          px-6 py-16 overflow-hidden isolate"
 >
-  <!-- ปุ่มย้อนกลับ -->
-  <a routerLink="/"
-     class="absolute left-6 top-6 inline-flex items-center gap-2 rounded-full bg-white/70 backdrop-blur-md
-            border border-white/30 shadow-md px-3 py-1.5 text-slate-700 hover:scale-105 transition">
-    <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none"><path d="M15 18l-6-6 6-6"
-      stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+  <!-- Back -->
+  <a
+    routerLink="/"
+    class="absolute left-6 top-6 inline-flex items-center gap-2 rounded-full bg-white/70 backdrop-blur-md
+           border border-white/30 shadow-md px-3 py-1.5 text-slate-700 hover:scale-105 transition"
+  >
+    <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none">
+      <path
+        d="M15 18l-6-6 6-6"
+        stroke="currentColor"
+        stroke-width="2"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+      />
+    </svg>
     Back
   </a>
 
   <div class="w-full max-w-md relative z-10 animate-fade-in">
-    <!-- โลโก้ + ชื่อ -->
+    <!-- Logo -->
     <div class="flex items-center justify-center mb-6">
-      <img src="/assets/h_noname_logo.png" alt="ProjectHub"
-           class="w-14 h-14 rounded-xl shadow-md mr-3 animate-float object-cover" />
+      <img
+        src="/assets/h_noname_logo.png"
+        alt="ProjectHub"
+        class="w-14 h-14 rounded-xl shadow-md mr-3 animate-float object-cover"
+      />
       <div class="text-left">
         <div class="text-xl font-bold text-slate-900 leading-tight">ProjectHub</div>
         <div class="text-xs text-slate-500 -mt-0.5">Modern projects & data</div>
       </div>
     </div>
 
-    <!-- การ์ดฟอร์ม -->
+    <!-- Card -->
     <div class="glass p-6">
       <h2 class="text-xl font-semibold text-slate-900">Welcome back</h2>
       <p class="text-slate-600 text-sm mt-1">Log in to continue</p>
 
-      <form class="mt-6 space-y-4">
+      <form class="mt-6 space-y-4" (ngSubmit)="onSubmit()">
         <div>
           <label class="text-sm text-slate-600">Email</label>
-          <input type="email" name="email" class="input mt-1" placeholder="you@example.com" />
-        </div>
-        <div>
-          <label class="text-sm text-slate-600">Password</label>
-          <input type="password" name="password" class="input mt-1" placeholder="••••••••" />
+          <input
+            type="email"
+            name="email"
+            required
+            class="input mt-1"
+            placeholder="you@example.com"
+            [ngModel]="email()"
+            (ngModelChange)="email.set($event)"
+          />
         </div>
 
-        <button  (click)="onLoginSuccess()"  type="button"
-                class="btn-primary w-full bg-gradient-to-r from-indigo-600 to-cyan-500
-                       hover:shadow-indigo-300/40 hover:scale-[1.02] transition">
-          Login
+        <div>
+          <label class="text-sm text-slate-600">Password</label>
+          <input
+            type="password"
+            name="password"
+            required
+            class="input mt-1"
+            placeholder="••••••••"
+            [ngModel]="password()"
+            (ngModelChange)="password.set($event)"
+          />
+        </div>
+
+        <!-- Error -->
+         @if (error()){
+          <div class="text-xs text-red-500">
+            {{ error() }}
+          </div>
+         }
+
+        <button
+          type="submit"
+          [disabled]="loading()"
+          class="btn-primary w-full bg-gradient-to-r from-indigo-600 to-cyan-500
+                 hover:shadow-indigo-300/40 hover:scale-[1.02] transition
+                 disabled:opacity-60 disabled:hover:scale-100"
+        >
+          {{ loading() ? 'Signing in...' : 'Login' }}
         </button>
       </form>
 
