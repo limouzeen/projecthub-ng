@@ -42,11 +42,11 @@ export type TokenResponseDto = {
 @Injectable({ providedIn: 'root' })
 export class UsersService {
   private readonly http = inject(HttpClient);
-  private readonly base = `${environment.apiBase}/api/users`;
+  private readonly base = `${environment.apiBase}/api/Users`;
 
   // ===== MOCK CONFIG =====
   // TODO(REMOVE-MOCK): ปิด mock เมื่อใช้ API จริง
-  private readonly USE_MOCK = true;
+  private readonly USE_MOCK = false;
 
   private mockMe: MeDto = {
     sub: '9',
@@ -86,13 +86,13 @@ export class UsersService {
     }
 
     // ===== REAL API (เปิดใช้เมื่อพร้อม) =====
-    // const res = await firstValueFrom(
-    //   this.http.post<TokenResponseDto>(`${this.base}/login`, dto)
-    // );
-    // localStorage.setItem('access_token', res.accessToken);
-    // return res;
+    const res = await firstValueFrom(
+      this.http.post<TokenResponseDto>(`${this.base}/login`, dto)
+    );
+    localStorage.setItem('access_token', res.accessToken);
+    return res;
 
-    return this.notWired<TokenResponseDto>('POST /api/users/login');
+    // return this.notWired<TokenResponseDto>('POST /api/users/login');
   }
 
   /* ============================
@@ -105,11 +105,11 @@ export class UsersService {
     }
 
     // ===== REAL API =====
-    // return await firstValueFrom(
-    //   this.http.get<MeDto>(`${this.base}/me`, { headers: this.authHeaders() })
-    // );
+    return await firstValueFrom(
+      this.http.get<MeDto>(`${this.base}/me`, { headers: this.authHeaders() })
+    );
 
-    return this.notWired<MeDto>('GET /api/users/me');
+    // return this.notWired<MeDto>('GET /api/users/me');
   }
 
   /* ============================
