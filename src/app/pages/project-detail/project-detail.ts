@@ -2,7 +2,7 @@
 import {
   Component, OnInit, OnDestroy, signal, computed, inject, HostListener,
 } from '@angular/core';
-import { CommonModule } from '@angular/common';
+import { CommonModule, Location } from '@angular/common';
 import { RouterLink, Router, ActivatedRoute } from '@angular/router';
 import { firstValueFrom } from 'rxjs';
 
@@ -72,7 +72,7 @@ export class ProjectDetail implements OnInit, OnDestroy {
     return list.slice(start, start + this.pageSize);
   });
 
-  constructor(private footerSvc: FooterStateService) {}
+  constructor(private footerSvc: FooterStateService, private location: Location) {}
 
   async ngOnInit() {
     // footer behavior
@@ -101,6 +101,8 @@ export class ProjectDetail implements OnInit, OnDestroy {
   ngOnDestroy(): void {
     this.footerSvc.resetAll();
   }
+
+
 
   async refresh() {
     this.loading.set(true);
@@ -135,6 +137,11 @@ export class ProjectDetail implements OnInit, OnDestroy {
       this.creating.set(false);
       this.dialogOpen.set(false);
     }
+  }
+
+  // ----- UI helpers -----
+  onBack() {
+    this.location.back();
   }
 
   // ===== Rename & Delete =====
