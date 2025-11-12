@@ -353,11 +353,11 @@ async ngOnInit() {
   // ---------- Image helpers ----------
   private onImagePicked(record: any, fieldName: string, file: File) {
     this.api
-      .uploadImage(file, { tableId: this.tableId, rowId: record.__rowId })
-      .then(async (url) => {
-        await this.setImageUrl(record, fieldName, url as any);
-      })
-      .catch((err) => console.error('upload failed', err));
+  .uploadImage(file, { tableId: this.tableId, rowId: record.__rowId })
+  .then(async (url) => {
+    await this.setImageUrl(record, fieldName, url as any);
+  })
+  .catch(err => console.error('upload failed', err));
   }
 
   private async setImageUrl(record: any, fieldName: string, url: string | null) {

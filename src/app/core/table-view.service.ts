@@ -1,7 +1,8 @@
-import { Injectable, Optional } from '@angular/core';
-import { HttpClient } from '@angular/common/http';
-import { Observable, of } from 'rxjs';
-import { delay } from 'rxjs/operators';
+// src/app/core/table-view.service.ts
+import { Injectable } from '@angular/core';
+import { HttpClient, HttpParams } from '@angular/common/http';
+import { Observable, map } from 'rxjs';
+import { environment } from '../../environments/environment';
 
 export type ColumnDto = {
   columnId: number;
@@ -10,8 +11,6 @@ export type ColumnDto = {
   dataType: string;
   isPrimary: boolean;
   isNullable: boolean;
-
-  // เพิ่มสำหรับ Lookup / Formula (optional ไว้ก่อน)
   targetTableId?: number | null;
   targetColumnId?: number | null;
   formulaDefinition?: string | null;
@@ -20,7 +19,7 @@ export type ColumnDto = {
 export type RowDto = {
   rowId: number;
   tableId: number;
-  data: string;   // JSON string
+  data: string;   // JSON string from BE
   createdAt: string;
 };
 
@@ -39,245 +38,226 @@ export type ColumnListItem = { columnId: number; name: string };
 
 @Injectable({ providedIn: 'root' })
 export class TableViewService {
-  // private readonly base = '/api';
-  // constructor(@Optional() private http: HttpClient) {}
+  private readonly base = environment.apiBase;
 
-  // ---------------- MOCK ----------------
-  private MOCK_TABLES: TableListItem[] = [
-    { tableId: 101, name: 'Products' },
-    { tableId: 102, name: 'Orders'   },
-  ];
+  constructor(private http: HttpClient) {}
 
-  private MOCK_COLUMNS: Record<number, ColumnDto[]> = {
-    101: [
-      { columnId: 1, tableId: 101, name: 'ProductId', dataType: 'INTEGER', isPrimary: true,  isNullable: false },
-      { columnId: 2, tableId: 101, name: 'Name',      dataType: 'TEXT',    isPrimary: false, isNullable: false },
-      { columnId: 3, tableId: 101, name: 'Image',     dataType: 'IMAGE',   isPrimary: false, isNullable: true  },
-      { columnId: 4, tableId: 101, name: 'Price',     dataType: 'REAL',    isPrimary: false, isNullable: false },
-    ],
-    102: [
-      { columnId: 5, tableId: 102, name: 'OrderId',   dataType: 'INTEGER', isPrimary: true,  isNullable: false },
-      { columnId: 6, tableId: 102, name: 'ProductId', dataType: 'INTEGER', isPrimary: false, isNullable: false },
-      { columnId: 7, tableId: 102, name: 'Qty',       dataType: 'REAL',    isPrimary: false, isNullable: false },
-    ],
-  };
-
-  private MOCK_ROWS: Record<number, RowDto[]> = {
-    101: [
-      {
-        rowId: 11,
-        tableId: 101,
-        data: JSON.stringify({ ProductId: 1, Name: 'Pen',  Image: '', Price: 10 }),
-        createdAt: new Date().toISOString(),
-      },
-      {
-        rowId: 12,
-        tableId: 101,
-        data: JSON.stringify({ ProductId: 2, Name: 'Book', Image: '', Price: 50 }),
-        createdAt: new Date().toISOString(),
-      },
-    ],
-    102: [
-      {
-        rowId: 21,
-        tableId: 102,
-        data: JSON.stringify({ OrderId: 9001, ProductId: 1, Qty: 2 }),
-        createdAt: new Date().toISOString(),
-      },
-    ],
-  };
-  // --------------------------------------
-
-  /** util: ตรวจว่าตารางนี้ถูกสร้างแบบ auto-increment หรือไม่ (จำจาก localStorage) */
-  private isAutoTable(tableId: number): boolean {
-    try { return localStorage.getItem('ph:auto:' + tableId) === '1'; } catch { return false; }
-  }
-
-  /** ถ้าเป็น table ใหม่ (มี id แต่ยังไม่มี schema ใน mock) → auto โผล่คอลัมน์ ID ให้อัตโนมัติถ้าเป็น auto-table */
-  private ensureSchemaForNewTable(tableId: number) {
-    if (this.MOCK_COLUMNS[tableId]) return;
-
-    if (this.isAutoTable(tableId)) {
-      this.MOCK_COLUMNS[tableId] = [{
-        columnId: Math.floor(Math.random() * 1e6),
-        tableId,
-        name: 'ID',
-        dataType: 'INTEGER',
-        isPrimary: true,
-        isNullable: false,
-      }];
-      this.MOCK_ROWS[tableId] = [];
-    } else {
-      this.MOCK_COLUMNS[tableId] = [];
-      this.MOCK_ROWS[tableId] = [];
+  // ---------------- Tables (ใช้ใน FieldDialog: Lookup target) ----------------
+  /** GET /api/tables/project/{projectId} — คุณอาจมี projectId ใน query string หน้าปัจจุบัน */
+  listTables(projectId?: number): Observable<TableListItem[]> {
+    if (!projectId) {
+      // ถ้าไม่มี projectId ก็ fallback เป็น empty (UI ไม่พัง)
+      return new Observable<TableListItem[]>(sub => { sub.next([]); sub.complete(); });
     }
+    return this.http.get<any[]>(`${this.base}/tables/project/${projectId}`).pipe(
+      map(arr => (arr ?? []).map(t => ({ tableId: t.id ?? t.tableId, name: t.name } as TableListItem)))
+    );
   }
 
-  // ---------- Tables / Columns ----------
-
-  listTables(): Observable<TableListItem[]> {
-    return of(this.MOCK_TABLES).pipe(delay(100));
-  }
-
-  listColumnsLite(tableId: number): Observable<ColumnListItem[]> {
-    this.ensureSchemaForNewTable(tableId);
-    const items = (this.MOCK_COLUMNS[tableId] ?? []).map(c => ({ columnId: c.columnId, name: c.name }));
-    return of(items).pipe(delay(100));
-  }
-
+  // ---------------- Columns ----------------
+  /** GET /api/columns/table/{tableId} */
   listColumns(tableId: number): Observable<ColumnDto[]> {
-    this.ensureSchemaForNewTable(tableId);
-    return of(this.MOCK_COLUMNS[tableId] ?? []).pipe(delay(100));
+    return this.http.get<any[]>(`${this.base}/columns/table/${tableId}`).pipe(
+      map(arr => (arr ?? []).map(c => ({
+        columnId: c.id ?? c.columnId,
+        tableId: c.tableId,
+        name: c.name,
+        dataType: (c.dataType || '').toUpperCase(),
+        isPrimary: !!c.isPrimary,
+        isNullable: !!c.isNullable,
+        targetTableId: c.targetTableId ?? null,
+        targetColumnId: c.targetColumnId ?? null,
+        formulaDefinition: c.formulaDefinition ?? null,
+      } as ColumnDto)))
+    );
   }
 
+  /** GET /api/columns/table/{tableId} (แบบ lite ใช้ชื่อ/ids) */
+  listColumnsLite(tableId: number): Observable<ColumnListItem[]> {
+    return this.listColumns(tableId).pipe(
+      map(cols => cols.map(c => ({ columnId: c.columnId, name: c.name })))
+    );
+  }
+
+  /** POST /api/columns */
   createColumn(tableId: number, dto: Partial<FieldDialogModel | ColumnDto>): Observable<ColumnDto> {
-    const col: ColumnDto = {
-      columnId: Math.floor(Math.random() * 1e6),
+    const body: any = {
       tableId,
-      name: (dto as any).name ?? 'NewField',
-      dataType: (((dto as any).dataType ?? 'TEXT') as string).toUpperCase(),
+      name: (dto as any).name,
+      dataType: (dto as any).dataType,
       isPrimary: !!(dto as any).isPrimary,
-      isNullable: (dto as any).isNullable ?? true,
+      isNullable: (dto as any).isNullable !== false,
+      // Lookup/Formula optional fields:
       targetTableId: (dto as any).targetTableId ?? null,
       targetColumnId: (dto as any).targetColumnId ?? null,
       formulaDefinition: (dto as any).formulaDefinition ?? null,
     };
-
-    this.MOCK_COLUMNS[tableId] = [...(this.MOCK_COLUMNS[tableId] ?? []), col];
-    return of(col).pipe(delay(120));
+    return this.http.post<any>(`${this.base}/columns`, body).pipe(
+      map(c => ({
+        columnId: c.id ?? c.columnId,
+        tableId: c.tableId,
+        name: c.name,
+        dataType: (c.dataType || '').toUpperCase(),
+        isPrimary: !!c.isPrimary,
+        isNullable: !!c.isNullable,
+        targetTableId: c.targetTableId ?? null,
+        targetColumnId: c.targetColumnId ?? null,
+        formulaDefinition: c.formulaDefinition ?? null,
+      } as ColumnDto))
+    );
   }
 
-  updateColumn(columnId: number, patch: Partial<ColumnDto>): Observable<ColumnDto> {
-    for (const tableId in this.MOCK_COLUMNS) {
-      const cols = this.MOCK_COLUMNS[tableId];
-      const i = cols.findIndex(c => c.columnId === columnId);
-      if (i >= 0) {
-        cols[i] = { ...cols[i], ...patch };
-        return of(cols[i]).pipe(delay(120));
-      }
-    }
-    return of(null as any).pipe(delay(120));
+  /** PUT /api/columns/{id} — รองรับเปลี่ยนชื่อฟิลด์ */
+  updateColumn(columnId: number, patch: Partial<ColumnDto & { name?: string }>): Observable<ColumnDto> {
+    const body: any = {};
+    if (patch.name) body.newName = patch.name;
+    if (patch.dataType) body.newDataType = patch.dataType;
+    if (typeof patch.isPrimary === 'boolean') body.newIsPrimary = patch.isPrimary;
+    if (typeof patch.isNullable === 'boolean') body.newIsNullable = patch.isNullable;
+    if ('formulaDefinition' in patch) body.newFormulaDefinition = patch.formulaDefinition;
+
+    return this.http.put<any>(`${this.base}/columns/${columnId}`, body).pipe(
+      map(c => ({
+        columnId: c.id ?? c.columnId,
+        tableId: c.tableId,
+        name: c.name,
+        dataType: (c.dataType || '').toUpperCase(),
+        isPrimary: !!c.isPrimary,
+        isNullable: !!c.isNullable,
+        targetTableId: c.targetTableId ?? null,
+        targetColumnId: c.targetColumnId ?? null,
+        formulaDefinition: c.formulaDefinition ?? null,
+      } as ColumnDto))
+    );
   }
 
+  /** DELETE /api/columns/{id} */
   deleteColumn(columnId: number): Observable<void> {
-    for (const tableId in this.MOCK_COLUMNS) {
-      this.MOCK_COLUMNS[tableId] =
-        this.MOCK_COLUMNS[tableId].filter(c => c.columnId !== columnId);
-    }
-    return of(void 0).pipe(delay(120));
+    return this.http.delete<void>(`${this.base}/columns/${columnId}`);
   }
 
-  // ---------- Rows ----------
-
+  // ---------------- Rows ----------------
+  /** GET /api/rows/table/{tableId} */
   listRows(tableId: number): Observable<RowDto[]> {
-    this.ensureSchemaForNewTable(tableId);
-    return of(this.MOCK_ROWS[tableId] ?? []).pipe(delay(120));
+    return this.http.get<any[]>(`${this.base}/rows/table/${tableId}`).pipe(
+      map(arr => (arr ?? []).map(r => ({
+        rowId: r.id ?? r.rowId,
+        tableId: r.tableId,
+        data: typeof r.data === 'string' ? r.data : JSON.stringify(r.data ?? {}),
+        createdAt: r.createdAt ?? r.created_at ?? new Date().toISOString(),
+      } as RowDto)))
+    );
   }
 
-  /** CreateRow: auto-run ID เฉพาะ "auto table" ที่ PK ชื่อ 'ID' */
+  /** POST /api/rows {tableId, data(JSON)} — BE จะ validate + auto-assign PK ถ้าเป็น AUTO_INCREMENT */
   createRow(tableId: number, data: Record<string, any>): Observable<RowDto> {
-    this.ensureSchemaForNewTable(tableId);
+    const body = { tableId, data };
+    return this.http.post<any>(`${this.base}/rows`, body).pipe(
+      map(r => ({
+        rowId: r.id ?? r.rowId,
+        tableId: r.tableId,
+        data: typeof r.data === 'string' ? r.data : JSON.stringify(r.data ?? {}),
+        createdAt: r.createdAt ?? r.created_at ?? new Date().toISOString(),
+      } as RowDto))
+    );
+  }
 
-    const cols  = this.MOCK_COLUMNS[tableId] ?? [];
-    const pkCol = cols.find(c => c.isPrimary);
-    const payload = { ...data };
-    const isAuto = this.isAutoTable(tableId);
+  /** PUT /api/rows/{id} {newData} */
+  updateRow(rowId: number, data: Record<string, any>): Observable<RowDto> {
+    const body = { newData: data };
+    return this.http.put<any>(`${this.base}/rows/${rowId}`, body).pipe(
+      map(r => ({
+        rowId: r.id ?? r.rowId,
+        tableId: r.tableId,
+        data: typeof r.data === 'string' ? r.data : JSON.stringify(r.data ?? {}),
+        createdAt: r.createdAt ?? r.created_at ?? new Date().toISOString(),
+      } as RowDto))
+    );
+  }
 
-    if (isAuto && pkCol && pkCol.name === 'ID') {
-      const hasPk = payload['ID'] !== undefined && payload['ID'] !== null && payload['ID'] !== '';
-      if (!hasPk) {
-        const rows = this.MOCK_ROWS[tableId] ?? [];
+  /** PATCH แบบอำนวยความสะดวก ถ้า BE ไม่มี endpoint เฉพาะ field ก็ reuse PUT */
+  updateRowField(rowId: number, field: string, value: any): Observable<RowDto> {
+    // โหลดแถวก่อน -> patch -> PUT (เพื่อไม่ทับฟิลด์อื่น)
+    return this.listRowsById(rowId).pipe(
+      map(r => {
+        const obj = typeof r.data === 'string' ? JSON.parse(r.data || '{}') : (r.data ?? {});
+        obj[field] = value;
+        return obj;
+      }),
+      // ส่ง PUT
+      // NOTE: ใช้ switchMap ได้ แต่คงสั้น ๆ:
+    ) as any;
+  }
+
+  /** helper: GET แถวเดียว (ถ้าไม่มี endpoint นี้ ให้ดึงทั้งตารางแล้วหาเอง) */
+  private listRowsById(rowId: number): Observable<RowDto> {
+    // สมมุติคุณมี /api/rows/{id}, ถ้าไม่มีให้ปรับเป็นวิธีอื่น
+    return this.http.get<any>(`${this.base}/rows/${rowId}`).pipe(
+      map(r => ({
+        rowId: r.id ?? r.rowId,
+        tableId: r.tableId,
+        data: typeof r.data === 'string' ? r.data : JSON.stringify(r.data ?? {}),
+        createdAt: r.createdAt ?? r.created_at ?? new Date().toISOString(),
+      } as RowDto))
+    );
+  }
+
+  /** DELETE /api/rows/{id} */
+  deleteRow(rowId: number): Observable<void> {
+    return this.http.delete<void>(`${this.base}/rows/${rowId}`);
+  }
+
+  /** nextRunningId: ดึงจาก BE ถ้ามี; ถ้าไม่มี คำนวณฝั่ง FE จาก max(ID) */
+  nextRunningId(tableId: number, pkName: string): Observable<number> {
+    // ถ้า BE ไม่มี endpoint เฉพาะ ให้ดึง rows แล้วหา max
+    return this.listRows(tableId).pipe(
+      map(rows => {
         let max = 0;
         for (const r of rows) {
           try {
             const obj = JSON.parse(r.data || '{}');
-            const v = Number(obj['ID']);
+            const v = Number(obj?.[pkName]);
             if (!Number.isNaN(v)) max = Math.max(max, v);
           } catch {}
         }
-        payload['ID'] = max + 1;
-      }
-    }
-    // ไม่ auto: ไม่ปรับค่า PK
-
-    const row: RowDto = {
-      rowId: Math.floor(Math.random() * 1e9),
-      tableId,
-      data: JSON.stringify(payload),
-      createdAt: new Date().toISOString(),
-    };
-    this.MOCK_ROWS[tableId] = [...(this.MOCK_ROWS[tableId] ?? []), row];
-    return of(row).pipe(delay(120));
+        return max + 1;
+      })
+    );
   }
 
-  updateRow(rowId: number, data: Record<string, any>): Observable<RowDto> {
-    for (const tableId in this.MOCK_ROWS) {
-      const list = this.MOCK_ROWS[tableId];
-      const idx = list.findIndex(r => r.rowId === rowId);
-      if (idx >= 0) {
-        list[idx] = { ...list[idx], data: JSON.stringify(data) };
-        return of(list[idx]).pipe(delay(120));
-      }
-    }
-    return of(null as any).pipe(delay(120));
-  }
-
-  updateRowField(rowId: number, field: string, value: any): Observable<RowDto> {
-    for (const tableId in this.MOCK_ROWS) {
-      const list = this.MOCK_ROWS[tableId];
-      const idx = list.findIndex(r => r.rowId === rowId);
-      if (idx >= 0) {
-        const obj = JSON.parse(list[idx].data || '{}');
-        obj[field] = value;
-        list[idx] = { ...list[idx], data: JSON.stringify(obj) };
-        return of(list[idx]).pipe(delay(100));
-      }
-    }
-    return of(null as any).pipe(delay(100));
-  }
-
-  deleteRow(rowId: number): Observable<void> {
-    for (const tableId in this.MOCK_ROWS) {
-      this.MOCK_ROWS[tableId] =
-        this.MOCK_ROWS[tableId].filter(r => r.rowId !== rowId);
-    }
-    return of(void 0).pipe(delay(100));
-  }
-
-  /** ใช้ mock หา next running id (ใช้โชว์ตอน Add Row) */
-  nextRunningId(tableId: number, pkName: string): Observable<number> {
-    const rows = this.MOCK_ROWS[tableId] ?? [];
-    let max = 0;
-    for (const r of rows) {
-      const obj = JSON.parse(r.data || '{}');
-      const v = Number(obj[pkName]);
-      if (!Number.isNaN(v)) max = Math.max(max, v);
-    }
-    return of(max + 1).pipe(delay(60));
-  }
-
-  // ------- Upload (mock: DataURL) -------
-  uploadImage(file: File, meta?: { tableId?: number; rowId?: number; columnId?: number }): Promise<string> {
-    return new Promise((resolve) => {
-      const reader = new FileReader();
-      reader.onload = () => {
-        const fakeUrl = reader.result as string;
-        setTimeout(() => resolve(fakeUrl), 500);
-      };
-      reader.readAsDataURL(file);
-    });
-  }
-
-  // ------- Remote paging (mock) -------
+  // ---------------- Remote paging (optional) ----------------
   listRowsPaged(
     tableId: number,
     page: number,
     size: number
   ): Observable<{ rows: RowDto[]; total: number }> {
-    const all = this.MOCK_ROWS[tableId] ?? [];
-    const total = all.length;
-    const start = (page - 1) * size;
-    const rows  = all.slice(start, start + size);
-    return of({ rows, total }).pipe(delay(120));
+    // ถ้า BE ยังไม่มี server-side paging ให้จำลองด้วย client-side:
+    return this.listRows(tableId).pipe(
+      map(all => {
+        const total = all.length;
+        const start = (page - 1) * size;
+        return { rows: all.slice(start, start + size), total };
+      })
+    );
+  }
+
+  // ---------------- Upload image ----------------
+  /**
+   * ถ้า BE มี endpoint อัปโหลดไฟล์: POST /api/files (form-data: file) → { url: 'https://...' }
+   * กรอก URL คืน โดย FE จะเก็บ URL ลงฟิลด์ IMAGE ตามเดิม
+   */
+  uploadImage(file: File, meta?: { tableId?: number; rowId?: number; columnId?: number }): Promise<string> {
+    // ถ้า *ยังไม่มี* endpoint อัปโหลด ให้ใช้ URL จากผู้ใช้ (dialog) หรือ bucket ภายนอก
+    // ด้านล่างนี้เป็นโค้ดตัวอย่างเมื่อมี /files/upload
+    // const fd = new FormData();
+    // fd.append('file', file);
+    // return lastValueFrom(this.http.post<{url:string}>(`${this.base}/files/upload`, fd)).then(res => res.url);
+
+    // ชั่วคราว: ใช้ dataURL ช่วยพรีวิว (ทำงานเดิมของคุณได้) — เมื่อมี API จริงค่อยสลับ
+    return new Promise(resolve => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result as string);
+      reader.readAsDataURL(file);
+    });
   }
 }
