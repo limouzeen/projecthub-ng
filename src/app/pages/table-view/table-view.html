@@ -292,11 +292,12 @@
 
   <!-- dialogs -->
   <ph-field-dialog
-    [open]="fieldOpen()"
-    [tableId]="tableId"
-    (save)="onSaveField($event)"
-    (cancel)="fieldOpen.set(false)">
-  </ph-field-dialog>
+  [open]="fieldOpen()"
+  [tableId]="tableId"
+  [projectId]="projectId!"         
+  (save)="onSaveField($event)"
+  (cancel)="fieldOpen.set(false)">
+</ph-field-dialog>
 
   <ph-row-dialog
     [open]="rowOpen()"

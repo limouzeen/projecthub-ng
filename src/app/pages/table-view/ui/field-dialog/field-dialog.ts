@@ -44,6 +44,8 @@ export class FieldDialog implements OnChanges {
   @Input() open = false;
   @Input({ required: true }) tableId!: number;
 
+  @Input({ required: true }) projectId!: number;  
+
   @Output() save = new EventEmitter<FieldDialogModel>();
   @Output() cancel = new EventEmitter<void>();
 
@@ -85,8 +87,8 @@ export class FieldDialog implements OnChanges {
       this.resetForm();
 
       // mock: โหลด table list (ใช้สำหรับ Lookup)
-      const tabs = (await firstValueFrom(this.api.listTables())) ?? [];
-      this.tables.set(tabs);
+      const tabs = (await firstValueFrom(this.api.listTables(this.projectId))) ?? [];
+this.tables.set(tabs);
 
       // mock: โหลดคอลัมน์ numeric ของ table ปัจจุบัน (ไว้ให้ Formula เลือก)
       await this.loadNumericColumns();

@@ -188,29 +188,24 @@ async ngOnInit() {
   // ================= data ops =================
 
 async refresh() {
-  // โหลด schema
+  // 1) schema
   const cols = await firstValueFrom(this.api.listColumns(this.tableId));
   this.columns.set(cols);
 
-  // เช็ค primary จากหลังบ้านจริง ๆ
+  // 2) อ่าน primary จากหลังบ้าน → ตั้งค่า auto-table
   try {
-    const primary = await firstValueFrom(this.api.getPrimary(this.tableId)); // may be null
-    const auto =
-      !!primary &&
-      (
-        (primary as any).primaryKeyType === 'AUTO_INCREMENT' || // ถ้า BE ส่งฟิลด์นี้มา
-        (primary.isPrimary && primary.name?.toUpperCase() === 'ID')          // เผื่อ BE ไม่ส่ง primaryKeyType
-      );
-
-    this.isAutoTable.set(auto);
+    const primary = await firstValueFrom(this.api.getPrimary(this.tableId));
+    const isAuto = !!primary && (primary.primaryKeyType?.toUpperCase() === 'AUTO_INCREMENT' || primary.name?.toUpperCase() === 'ID');
+    this.isAutoTable.set(isAuto);
   } catch {
     this.isAutoTable.set(false);
   }
 
-  // เคลียร์/โหลด rows
+  // 3) โหลด rows ลง grid
   this.rows.set([]);
   this.ensureGridAndSync();
 }
+
 
   parseData(json: string | null | undefined): any {
     if (!json) return {};

@@ -47,9 +47,11 @@ export class TableViewService {
     return this.http.get<ColumnDto[]>(`${this.base}/columns/table/${tableId}`);
   }
 
-  getPrimary(tableId: number): Observable<ColumnDto | null> {
+    /** บอกว่าเป็น Auto-increment ไหม (ดูจากคอลัมน์ Primary) */
+  getPrimary(tableId: number) {
     return this.http.get<ColumnDto | null>(`${this.base}/columns/table/${tableId}/primary`);
   }
+
 
   createColumn(tableId: number, dto: Partial<FieldDialogModel | ColumnDto>): Observable<ColumnDto> {
     const payload: any = {
@@ -101,6 +103,7 @@ export class TableViewService {
     return this.http.put<RowDto>(`${this.base}/rows/${rowId}`, { newData: { [field]: value } });
   }
 
+  /** ใช้โชว์ next running id ของ PK 'ID' ถ้าอยากเด้งเลขในฟอร์ม */
   nextRunningId(tableId: number, pkName: string) {
     return this.listRows(tableId).pipe(
       map(rows => {
@@ -149,11 +152,10 @@ listColumnsLite(tableId: number): Observable<ColumnListItem[]> {
   );
 }
 
-// โหลดรายชื่อตาราง (กรณี generic ทั้งระบบ)
-listTables(): Observable<TableListItem[]> {
-  return this.http.get<TableListItem[]>(`${this.base}/tables`);
-}
-
+ // ===== Tables (ใช้ใน FieldDialog – ต้องใส่ projectId) =====
+  listTables(projectId: number) {
+    return this.http.get<TableListItem[]>(`${this.base}/tables/project/${projectId}`);
+  }
 
 
 }
