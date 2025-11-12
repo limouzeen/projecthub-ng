@@ -39,6 +39,24 @@ export type TokenResponseDto = {
   expiresAt?: string;
 };
 
+export type RegisterRequestDto = {
+  email: string;
+  username: string;
+  password: string;
+  profilePictureUrl: string; // ฝั่งหลังบ้าน Required
+};
+
+
+export type UserResponseDto = {
+  userId: number;
+  email: string;
+  username: string;
+  profilePictureUrl?: string | null;
+  createdAt?: string;
+};
+
+
+
 @Injectable({ providedIn: 'root' })
 export class UsersService {
   private readonly http = inject(HttpClient);
@@ -200,4 +218,31 @@ export class UsersService {
 
     return this.notWired<void>('DELETE /api/users/{id}');
   }
+
+
+  async register(input: { email: string; username: string; password: string; }): Promise<UserResponseDto> {
+  // ส่งรูป default จาก assets โดยผู้ใช้ไม่ต้องอัปโหลด
+  const payload: RegisterRequestDto = {
+    email: input.email.trim(),
+    username: input.username.trim(),
+    password: input.password,
+    profilePictureUrl: '/assets/ph_profile.png',
+  };
+
+  // MOCK? ถ้ายังอยากลองแบบ mock ให้ย้าย logic มาตามสไตล์คุณได้
+  if (this.USE_MOCK) {
+    await new Promise(r => setTimeout(r, 250));
+    return {
+      userId: 999,
+      email: payload.email,
+      username: payload.username,
+      profilePictureUrl: payload.profilePictureUrl,
+    };
+  }
+
+  // ===== REAL API =====
+  return await firstValueFrom(
+    this.http.post<UserResponseDto>(`${this.base}/register`, payload)
+  );
+}
 }

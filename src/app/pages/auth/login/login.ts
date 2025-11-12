@@ -4,6 +4,7 @@ import { Router, RouterLink } from '@angular/router';
 import { FormsModule } from '@angular/forms';
 import { FooterStateService } from '../../../core/footer-state.service';
 import { UsersService } from '../../../core/users.service';
+import { ActivatedRoute } from '@angular/router';
 
 @Component({
   selector: 'app-login',
@@ -16,6 +17,8 @@ export class Login implements OnInit, OnDestroy {
   private readonly router = inject(Router);
   private readonly footer = inject(FooterStateService);
   private readonly users = inject(UsersService);
+  private readonly route = inject(ActivatedRoute);
+  notice = signal('');
 
   readonly email = signal('');
   readonly password = signal('');
@@ -44,10 +47,14 @@ export class Login implements OnInit, OnDestroy {
   }
 
   ngOnInit(): void {
-    this.footer.setThreshold(578);
-    this.footer.setForceCompact(null);
-  }
-
+  this.footer.setThreshold(578);
+  this.footer.setForceCompact(null);
+  this.route.queryParamMap.subscribe(q => {
+    if (q.get('registered') === '1') {
+      this.notice.set('Account created. Please sign in.');
+    }
+  });
+}
   ngOnDestroy(): void {
     this.footer.resetAll();
   }

@@ -2,6 +2,8 @@
   class="min-h-[calc(100vh-6rem)] relative flex items-center justify-center
          px-6 py-16 overflow-hidden isolate"
 >
+
+
   <!-- Back -->
   <a
     routerLink="/"
@@ -82,7 +84,11 @@
           {{ loading() ? 'Signing in...' : 'Login' }}
         </button>
       </form>
-
+      @if (notice()) {
+  <div class="mt-5 mb-3 text-xs rounded-lg px-3 py-2 bg-emerald-50 text-emerald-700 border border-emerald-200">
+    {{ notice() }}
+  </div>
+}
       <div class="mt-4 flex items-center justify-between text-sm">
         <a class="text-slate-500 hover:underline" href="javascript:void(0)">Forgot password?</a>
         <a routerLink="/register" class="link">Create account</a>

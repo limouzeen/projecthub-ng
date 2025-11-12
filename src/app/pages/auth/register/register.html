@@ -2,12 +2,13 @@
   class="min-h-[calc(100vh-6rem)] relative flex items-center justify-center
          px-6 py-16 overflow-hidden isolate"
 >
-
+  <!-- Back -->
   <a routerLink="/"
      class="absolute left-6 top-6 inline-flex items-center gap-2 rounded-full bg-white/70 backdrop-blur-md
             border border-white/30 shadow-md px-3 py-1.5 text-slate-700 hover:scale-105 transition">
-    <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none"><path d="M15 18l-6-6 6-6"
-      stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none">
+      <path d="M15 18l-6-6 6-6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+    </svg>
     Back
   </a>
 
@@ -22,31 +23,82 @@
       </div>
     </div>
 
-    
-
     <!-- การ์ดฟอร์ม -->
     <div class="glass p-6">
       <h2 class="text-xl font-semibold text-slate-900">Create account</h2>
       <p class="text-slate-600 text-sm mt-1">Start organizing your projects</p>
 
-      <form class="mt-6 space-y-4">
+      <form class="mt-6 space-y-4" (ngSubmit)="onSubmit()">
+        <!-- Email -->
         <div>
           <label class="text-sm text-slate-600">Email</label>
-          <input type="email" name="email" class="input mt-1" placeholder="you@example.com" />
-        </div>
-        <div>
-          <label class="text-sm text-slate-600">Username</label>
-          <input type="text" name="username" class="input mt-1" placeholder="yourname" />
-        </div>
-        <div>
-          <label class="text-sm text-slate-600">Password</label>
-          <input type="password" name="password" class="input mt-1" placeholder="••••••••" />
+          <input
+            type="email"
+            name="email"
+            class="input mt-1"
+            placeholder="you@example.com"
+            [ngModel]="email()"
+            (ngModelChange)="email.set($event)"
+          />
+          @if (email() && !isEmailValid) {
+            <div class="text-[11px] text-rose-600 mt-1">
+              Invalid email address.
+            </div>
+          }
         </div>
 
-        <button type="button"
-                class="btn-primary w-full bg-gradient-to-r from-indigo-600 to-cyan-500
-                       hover:shadow-indigo-300/40 hover:scale-[1.02] transition">
-          Register
+        <!-- Username -->
+        <div>
+          <label class="text-sm text-slate-600">Username</label>
+          <input
+            type="text"
+            name="username"
+            class="input mt-1"
+            placeholder="yourname"
+            [ngModel]="username()"
+            (ngModelChange)="username.set($event)"
+          />
+          @if (username() && !isUsernameValid) {
+            <div class="text-[11px] text-rose-600 mt-1">
+              At least 2 characters.
+            </div>
+          }
+        </div>
+
+        <!-- Password -->
+        <div>
+          <label class="text-sm text-slate-600">Password</label>
+          <input
+            type="password"
+            name="password"
+            class="input mt-1"
+            placeholder="••••••••"
+            [ngModel]="password()"
+            (ngModelChange)="password.set($event)"
+          />
+          @if (password() && !isPasswordValid) {
+            <div class="text-[11px] text-rose-600 mt-1">
+              Minimum 6 characters.
+            </div>
+          }
+        </div>
+
+        <!-- error/success -->
+        @if (error()) {
+          <div class="text-xs text-rose-600">{{ error() }}</div>
+        }
+        @if (success()) {
+          <div class="text-xs text-emerald-600">{{ success() }}</div>
+        }
+
+        <!-- Button -->
+        <button
+          type="submit"
+          [disabled]="loading() || !formValid"
+          class="btn-primary w-full bg-gradient-to-r from-indigo-600 to-cyan-500
+                 hover:shadow-indigo-300/40 hover:scale-[1.02] transition
+                 disabled:opacity-60 disabled:hover:scale-100">
+          {{ loading() ? 'Creating...' : 'Register' }}
         </button>
       </form>
 
