@@ -8,6 +8,7 @@ import { environment } from '../../environments/environment';
  * DTOs (Frontend)
  * ============================ */
 export type MeDto = {
+  userId?: number;           
   sub?: string | null;
   email?: string | null;
   username?: string | null;

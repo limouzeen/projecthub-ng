@@ -73,7 +73,8 @@
           </button>
           <div class="text-[11px] text-slate-500">PNG/JPG/WEBP up to 2MB</div>
         </div>
-        <!-- Delete Account -->
+        @if(userId()){
+          <!-- Delete Account -->
         <div class="flex flex-col justify-between flex-auto gap-4 items-center">
           <div class="-mt-10 mr-5 text-[10px] mx-auto text-slate-500">Danger zone</div>
           <button
@@ -84,6 +85,7 @@
             Delete account
           </button>
         </div>
+        }
       </div>
 
       <!-- Profile form -->
@@ -283,43 +285,54 @@
 
         <!-- Status (password) -->
         <div class="pt-1">
-          <div class="h-9 flex items-center">
-            <div
-              class="rounded-xl px-3 py-2 text-sm border inline-flex items-center gap-2 transition-opacity duration-200 [bg-emerald-50/80 text-emerald-700 border-emerald-200]:statusPassword() === 'success' [bg-rose-50/80 text-rose-700 border-rose-200] :statusPassword() === 'error'"
-              [class.opacity-0]="statusPassword() === 'idle'"
-              [class.invisible]="statusPassword() === 'idle'"
-              role="status"
-              aria-live="polite"
-            >
-              @if (statusPassword() === 'success') {
-              <svg
-                class="w-4 h-4"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="2"
-              >
-                <path d="M20 6L9 17l-5-5" stroke-linecap="round" stroke-linejoin="round" />
-              </svg>
-              } @else {
-              <svg
-                class="w-4 h-4"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="2"
-              >
-                <path
-                  d="M12 9v4m0 4h.01M12 2a10 10 0 110 20 10 10 0 010-20z"
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                />
-              </svg>
-              }
-              <span class="truncate">{{ statusPasswordMsg() }}</span>
-            </div>
-          </div>
-        </div>
+  <div class="h-9 flex items-center">
+    <div
+      class="rounded-xl px-3 py-2 text-sm border inline-flex items-center gap-2 transition-opacity duration-200"
+      [class.bg-emerald-50]="statusPassword() === 'success'"
+      [class.text-emerald-700]="statusPassword() === 'success'"
+      [class.border-emerald-200]="statusPassword() === 'success'"
+      [class.bg-rose-50]="statusPassword() === 'error'"
+      [class.text-rose-700]="statusPassword() === 'error'"
+      [class.border-rose-200]="statusPassword() === 'error'"
+      [class.opacity-0]="statusPassword() === 'idle'"
+      [class.invisible]="statusPassword() === 'idle'"
+      role="status"
+      aria-live="polite"
+    >
+      @if (statusPassword() === 'success') {
+        <!-- icon success -->
+        <svg
+          class="w-4 h-4"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+          [hidden]="statusPassword() !== 'success'"
+        >
+          
+        </svg>
+      } @else {
+        <!-- icon info/error -->
+        <svg
+          class="w-4 h-4"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+          [hidden]="statusPassword() === 'success'"
+        >
+          <path
+            d="M12 9v4m0 4h.01M12 2a10 10 0 110 20 10 10 0 010-20z"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          />
+        </svg>
+      }
+      <span class="truncate">{{ statusPasswordMsg() }}</span>
+    </div>
+  </div>
+</div>
+
 
         <!-- Actions (password) -->
         <div class="flex gap-3 justify-end">

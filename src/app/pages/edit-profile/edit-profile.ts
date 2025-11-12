@@ -43,7 +43,7 @@ export class EditProfile implements OnInit, OnDestroy {
   });
 
   // ⬅️ snapshot สำหรับปุ่ม Cancel
-  private readonly baseline = signal<Pick<ProfileForm, 'displayName'|'email'|'avatarPreview'>>({
+  private readonly baseline = signal<Pick<ProfileForm, 'displayName' | 'email' | 'avatarPreview'>>({
     displayName: 'Your name',
     email: 'you@example.com',
     avatarPreview: null,
@@ -82,8 +82,8 @@ export class EditProfile implements OnInit, OnDestroy {
     try {
       const me = await this.users.getMe(); // { sub, email, name, profilePictureUrl }
       // เก็บ userId จาก token
-      const sub = (me.sub ?? '').trim();
-      if (sub && !isNaN(+sub)) this.userId.set(+sub);
+      const uid = me.userId ?? (me.sub && !isNaN(+me.sub) ? +me.sub : null);
+      if (uid) this.userId.set(uid);
 
       this.patchFromMe(me);
 
@@ -92,7 +92,7 @@ export class EditProfile implements OnInit, OnDestroy {
       if (maybe) {
         const looksDataUrl = maybe.startsWith('data:');
         const preview = looksDataUrl ? maybe : `data:image/png;base64,${maybe}`;
-        this.model.update(m => ({ ...m, avatarPreview: preview }));
+        this.model.update((m) => ({ ...m, avatarPreview: preview }));
       }
 
       // ⬅️ บันทึกค่า baseline หลังโหลดครั้งแรก
@@ -113,13 +113,19 @@ export class EditProfile implements OnInit, OnDestroy {
     this.footer.resetAll();
   }
 
-  onBack() { this.location.back(); }
-  toggleShowCurrent() { this.showCurrent.update(v => !v); }
-  toggleShowNew() { this.showNew.update(v => !v); }
+  onBack() {
+    this.location.back();
+  }
+  toggleShowCurrent() {
+    this.showCurrent.update((v) => !v);
+  }
+  toggleShowNew() {
+    this.showNew.update((v) => !v);
+  }
 
   onText<K extends keyof ProfileForm>(key: K, ev: Event) {
     const value = (ev.target as HTMLInputElement).value as ProfileForm[K];
-    this.model.update(m => ({ ...m, [key]: value }));
+    this.model.update((m) => ({ ...m, [key]: value }));
   }
 
   onPickAvatar(ev: Event) {
@@ -139,13 +145,13 @@ export class EditProfile implements OnInit, OnDestroy {
     if (prev && prev.startsWith('blob:')) URL.revokeObjectURL(prev);
 
     const url = URL.createObjectURL(file);
-    this.model.update(m => ({ ...m, avatarFile: file, avatarPreview: url }));
+    this.model.update((m) => ({ ...m, avatarFile: file, avatarPreview: url }));
   }
 
   removeAvatar() {
     const prev = this.model().avatarPreview;
     if (prev && prev.startsWith('blob:')) URL.revokeObjectURL(prev);
-    this.model.update(m => ({ ...m, avatarFile: null, avatarPreview: null }));
+    this.model.update((m) => ({ ...m, avatarFile: null, avatarPreview: null }));
   }
 
   // === SAVE PROFILE ===
@@ -191,9 +197,9 @@ export class EditProfile implements OnInit, OnDestroy {
       if (updated?.profilePictureUrl) {
         const s = updated.profilePictureUrl.trim();
         const preview = s.startsWith('data:') ? s : `data:image/png;base64,${s}`;
-        this.model.update(m => ({ ...m, avatarPreview: preview, avatarFile: null }));
+        this.model.update((m) => ({ ...m, avatarPreview: preview, avatarFile: null }));
       } else if (profilePictureUrl === null) {
-        this.model.update(m => ({ ...m, avatarPreview: null, avatarFile: null }));
+        this.model.update((m) => ({ ...m, avatarPreview: null, avatarFile: null }));
       }
 
       // ⬅️ อัปเดต baseline หลังเซฟสำเร็จ
@@ -245,7 +251,9 @@ export class EditProfile implements OnInit, OnDestroy {
       this.setStatusProfile('error', 'User id not found.');
       return;
     }
-    const ok = window.confirm('Are you sure you want to delete your account? This cannot be undone.');
+    const ok = window.confirm(
+      'Are you sure you want to delete your account? This cannot be undone.'
+    );
     if (!ok) return;
 
     try {
@@ -263,18 +271,28 @@ export class EditProfile implements OnInit, OnDestroy {
     this.statusProfileMsg.set(msg);
     if (ms > 0) setTimeout(() => this.clearProfileStatus(), ms);
   }
-  private clearProfileStatus() { this.statusProfile.set('idle'); this.statusProfileMsg.set(''); }
+  private clearProfileStatus() {
+    this.statusProfile.set('idle');
+    this.statusProfileMsg.set('');
+  }
 
   private setStatusPassword(kind: UpdateStatus, msg: string, ms = 4000) {
     this.statusPassword.set(kind);
     this.statusPasswordMsg.set(msg);
     if (ms > 0) setTimeout(() => this.clearPasswordStatus(), ms);
   }
-  private clearPasswordStatus() { this.statusPassword.set('idle'); this.statusPasswordMsg.set(''); }
+  private clearPasswordStatus() {
+    this.statusPassword.set('idle');
+    this.statusPasswordMsg.set('');
+  }
 
   private patchFromMe(me: MeDto) {
     const display = (me.username ?? '').trim() || (me.name ?? '').trim() || (me.email ?? '');
-    this.model.update(m => ({ ...m, displayName: display || m.displayName, email: me.email ?? m.email }));
+    this.model.update((m) => ({
+      ...m,
+      displayName: display || m.displayName,
+      email: me.email ?? m.email,
+    }));
   }
 
   wipeCurrentIfPrefilled(ev: Event) {
@@ -283,7 +301,12 @@ export class EditProfile implements OnInit, OnDestroy {
   }
 
   private clearPasswordFields() {
-    this.model.update(m => ({ ...m, currentPassword: '', newPassword: '', confirmNewPassword: '' }));
+    this.model.update((m) => ({
+      ...m,
+      currentPassword: '',
+      newPassword: '',
+      confirmNewPassword: '',
+    }));
   }
 
   // ปุ่ม Cancel โปรไฟล์ — คืนค่ากลับ baseline
