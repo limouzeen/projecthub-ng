@@ -10,6 +10,7 @@ export type ProjectResponseDto = {
   updatedAt: string;    // ISO
   tableCount: number;   // จำนวนตาราง
   isFavorite: boolean;
+  lastOpenedAt?: string;
 };
 
 export type CreateProjectRequest = { userId: number; name: string };

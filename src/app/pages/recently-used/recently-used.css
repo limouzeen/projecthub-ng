@@ -1,0 +1,73 @@
+/* ===== Recently Used — Card ===== */
+.ru-card{
+  @apply relative flex items-stretch gap-0 rounded-2xl
+         bg-white/75 backdrop-blur border border-white/40
+         shadow-sm hover:shadow-md transition
+         ring-0 hover:ring-1 hover:ring-indigo-200/50;
+}
+
+/* แถบซ้ายสีกลืนธีม + bullet เล็ก */
+.ru-accent{
+  @apply relative w-1.5 rounded-l-2xl;
+  background: linear-gradient(180deg,#6366f1 0%,#06b6d4 100%);
+}
+.ru-bullet{
+  @apply absolute -right-1 top-3 w-2.5 h-2.5 rounded-full;
+  background: radial-gradient( circle at 30% 30%, #34d399 0%, #10b981 55%, #059669 100%);
+  box-shadow: 0 0 0 2px rgba(255,255,255,.7), 0 2px 10px rgba(16,185,129,.25);
+}
+
+/* เนื้อหา */
+.ru-main{
+  @apply flex-1 px-4 py-3;
+}
+.ru-title-row{
+  @apply flex items-center gap-2;
+}
+.ru-name{
+  @apply font-semibold text-slate-900 tracking-tight;
+}
+
+/* badge เวลา */
+.ru-badge{
+  @apply ml-auto inline-flex items-center gap-1.5 px-2 py-1 rounded-xl
+         text-[11px] font-medium border;
+}
+.ru-badge.time{
+  @apply border-slate-200/70 text-slate-600 bg-white/70;
+}
+
+/* เมต้า info */
+.ru-meta{
+  @apply mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-slate-500;
+}
+.ru-dot{
+  @apply relative;
+}
+.ru-dot::before{
+  content:"•";
+  @apply text-slate-300 mx-1;
+}
+
+/* ด้านขวา */
+.ru-right{
+  @apply pr-3 pl-1 py-3 flex flex-col items-end justify-center gap-1 min-w-[120px];
+}
+.ru-id{
+  @apply text-[10px] text-slate-400;
+}
+
+/* ปุ่ม continue แบบกลืนธีม */
+.ru-continue{
+  @apply inline-flex items-center gap-1 px-3 py-1.5 rounded-xl
+         text-[11px] font-medium
+         bg-white/80 border border-slate-200 text-slate-700
+         hover:bg-gradient-to-r hover:from-indigo-600 hover:to-cyan-500
+         hover:text-white hover:border-transparent transition;
+}
+
+/* Hover ยกทั้งการ์ด */
+.ru-card:hover .ru-bullet{
+  box-shadow: 0 0 0 2px rgba(255,255,255,.85), 0 4px 16px rgba(16,185,129,.35);
+  transform: translateY(-1px);
+}

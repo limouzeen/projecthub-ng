@@ -1,20 +1,14 @@
 import {
-  Component,
-  inject,
-  signal,
-  computed,
-  OnInit,
-  HostListener,
-  AfterViewInit, OnDestroy,
+  Component, inject, signal, computed, OnInit, HostListener, OnDestroy
 } from '@angular/core';
 import { CommonModule, Location } from '@angular/common';
-import { Router, RouterLink } from '@angular/router';
+import { Router } from '@angular/router';
 import {
   FavoriteProjectsService,
   FavoriteProject,
 } from '../../core/favorite-projects.service';
 import { FooterStateService } from '../../core/footer-state.service';
-
+import { UsersService, MeDto } from '../../core/users.service';
 
 @Component({
   selector: 'app-favorite-projects',
@@ -27,6 +21,9 @@ export class FavoriteProjects implements OnInit, OnDestroy {
   private readonly svc = inject(FavoriteProjectsService);
   private readonly router = inject(Router);
   private readonly location = inject(Location);
+
+  private readonly users = inject(UsersService);              
+  me = signal<MeDto | null>(null);
 
   // UI state
   asideOpen = signal(false);
@@ -41,32 +38,15 @@ export class FavoriteProjects implements OnInit, OnDestroy {
   pageIndex = signal(0);
   pageSize = signal(5);
 
-
-
- // ===== Constructor ========
-
-  constructor(
-    private footer: FooterStateService
-  ) {}
-
-
+  constructor(private footer: FooterStateService) {}
 
   // ===== Derived data =====
-
-  // filter & ให้ pinned ขึ้นก่อน
   filtered = computed(() => {
     const q = this.keyword().trim().toLowerCase();
     const items = this.favorites();
-
-    const base = !q
-      ? items
-      : items.filter((p) =>
-          (p.name ?? '').toLowerCase().includes(q)
-        );
-
-    return [...base].sort(
-      (a, b) => Number(b.isPinned) - Number(a.isPinned)
-    );
+    const base = !q ? items : items.filter(p => (p.name ?? '').toLowerCase().includes(q));
+    // เรียงให้ pinned ขึ้นก่อน (จริง ๆ ทุกตัวในหน้านี้คือ pinned อยู่แล้ว แต่คง logic เดิม)
+    return [...base].sort((a, b) => Number(b.isPinned) - Number(a.isPinned));
   });
 
   pageCount = computed(() => {
@@ -76,47 +56,47 @@ export class FavoriteProjects implements OnInit, OnDestroy {
     return Math.max(1, Math.ceil(total / size));
   });
 
-  pages = computed(() =>
-    Array.from({ length: this.pageCount() }, (_, i) => i)
-  );
+  pages = computed(() => Array.from({ length: this.pageCount() }, (_, i) => i));
 
   paged = computed(() => {
     const all = this.filtered();
     const size = this.pageSize();
     if (!size) return all;
-
     const maxIndex = this.pageCount() - 1;
     const safeIndex = Math.min(this.pageIndex(), maxIndex);
     const start = safeIndex * size;
-
     return all.slice(start, start + size);
   });
 
-  pageStart = computed(() => {
-    const total = this.filtered().length;
-    if (!total) return 0;
-    return this.pageIndex() * this.pageSize() + 1;
-  });
-
-  pageEnd = computed(() => {
+  pageStart = computed(() => (this.filtered().length ? this.pageIndex() * this.pageSize() + 1 : 0));
+  pageEnd   = computed(() => {
     const total = this.filtered().length;
     if (!total) return 0;
     const end = (this.pageIndex() + 1) * this.pageSize();
     return end > total ? total : end;
-  });
+    });
 
   // ===== Lifecycle =====
-
   ngOnInit() {
-
     this.footer.setThreshold(690);
     this.footer.setForceCompact(null);
-    // TODO: เปลี่ยนเป็น API จริงเมื่อพร้อม
-    // this.api.getFavoriteProjects().subscribe(...)
-    this.svc.getFavorites().subscribe((list) => {
-      this.favorites.set(list);
-      this.loading.set(false);
-      this.pageIndex.set(0);
+
+    //โหลดโปรไฟล์ก่อน (เอาไว้ใช้รูป/ชื่อ/อีเมล ที่มุมขวาบน)
+    this.users.getMe()
+      .then(info => this.me.set(info))
+      .catch(() => this.router.navigateByUrl('/login'));
+
+    // โหลดจาก API จริง
+    this.svc.getFavorites().subscribe({
+      next: (list) => {
+        this.favorites.set(list);
+        this.loading.set(false);
+        this.pageIndex.set(0);
+      },
+      error: () => {
+        this.loading.set(false);
+        // คง UX เดิม: เงียบไว้ก่อน (จะใส่ toast ทีหลังได้)
+      },
     });
   }
 
@@ -124,82 +104,54 @@ export class FavoriteProjects implements OnInit, OnDestroy {
     this.footer.resetAll();
   }
 
-
-
   // ===== Topbar / Aside =====
-
-  toggleAside() {
-    this.asideOpen.update((v) => !v);
-  }
+  toggleAside() { this.asideOpen.update(v => !v); }
 
   onBack() {
-    if (window.history.length > 1) {
-      this.location.back();
-    } else {
-      this.router.navigateByUrl('/dashboard');
-    }
+    if (window.history.length > 1) this.location.back();
+    else this.router.navigateByUrl('/dashboard');
   }
 
-  toggleProfileMenu() {
-    this.profileOpen.update((v) => !v);
-  }
+  toggleProfileMenu() { this.profileOpen.update(v => !v); }
+  onEditProfile() { this.profileOpen.set(false); this.router.navigateByUrl('/profile/edit'); }
+  onLogout() { this.profileOpen.set(false); this.router.navigateByUrl('/login'); }
 
-  onEditProfile() {
-    this.profileOpen.set(false);
-    this.router.navigateByUrl('/profile/edit');
-  }
-
-  onLogout() {
-    this.profileOpen.set(false);
-    this.router.navigateByUrl('/login');
-  }
-
-  @HostListener('document:click')
-  onDocClick() {
+  @HostListener('document:click') onDocClick() {
     if (this.profileOpen()) this.profileOpen.set(false);
   }
-
-  @HostListener('document:keydown.escape')
-  onEsc() {
+  @HostListener('document:keydown.escape') onEsc() {
     if (this.profileOpen()) this.profileOpen.set(false);
     if (this.asideOpen()) this.asideOpen.set(false);
   }
 
   // ===== Pagination actions =====
-
-  prevPage() {
-    const i = this.pageIndex();
-    if (i > 0) this.pageIndex.set(i - 1);
-  }
-
-  nextPage() {
-    const i = this.pageIndex();
-    if (i < this.pageCount() - 1) this.pageIndex.set(i + 1);
-  }
-
-  gotoPage(i: number) {
-    if (i >= 0 && i < this.pageCount()) {
-      this.pageIndex.set(i);
-    }
-  }
+  prevPage() { const i = this.pageIndex(); if (i > 0) this.pageIndex.set(i - 1); }
+  nextPage() { const i = this.pageIndex(); if (i < this.pageCount() - 1) this.pageIndex.set(i + 1); }
+  gotoPage(i: number) { if (i >= 0 && i < this.pageCount()) this.pageIndex.set(i); }
 
   // ===== Card actions =====
+  onOpenProject(p: FavoriteProject) { this.router.navigate(['/projects', p.projectId]); }
 
-  onOpenProject(p: FavoriteProject) {
-    this.router.navigate(['/projects', p.projectId]);
-  }
-
-  onTogglePin(p: FavoriteProject, ev: MouseEvent) {
+  /** Toggle star แล้ว sync กับลิสต์ให้ตรง UX เดิม */
+  async onTogglePin(p: FavoriteProject, ev: MouseEvent) {
     ev.stopPropagation();
+    try {
+      const updated = await this.svc.togglePin(p.projectId);
 
-    const updated = this.favorites().map((x) =>
-      x.projectId === p.projectId
-        ? { ...x, isPinned: !x.isPinned }
-        : x
-    );
-    this.favorites.set(updated);
-
-    // TODO: call API อัปเดต favorite เมื่อมี backend จริง
-    // this.api.updateFavorite(p.projectId, !p.isPinned).subscribe();
+      if (updated.isPinned) {
+        // ยังเป็น favorite → อัปเดตการ์ด
+        this.favorites.update(list =>
+          list.map(x => (x.projectId === updated.projectId ? updated : x))
+        );
+      } else {
+        // ถูกปลดดาว → เอาออกจากหน้านี้
+        this.favorites.update(list => list.filter(x => x.projectId !== p.projectId));
+        // ปรับหน้าไม่ให้ index เกินหลังเอาออก
+        const pc = this.pageCount();
+        if (this.pageIndex() >= pc) this.pageIndex.set(Math.max(0, pc - 1));
+      }
+    } catch {
+      // คง UX เดิม: ไม่เด้ง alert (จะใส่ toast ได้ภายหลัง)
+    }
   }
 }

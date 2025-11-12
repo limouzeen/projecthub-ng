@@ -69,6 +69,23 @@ export class Dashboard implements AfterViewInit, OnDestroy {
 
     // =================================================
 
+
+    /** เพิ่มสำหรับ Bulk Delete */
+deleteManyDlgOpen = signal(false);
+selectedNamesPreview = computed(() => {
+  const ids = Array.from(this.selected());
+  const names = this.projects()
+    .filter(p => ids.includes(p.id))
+    .map(p => p.name);
+  // โชว์แค่ 3 ชื่อพอ ที่เหลือเป็น … เพื่อไม่ให้ล้น
+  const shown = names.slice(0, 3);
+  const more = Math.max(0, names.length - shown.length);
+  return more > 0 ? `${shown.join(', ')} และอีก ${more}` : shown.join(', ');
+});
+selectedCount = computed(() => this.selected().size);
+
+
+// =================================================
   async ngAfterViewInit() {
     this.footer.setThreshold(720);
     setTimeout(() => {
@@ -196,6 +213,7 @@ onEsc() {
   if (this.newProjectDlgOpen()) { this.closeNewProjectDialog(); return; }
   if (this.renameDlgOpen())    { this.closeRenameDialog(); return; }
   if (this.deleteDlgOpen())    { this.closeDeleteDialog(); return; }
+  if (this.deleteManyDlgOpen()) { this.closeDeleteManyDialog(); return; } 
 
   if (this.profileOpen()) { this.profileOpen.set(false); return; }
   if (this.menuOpenId() !== null) { this.menuOpenId.set(null); return; }
@@ -363,5 +381,26 @@ async confirmCreateProject() {
 }
 
 // ========================================================
+
+// ================= Bulk Delete ================
+openDeleteManyDialog() {
+  if (this.selected().size === 0) return; // ไม่มีอะไรให้ลบ ก็ไม่ต้องเปิด
+  this.deleteManyDlgOpen.set(true);
+}
+
+closeDeleteManyDialog() {
+  this.deleteManyDlgOpen.set(false);
+}
+
+async confirmDeleteMany() {
+  const ids = Array.from(this.selected());
+  if (!ids.length) { this.closeDeleteManyDialog(); return; }
+  await this.svc.removeMany(ids);     // เรียก API ลบหลายรายการ
+  this.selected.set(new Set());       // เคลียร์ selection
+  this.closeDeleteManyDialog();
+}
+
+// ========================================================
+
 
 }

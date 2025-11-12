@@ -89,8 +89,6 @@
               </div>
               <div class="text-xs text-slate-500 truncate">{{ me()?.email }}</div>
             </div>
-
-            
           </div>
 
           <!-- เส้นคั่น -->
@@ -154,7 +152,7 @@
       <!-- Delete Project = ปุ่มอ่อน โทน danger ให้เข้าธีม -->
       <button
         class="btn-ghost-enhance text-rose-600 border-rose-200 hover:bg-rose-50 hover:border-rose-300"
-        (click)="removeManySelected()"
+        (click)="openDeleteManyDialog()"
       >
         Delete Project
       </button>
@@ -163,6 +161,32 @@
       <button class="btn-ghost-enhance" (click)="exportCSV()">Export</button>
     </div>
   </div>
+  <!-- ============ Delete Selected Projects Dialog (Bulk) ============ -->
+  @if (deleteManyDlgOpen()) {
+  <div class="ph-tdlg-backdrop" (click)="closeDeleteManyDialog()">
+    <div class="ph-tdlg-wrap" (click)="$event.stopPropagation()">
+      <div class="ph-tdlg-card ph-tdlg-danger">
+        <h2 class="ph-tdlg-title">Delete selected projects</h2>
+        <p class="ph-tdlg-sub">
+          ต้องการลบโปรเจกต์ที่เลือกจำนวน
+          <strong>{{ selectedCount() }}</strong>
+          รายการใช่หรือไม่?<br />
+          <span class="opacity-80">({{ selectedNamesPreview() }})</span><br />
+          การลบนี้อาจทำให้ข้อมูลที่เกี่ยวข้องหายไปถาวร
+        </p>
+
+        <div class="ph-tdlg-actions">
+          <button type="button" class="ph-btn ph-btn-ghost" (click)="closeDeleteManyDialog()">
+            Cancel
+          </button>
+          <button type="button" class="ph-btn ph-btn-danger" (click)="confirmDeleteMany()">
+            Delete {{ selectedCount() ? '(' + selectedCount() + ')' : '' }}
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+  }
 
   <!-- Overlay -->
   <div

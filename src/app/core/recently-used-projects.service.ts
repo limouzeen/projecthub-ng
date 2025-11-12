@@ -1,6 +1,8 @@
-import { Injectable } from '@angular/core';
-import { Observable, of } from 'rxjs';
-import { delay } from 'rxjs/operators';
+// src/app/core/recently-used-projects.service.ts
+import { Injectable, inject } from '@angular/core';
+import { Observable, from } from 'rxjs';
+import { map, delay } from 'rxjs/operators';
+import { ProjectsApi, ProjectResponseDto } from './projects.api';
 
 export interface RecentlyUsedProject {
   projectId: number;
@@ -10,138 +12,52 @@ export interface RecentlyUsedProject {
   openCount: number;
 }
 
-const STORAGE_KEY = 'ph:recently-used';
+const STORAGE_KEY = 'ph:recently-used-counts';
 
 @Injectable({ providedIn: 'root' })
 export class RecentlyUsedProjectsService {
+  private readonly api = inject(ProjectsApi);
 
-  // โหลดจาก localStorage (mock ง่าย ๆ)
-  private load(): RecentlyUsedProject[] {
+  /** โหลดเฉพาะ "จำนวนครั้ง" ที่เปิด (เก็บฝั่งหน้า เพื่อคง UI เดิม) */
+  private loadCounts(): Record<number, number> {
     try {
       const raw = localStorage.getItem(STORAGE_KEY);
-      return raw ? JSON.parse(raw) as RecentlyUsedProject[] : [];
-    } catch {
-      return [];
-    }
+      return raw ? JSON.parse(raw) as Record<number, number> : {};
+    } catch { return {}; }
+  }
+  private saveCounts(rec: Record<number, number>) {
+    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(rec)); } catch {}
   }
 
-  private save(list: RecentlyUsedProject[]) {
-    try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(list));
-    } catch {
-      // เงียบ ๆ ไป ถ้า quota เต็ม
-    }
-  }
-
-  /** ดึงรายการ recently used (mock: delay ให้ฟีล API) */
+  /** ดึงรายการ recently used จากหลังบ้าน (ใช้ lastOpenedAt) + รวม openCount จาก local */
   getRecentlyUsed(): Observable<RecentlyUsedProject[]> {
-  const mock: RecentlyUsedProject[] = [
-    {
-      projectId: 1,
-      name: 'Sales Analytics',
-      tables: 8,
-      lastOpened: '2025-11-12T10:45:00Z',
-      openCount: 18,
-    },
-    {
-      projectId: 1002,
-      name: 'Marketing Campaign 2025',
-      tables: 15,
-      lastOpened: '2025-11-12T09:20:00Z',
-      openCount: 25,
-    },
-    {
-      projectId: 2001,
-      name: 'Inventory Management',
-      tables: 10,
-      lastOpened: '2025-11-11T21:05:00Z',
-      openCount: 12,
-    },
-    {
-      projectId: 2002,
-      name: 'Customer Data Platform',
-      tables: 9,
-      lastOpened: '2025-11-11T16:30:00Z',
-      openCount: 7,
-    },
-    {
-      projectId: 2003,
-      name: 'HR Employee Records',
-      tables: 6,
-      lastOpened: '2025-11-11T08:50:00Z',
-      openCount: 5,
-    },
-    {
-      projectId: 2004,
-      name: 'E-commerce Orders Tracker',
-      tables: 11,
-      lastOpened: '2025-11-10T19:40:00Z',
-      openCount: 14,
-    },
-    {
-      projectId: 2005,
-      name: 'Support Ticket Insights',
-      tables: 7,
-      lastOpened: '2025-11-10T14:10:00Z',
-      openCount: 9,
-    },
-    {
-      projectId: 2006,
-      name: 'Finance Dashboard',
-      tables: 5,
-      lastOpened: '2025-11-09T23:15:00Z',
-      openCount: 6,
-    },
-    {
-      projectId: 2007,
-      name: 'Branch Performance',
-      tables: 4,
-      lastOpened: '2025-11-09T10:05:00Z',
-      openCount: 3,
-    },
-    {
-      projectId: 2008,
-      name: 'Product Feedback Hub',
-      tables: 6,
-      lastOpened: '2025-11-08T18:25:00Z',
-      openCount: 4,
-    },
-  ];
+    return from(this.api.getAll()).pipe(
+      map((rows: ProjectResponseDto[]) => {
+        const counts = this.loadCounts();
 
-  return of(mock).pipe(delay(160));
-}
+        const mapped: RecentlyUsedProject[] = rows.map(r => ({
+          projectId: r.projectId,
+          name: r.name,
+          tables: r.tableCount,
+          // ถ้า backend ยังไม่มี lastOpenedAt ให้ fallback เป็น updatedAt
+          lastOpened: r.lastOpenedAt ?? r.updatedAt,
+          openCount: counts[r.projectId] ?? 0,
+        }));
 
+        // เอาเฉพาะที่มี lastOpened (จริง ๆ ควรมี) เรียงล่าสุด -> เก่าสุด
+        return mapped
+          .filter(x => !!x.lastOpened)
+          .sort((a, b) => new Date(b.lastOpened).getTime() - new Date(a.lastOpened).getTime());
+      }),
+      delay(120) // เล็กน้อยเพื่อฟีลโหลด (รักษา UX เดิม)
+    );
+  }
 
-  /** เรียกทุกครั้งที่ user เข้าโปรเจกต์ */
+  /** เรียกทุกครั้งที่ user เข้าโปรเจกต์ — เก็บเฉพาะ openCount ฝั่งหน้า */
   markOpened(projectId: number, name: string, tables: number) {
-    const now = new Date().toISOString();
-    const list = this.load();
-    const idx = list.findIndex(p => p.projectId === projectId);
-
-    if (idx >= 0) {
-      const current = list[idx];
-      list[idx] = {
-        ...current,
-        name,
-        tables,
-        lastOpened: now,
-        openCount: (current.openCount || 0) + 1,
-      };
-    } else {
-      list.unshift({
-        projectId,
-        name,
-        tables,
-        lastOpened: now,
-        openCount: 1,
-      });
-    }
-
-    // จำกัดสัก 30 รายการกันบวม
-    const trimmed = list
-      .sort((a, b) => new Date(b.lastOpened).getTime() - new Date(a.lastOpened).getTime())
-      .slice(0, 30);
-
-    this.save(trimmed);
+    const rec = this.loadCounts();
+    rec[projectId] = (rec[projectId] ?? 0) + 1;
+    this.saveCounts(rec);
+    // lastOpenedAt ฝั่งจริง backend จะอัปเดตเองเมื่อคุณเข้า project (ValidateProjectAccessAsync)
   }
 }

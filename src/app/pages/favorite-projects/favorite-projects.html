@@ -1,21 +1,17 @@
 <section class="min-h-[100svh] flex flex-col gap-4">
-
   <!-- Top Toolbar -->
   <div class="sticky top-0 z-30 bg-white/70 border-b border-white/40">
     <div class="max-w-6xl mx-auto px-4 py-3 flex items-center gap-3">
-
       <!-- back button -->
-      <button
-        class="p-2 rounded-lg hover:bg-slate-100"
-        (click)="onBack()"
-        aria-label="Go back">
+      <button class="p-2 rounded-lg hover:bg-slate-100" (click)="onBack()" aria-label="Go back">
         <svg class="w-5 h-5 text-slate-700" viewBox="0 0 24 24" fill="none">
           <path
             d="M15 6l-6 6 6 6"
             stroke="currentColor"
             stroke-width="2"
             stroke-linecap="round"
-            stroke-linejoin="round" />
+            stroke-linejoin="round"
+          />
         </svg>
       </button>
 
@@ -27,81 +23,105 @@
         <label for="fav-search" class="sr-only">Search favorite projects</label>
         <svg
           class="absolute left-2.5 sm:left-3 top-1/2 -translate-y-1/2 w-4 h-4 sm:w-5 sm:h-5 text-slate-400 pointer-events-none"
-          xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"
-          stroke-width="2" stroke="currentColor">
-          <path stroke-linecap="round" stroke-linejoin="round"
-                d="M21 21l-4.35-4.35m0 0A7.5 7.5 0 104.5 4.5a7.5 7.5 0 0012.15 12.15z" />
+          xmlns="http://www.w3.org/2000/svg"
+          fill="none"
+          viewBox="0 0 24 24"
+          stroke-width="2"
+          stroke="currentColor"
+        >
+          <path
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            d="M21 21l-4.35-4.35m0 0A7.5 7.5 0 104.5 4.5a7.5 7.5 0 0012.15 12.15z"
+          />
         </svg>
         <input
           id="fav-search"
           class="input !pl-10 sm:!pl-12 !pr-3 min-h-[42px] w-full"
           [value]="keyword()"
           (input)="keyword.set($any($event.target).value)"
-          placeholder="Search favorite projects..." />
+          placeholder="Search favorite projects..."
+        />
       </div>
 
-      <!-- Profile -->
+      <!-- ปุ่มโปรไฟล์ -->
       <div class="ml-4 relative" (click)="$event.stopPropagation()">
         <button
           class="flex items-center gap-2 pl-2 pr-2 py-1 rounded-xl hover:bg-white/60 transition"
           (click)="toggleProfileMenu()"
           aria-haspopup="menu"
-          [attr.aria-expanded]="profileOpen()">
+          [attr.aria-expanded]="profileOpen()"
+        >
           <img
-            src="/assets/ph_profile.png"
+            [src]="me()?.profilePictureUrl || '/assets/ph_profile.png'"
             alt="Profile"
-            class="w-8 h-8 rounded-full ring-1 ring-white/60" />
+            class="w-8 h-8 rounded-full ring-1 ring-white/60"
+          />
         </button>
 
         @if (profileOpen()) {
-          <div
-            class="absolute right-0 top-full mt-2 w-72 rounded-2xl
-                   bg-white/80 backdrop-blur border border-white/40
-                   shadow-md z-[70] overflow-hidden"
-            role="menu">
-            <div class="p-4 flex items-center gap-3">
-              <img src="/assets/ph_profile.png"
-                   alt=""
-                   class="w-12 h-12 rounded-full ring-1 ring-white/70" />
-              <div class="min-w-0">
-                <div class="font-semibold text-slate-900 truncate">
-                  Phakin Kamwilaisak
-                </div>
-                <div class="text-xs text-slate-500 truncate">
-                  s65524100xx@sau.ac.th
-                </div>
+        <div
+          class="absolute right-0 top-full mt-2 w-72 rounded-2xl bg-white/80 backdrop-blur border border-white/40 shadow-md z-[70] overflow-hidden"
+          role="menu"
+        >
+          <!-- Popover โปรไฟล์ -->
+          <div class="p-4 flex items-center gap-3">
+            <img
+              [src]="me()?.profilePictureUrl || '/assets/ph_profile.png'"
+              class="w-12 h-12 rounded-full ring-1 ring-white/70"
+              alt=""
+            />
+            <div class="min-w-0">
+              <div class="font-semibold text-slate-900 truncate">
+                {{ me()?.username || me()?.name || 'User' }}
+              </div>
+              <div class="text-xs text-slate-500 truncate">
+                {{ me()?.email }}
               </div>
             </div>
-            <div class="h-px bg-gradient-to-r from-transparent via-slate-200 to-transparent"></div>
-            <div class="p-2">
-              <button
-                class="w-full flex items-center gap-3 px-3 py-2 rounded-xl
-                       hover:bg-slate-100/70 text-slate-700 transition"
-                (click)="onEditProfile()">
-                <svg class="w-5 h-5 text-indigo-500" viewBox="0 0 24 24" fill="none"
-                     stroke="currentColor" stroke-width="2"
-                     stroke-linecap="round" stroke-linejoin="round">
-                  <path d="M12 20h9"></path>
-                  <path d="M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4 12.5-12.5z"></path>
-                </svg>
-                <span class="text-sm font-medium">Edit Profile</span>
-              </button>
-
-              <button
-                class="w-full flex items-center gap-3 px-3 py-2 rounded-xl
-                       hover:bg-rose-50 text-rose-600 transition"
-                (click)="onLogout()">
-                <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none"
-                     stroke="currentColor" stroke-width="2"
-                     stroke-linecap="round" stroke-linejoin="round">
-                  <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
-                  <path d="M16 17l5-5-5-5"></path>
-                  <path d="M21 12H9"></path>
-                </svg>
-                <span class="text-sm font-medium">Logout</span>
-              </button>
-            </div>
           </div>
+          <div class="h-px bg-gradient-to-r from-transparent via-slate-200 to-transparent"></div>
+          <div class="p-2">
+            <button
+              class="w-full flex items-center gap-3 px-3 py-2 rounded-xl hover:bg-slate-100/70 text-slate-700 transition"
+              (click)="onEditProfile()"
+            >
+              <svg
+                class="w-5 h-5 text-indigo-500"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
+                <path d="M12 20h9"></path>
+                <path d="M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4 12.5-12.5z"></path>
+              </svg>
+              <span class="text-sm font-medium">Edit Profile</span>
+            </button>
+
+            <button
+              class="w-full flex items-center gap-3 px-3 py-2 rounded-xl hover:bg-rose-50 text-rose-600 transition"
+              (click)="onLogout()"
+            >
+              <svg
+                class="w-5 h-5"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
+                <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
+                <path d="M16 17l5-5-5-5"></path>
+                <path d="M21 12H9"></path>
+              </svg>
+              <span class="text-sm font-medium">Logout</span>
+            </button>
+          </div>
+        </div>
         }
       </div>
     </div>
@@ -109,133 +129,118 @@
 
   <!-- Main Content -->
   <div class="max-w-6xl mx-auto px-4 w-full mt-6">
-
-    <h1 class="text-xl font-semibold text-slate-900">
-      Favorite Projects
-    </h1>
-    <p class="text-xs text-slate-500 mt-1">
-      โปรเจกต์ที่คุณปักหมุดไว้ เข้าถึงง่ายในที่เดียว
-    </p>
+    <h1 class="text-xl font-semibold text-slate-900">Favorite Projects</h1>
+    <p class="text-xs text-slate-500 mt-1">โปรเจกต์ที่คุณปักหมุดไว้ เข้าถึงง่ายในที่เดียว</p>
 
     <!-- Loading -->
     @if (loading()) {
-      <div class="mt-6 text-xs text-slate-500">
-        Loading favorite projects...
-      </div>
+    <div class="mt-6 text-xs text-slate-500">Loading favorite projects...</div>
     }
 
     <!-- Empty -->
     @if (!loading() && filtered().length === 0) {
-      <div class="mt-6 bg-white/70 backdrop-blur rounded-2xl px-4 py-5 text-xs text-slate-500">
-        ยังไม่มี Favorite Project — ไปหน้า Dashboard แล้วกดดาว ⭐ เพื่อปักหมุดโปรเจกต์ที่ใช้บ่อย
-      </div>
+    <div class="mt-6 bg-white/70 backdrop-blur rounded-2xl px-4 py-5 text-xs text-slate-500">
+      ยังไม่มี Favorite Project — ไปหน้า Dashboard แล้วกดดาว ⭐ เพื่อปักหมุดโปรเจกต์ที่ใช้บ่อย
+    </div>
     }
 
     <!-- List with paging -->
     @if (!loading() && filtered().length > 0) {
-      <div class="space-y-3 mt-4">
-        @for (p of paged(); track p.projectId) {
-          <article
-            class="relative bg-white/80 backdrop-blur border border-white/30 rounded-xl
-                   px-4 py-3 flex items-center gap-3
-                   hover:border-indigo-100 hover:shadow-md transition cursor-pointer"
-            (click)="onOpenProject(p)">
+    <div class="space-y-3 mt-4">
+      @for (p of paged(); track p.projectId) {
+      <article
+        class="relative bg-white/80 backdrop-blur border border-white/30 rounded-xl px-4 py-3 flex items-center gap-3 hover:border-indigo-100 hover:shadow-md transition cursor-pointer"
+        (click)="onOpenProject(p)"
+      >
+        <!-- left bullet -->
+        <div class="w-2 h-2 rounded-full bg-indigo-500/80"></div>
 
-            <!-- left bullet -->
-            <div class="w-2 h-2 rounded-full bg-indigo-500/80"></div>
-
-            <!-- info -->
-            <div class="flex-1">
-              <div class="font-medium text-slate-900">
-                {{ p.name }}
-              </div>
-
-              <!-- meta: match dashboard style -->
-              <div class="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 text-[10px] text-slate-500">
-                <span>{{ p.tables }} tables</span>
-                <span>
-                  Last modified:
-                  {{ p.lastUpdated | date:'MMM d, yyyy' }}
-                </span>
-              </div>
-
-             
-            </div>
-
-            <!-- Favorite star (โทนเดียวกับ dashboard) -->
-            <button
-              class="ml-2 p-2 rounded-lg hover:bg-slate-50 transition"
-              (click)="onTogglePin(p, $event)"
-              [attr.aria-label]="p.isPinned ? 'Unfavorite' : 'Favorite'">
-              <svg
-                class="w-5 h-5"
-                viewBox="0 0 24 24"
-                fill="currentColor"
-                [attr.fill]="p.isPinned ? 'currentColor' : 'none'"
-                [attr.stroke]="p.isPinned ? 'currentColor' : 'currentColor'"
-                [ngClass]="p.isPinned ? 'text-gray-600' : 'text-slate-300'">
-                <path
-                  d="M12 17.3l-6.2 3.3 1.2-6.7L2 8.9l6.9-1 3.1-6.2 3.1 6.2 6.9 1-5 5 1.2 6.7z"
-                  stroke-width="2"></path>
-              </svg>
-            </button>
-
-          </article>
-        }
-      </div>
-
-      <!-- Pagination bar (เหมือน Dashboard, 5/หน้า) -->
-      <div class="max-w-6xl mx-auto px-0 mt-6 mb-10">
-        <div
-          class="flex items-center justify-center gap-2
-                 text-xs sm:text-sm text-slate-600">
-
-          <span>
-            Showing
-            {{ filtered().length ? pageStart() : 0 }}
-            -
-            {{ pageEnd() }}
-            of {{ filtered().length }}
-          </span>
-
-          <button
-            class="px-3 py-2 rounded-xl border border-slate-200 bg-white/80
-                   hover:bg-white text-slate-700 disabled:opacity-50
-                   disabled:pointer-events-none transition"
-            (click)="prevPage()"
-            [disabled]="pageIndex() === 0"
-            aria-label="Previous">
-            ‹ Prev
-          </button>
-
-          <div class="flex items-center gap-1">
-            @for (n of pages(); track n) {
-              <button
-                (click)="gotoPage(n)"
-                [ngClass]="{
-                  'bg-gradient-to-r from-indigo-600 to-cyan-500 text-white':
-                    pageIndex() === n,
-                  'bg-white/80 text-slate-700 hover:bg-white border border-slate-200':
-                    pageIndex() !== n
-                }"
-                class="px-3 py-2 rounded-xl transition"
-                aria-label="Go to page {{ n + 1 }}">
-                {{ n + 1 }}
-              </button>
-            }
+        <!-- info -->
+        <div class="flex-1">
+          <div class="font-medium text-slate-900">
+            {{ p.name }}
           </div>
 
-          <button
-            class="px-3 py-2 rounded-xl border border-slate-200 bg-white/80
-                   hover:bg-white text-slate-700 disabled:opacity-50
-                   disabled:pointer-events-none transition"
-            (click)="nextPage()"
-            [disabled]="pageIndex() >= pageCount() - 1"
-            aria-label="Next">
-            Next ›
-          </button>
+          <!-- meta: match dashboard style -->
+          <div class="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 text-[10px] text-slate-500">
+            <span>{{ p.tables }} tables</span>
+            <span>
+              Last modified:
+              {{ p.lastUpdated | date : 'MMM d, yyyy' }}
+            </span>
+          </div>
         </div>
+
+        <!-- Favorite star (โทนเดียวกับ dashboard) -->
+        <button
+          class="ml-2 p-2 rounded-lg hover:bg-slate-50 transition"
+          (click)="onTogglePin(p, $event)"
+          [attr.aria-label]="p.isPinned ? 'Unfavorite' : 'Favorite'"
+        >
+          <svg
+            class="w-5 h-5"
+            viewBox="0 0 24 24"
+            fill="currentColor"
+            [attr.fill]="p.isPinned ? 'currentColor' : 'none'"
+            [attr.stroke]="p.isPinned ? 'currentColor' : 'currentColor'"
+            [ngClass]="p.isPinned ? 'text-gray-600' : 'text-slate-300'"
+          >
+            <path
+              d="M12 17.3l-6.2 3.3 1.2-6.7L2 8.9l6.9-1 3.1-6.2 3.1 6.2 6.9 1-5 5 1.2 6.7z"
+              stroke-width="2"
+            ></path>
+          </svg>
+        </button>
+      </article>
+      }
+    </div>
+
+    <!-- Pagination bar (เหมือน Dashboard, 5/หน้า) -->
+    <div class="max-w-6xl mx-auto px-0 mt-6 mb-10">
+      <div class="flex items-center justify-center gap-2 text-xs sm:text-sm text-slate-600">
+        <span>
+          Showing
+          {{ filtered().length ? pageStart() : 0 }}
+          -
+          {{ pageEnd() }}
+          of {{ filtered().length }}
+        </span>
+
+        <button
+          class="px-3 py-2 rounded-xl border border-slate-200 bg-white/80 hover:bg-white text-slate-700 disabled:opacity-50 disabled:pointer-events-none transition"
+          (click)="prevPage()"
+          [disabled]="pageIndex() === 0"
+          aria-label="Previous"
+        >
+          ‹ Prev
+        </button>
+
+        <div class="flex items-center gap-1">
+          @for (n of pages(); track n) {
+          <button
+            (click)="gotoPage(n)"
+            [ngClass]="{
+              'bg-gradient-to-r from-indigo-600 to-cyan-500 text-white': pageIndex() === n,
+              'bg-white/80 text-slate-700 hover:bg-white border border-slate-200': pageIndex() !== n
+            }"
+            class="px-3 py-2 rounded-xl transition"
+            aria-label="Go to page {{ n + 1 }}"
+          >
+            {{ n + 1 }}
+          </button>
+          }
+        </div>
+
+        <button
+          class="px-3 py-2 rounded-xl border border-slate-200 bg-white/80 hover:bg-white text-slate-700 disabled:opacity-50 disabled:pointer-events-none transition"
+          (click)="nextPage()"
+          [disabled]="pageIndex() >= pageCount() - 1"
+          aria-label="Next"
+        >
+          Next ›
+        </button>
       </div>
+    </div>
     }
   </div>
 </section>

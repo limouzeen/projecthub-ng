@@ -1,86 +1,41 @@
-import { Injectable /*, Optional */ } from '@angular/core';
-import { Observable, of } from 'rxjs';
-import { delay } from 'rxjs/operators';
-// import { HttpClient } from '@angular/common/http';
+// src/app/core/favorite-projects.service.ts
+import { Injectable, inject } from '@angular/core';
+import { Observable, from } from 'rxjs';
+import { map } from 'rxjs/operators';
+import { ProjectsApi, ProjectResponseDto } from './projects.api';
 
 export interface FavoriteProject {
   projectId: number;
   name: string;
-  lastUpdated: string;   // ISO string
-
-  tables: number;        // จำนวน table เหมือนหน้า dashboard
-  isPinned: boolean;     // ใช้แทน favorite
+  lastUpdated: string; // ISO
+  tables: number;
+  isPinned: boolean;
 }
 
 @Injectable({ providedIn: 'root' })
 export class FavoriteProjectsService {
-  // --- ของจริง: ไว้รอผูก API ---
-  // constructor(@Optional() private http: HttpClient) {}
-  //
-  // getFavorites(): Observable<FavoriteProject[]> {
-  //   return this.http.get<FavoriteProject[]>('/api/projects/favorites');
-  // }
+  private readonly api = inject(ProjectsApi);
 
-  // --- MOCK ปัจจุบัน ---
+  private mapDto(d: ProjectResponseDto): FavoriteProject {
+    return {
+      projectId: d.projectId,
+      name: d.name,
+      lastUpdated: d.updatedAt,
+      tables: d.tableCount,
+      isPinned: d.isFavorite,
+    };
+  }
+
+  /** โหลดเฉพาะรายการที่ favorite จาก /api/projects */
   getFavorites(): Observable<FavoriteProject[]> {
-    const mock: FavoriteProject[] = [
-      {
-        projectId: 101,
-        name: 'Sales Analytics',   
-        lastUpdated: '2025-11-08T09:15:00Z',
-        tables: 8,
-        isPinned: true,
-      },
-      {
-        projectId: 102,
-        name: 'Marketing Campaign 2025',
-        lastUpdated: '2025-11-07T07:40:00Z',
-        tables: 15,
-        isPinned: true,
-      },
-      {
-        projectId: 103,
-        name: 'Inventory Management',  
-        lastUpdated: '2025-11-05T12:00:00Z',
-        tables: 6,
-        isPinned: true,
-      },
-      {
-        projectId: 104,
-        name: 'Inventory Management',      
-        lastUpdated: '2025-11-05T12:00:00Z',
-        tables: 6,
-        isPinned: true,
-      },
-      {
-        projectId: 105,
-        name: 'Inventory Management',   
-        lastUpdated: '2025-11-05T12:00:00Z',
-        tables: 6,
-        isPinned: true,
-      },
-      {
-        projectId: 106,
-        name: 'Inventory Management',      
-        lastUpdated: '2025-11-05T12:00:00Z',
-        tables: 6,
-        isPinned: true,
-      },
-      {
-        projectId: 107,
-        name: 'Inventory Management',      
-        lastUpdated: '2025-11-05T12:00:00Z',
-        tables: 6,
-        isPinned: true,
-      },
-      {
-        projectId: 108,
-        name: 'Inventory Management',  
-        lastUpdated: '2025-11-05T12:00:00Z',
-        tables: 6,
-        isPinned: true,
-      },
-    ];
-    return of(mock).pipe(delay(160));
+    return from(this.api.getAll()).pipe(
+      map(rows => rows.filter(r => r.isFavorite).map(r => this.mapDto(r)))
+    );
+  }
+
+  /** toggle favorite แล้วคืนข้อมูลฉบับ FavoriteProject */
+  async togglePin(projectId: number): Promise<FavoriteProject> {
+    const dto = await this.api.toggleFavorite(projectId);
+    return this.mapDto(dto);
   }
 }
