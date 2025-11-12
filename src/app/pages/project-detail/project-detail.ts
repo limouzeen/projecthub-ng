@@ -9,7 +9,9 @@ import { firstValueFrom } from 'rxjs';
 import { ProjectDetailService, TableDto } from '../../core/project-detail.service';
 import { CreateTableDialog } from './ui/create-table-dialog';
 import { FooterStateService } from '../../core/footer-state.service';
-import { UsersService, MeDto } from '../../core/users.service'; // << เพิ่ม
+import { UsersService, MeDto } from '../../core/users.service'; 
+import { ToastService } from '../../shared/toast.service';
+import { HttpErrorResponse } from '@angular/common/http';
 
 @Component({
   selector: 'app-project-detail',
@@ -24,6 +26,9 @@ export class ProjectDetail implements OnInit, OnDestroy {
   private readonly route = inject(ActivatedRoute);
   private readonly users = inject(UsersService);            // << เพิ่ม
   private readonly footer = inject(FooterStateService);
+
+
+  private readonly toast = inject(ToastService);
 
   projectId = 1;
 
@@ -52,6 +57,40 @@ export class ProjectDetail implements OnInit, OnDestroy {
       ? this.tables()
       : this.tables().filter((t) => (t.name ?? '').toLowerCase().includes(keyword));
   });
+
+  /** ตัวช่วยรวม ๆ แปลง HttpErrorResponse -> ข้อความ read-able */
+private showHttpError(e: unknown, fallback = 'เกิดข้อผิดพลาด กรุณาลองอีกครั้ง') {
+  const err = e as HttpErrorResponse;
+  let msg = fallback;
+
+  // backend ของคุณมักส่ง { Error: "..." }
+  const serverMsg = (err?.error && (err.error.Error || err.error.message || err.error)) ?? null;
+
+  switch (err?.status) {
+    case 0:
+      msg = 'เชื่อมต่อเซิร์ฟเวอร์ไม่ได้ กรุณาตรวจสอบอินเทอร์เน็ต';
+      break;
+    case 400:
+      msg = serverMsg || 'ข้อมูลไม่ถูกต้อง';
+      // กรณีชื่อซ้ำจาก CreateTableHandler: message จะบอกชัดเจน
+      break;
+    case 401:
+      msg = 'เซสชันหมดอายุ กรุณาเข้าสู่ระบบใหม่';
+      break;
+    case 403:
+      msg = serverMsg || 'คุณไม่มีสิทธิ์ทำรายการนี้';
+      break;
+    case 404:
+      msg = serverMsg || 'ไม่พบข้อมูล';
+      break;
+    case 409:
+      msg = serverMsg || 'ข้อมูลขัดแย้ง (เช่น ชื่อซ้ำ)';
+      break;
+    default:
+      msg = serverMsg || fallback;
+  }
+  this.toast.error(msg);
+}
 
   // layout / nav
   asideOpen = signal(false);
@@ -89,11 +128,11 @@ export class ProjectDetail implements OnInit, OnDestroy {
     try {
       const me = await this.users.getMe();
       this.me.set(me);
-    } catch {
-      // ถ้า token ไม่ถูก ส่งไป login
-      this.router.navigateByUrl('/login');
-      return;
-    }
+    } catch (e) {
+    this.showHttpError(e, 'ไม่สามารถโหลดข้อมูลผู้ใช้ได้');
+    this.router.navigateByUrl('/login');
+    return;
+  }
 
     await this.refresh();
   }
@@ -111,7 +150,9 @@ export class ProjectDetail implements OnInit, OnDestroy {
       const list = await firstValueFrom(this.api.listTables(this.projectId));
       this.tables.set(list);
       this.normalizePage();
-    } finally {
+    } catch (e) {
+    this.showHttpError(e, 'โหลดรายการตารางไม่สำเร็จ');
+  } finally {
       this.loading.set(false);
     }
   }
@@ -133,7 +174,11 @@ export class ProjectDetail implements OnInit, OnDestroy {
       }
 
       await this.refresh();
-    } finally {
+    } 
+    catch (e) {
+    this.showHttpError(e, 'สร้างตารางไม่สำเร็จ');
+  }
+    finally {
       this.creating.set(false);
       this.dialogOpen.set(false);
     }
@@ -171,7 +216,9 @@ export class ProjectDetail implements OnInit, OnDestroy {
     try {
       await firstValueFrom(this.api.renameTable(t.tableId, next));
       await this.refresh();
-    } finally {
+    } catch (e) {
+    this.showHttpError(e, 'แก้ไขชื่อไม่สำเร็จ');
+  }finally {
       this.renamingId.set(null);
       this.closeRenameDialog();
     }
@@ -191,7 +238,9 @@ export class ProjectDetail implements OnInit, OnDestroy {
       await firstValueFrom(this.api.deleteTable(t.tableId));
       localStorage.removeItem(`ph:auto:${t.tableId}`);
       await this.refresh();
-    } finally {
+    } catch (e) {
+    this.showHttpError(e, 'ลบตารางไม่สำเร็จ');
+  }finally {
       this.deletingId.set(null);
       this.closeDeleteDialog();
     }
