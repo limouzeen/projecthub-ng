@@ -187,19 +187,30 @@ async ngOnInit() {
 
   // ================= data ops =================
 
-  async refresh() {
-    const cols = await firstValueFrom(this.api.listColumns(this.tableId));
-    this.columns.set(cols);
+async refresh() {
+  // โหลด schema
+  const cols = await firstValueFrom(this.api.listColumns(this.tableId));
+  this.columns.set(cols);
 
-    try {
-      this.isAutoTable.set(localStorage.getItem('ph:auto:' + this.tableId) === '1');
-    } catch {
-      this.isAutoTable.set(false);
-    }
+  // เช็ค primary จากหลังบ้านจริง ๆ
+  try {
+    const primary = await firstValueFrom(this.api.getPrimary(this.tableId)); // may be null
+    const auto =
+      !!primary &&
+      (
+        (primary as any).primaryKeyType === 'AUTO_INCREMENT' || // ถ้า BE ส่งฟิลด์นี้มา
+        (primary.isPrimary && primary.name?.toUpperCase() === 'ID')          // เผื่อ BE ไม่ส่ง primaryKeyType
+      );
 
-    this.rows.set([]);
-    this.ensureGridAndSync();
+    this.isAutoTable.set(auto);
+  } catch {
+    this.isAutoTable.set(false);
   }
+
+  // เคลียร์/โหลด rows
+  this.rows.set([]);
+  this.ensureGridAndSync();
+}
 
   parseData(json: string | null | undefined): any {
     if (!json) return {};
@@ -353,7 +364,8 @@ async ngOnInit() {
   // ---------- Image helpers ----------
   private onImagePicked(record: any, fieldName: string, file: File) {
     this.api
-  .uploadImage(file, { tableId: this.tableId, rowId: record.__rowId })
+  this.api
+  .uploadImage(file)
   .then(async (url) => {
     await this.setImageUrl(record, fieldName, url as any);
   })
@@ -888,13 +900,14 @@ async ngOnInit() {
         ajaxRequestFunc: (_url: string, _config: any, params: any) => {
           const page = Number(params?.page ?? 1);
           const size = Number(params?.size ?? 10);
-          return firstValueFrom(this.api.listRowsPaged(this.tableId, page, size)).then((res) => {
-            const total = Number(res.total ?? 0);
-            const last_page = Math.max(1, Math.ceil(total / size));
-            const data = this.buildDataForGridFromRows(res.rows as RowDto[]);
-            this._lastPageFromServer = last_page;
-            return { last_page, data };
-          });
+          return firstValueFrom(this.api.listRowsPaged(this.tableId, page, size)).then((res: { rows: RowDto[]; total: number }) => {
+  const total = Number(res.total ?? 0);
+  const last_page = Math.max(1, Math.ceil(total / size));
+  const data = this.buildDataForGridFromRows(res.rows as RowDto[]);
+  this._lastPageFromServer = last_page;
+  return { last_page, data };
+});
+
         },
         ajaxResponse: (_url: string, _params: any, response: any) => response?.data ?? [],
         pageLoaded: () => {

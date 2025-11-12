@@ -1,8 +1,7 @@
 // src/app/core/table-view.service.ts
-import { Injectable } from '@angular/core';
-import { HttpClient, HttpParams } from '@angular/common/http';
+import { Injectable, Optional } from '@angular/core';
+import { HttpClient } from '@angular/common/http';
 import { Observable, map } from 'rxjs';
-import { environment } from '../../environments/environment';
 
 export type ColumnDto = {
   columnId: number;
@@ -14,12 +13,13 @@ export type ColumnDto = {
   targetTableId?: number | null;
   targetColumnId?: number | null;
   formulaDefinition?: string | null;
+  primaryKeyType?: string | null; // 'AUTO_INCREMENT' เมื่อเป็น auto
 };
 
 export type RowDto = {
   rowId: number;
   tableId: number;
-  data: string;   // JSON string from BE
+  data: string;
   createdAt: string;
 };
 
@@ -33,190 +33,82 @@ export type FieldDialogModel = {
   formulaDefinition: string|null;
 };
 
-export type TableListItem  = { tableId: number; name: string };
 export type ColumnListItem = { columnId: number; name: string };
+
+export type TableListItem  = { tableId: number; name: string };
 
 @Injectable({ providedIn: 'root' })
 export class TableViewService {
-  private readonly base = environment.apiBase;
+  private readonly base = '/api';
+  constructor(@Optional() private http: HttpClient) {}
 
-  constructor(private http: HttpClient) {}
-
-  // ---------------- Tables (ใช้ใน FieldDialog: Lookup target) ----------------
-  /** GET /api/tables/project/{projectId} — คุณอาจมี projectId ใน query string หน้าปัจจุบัน */
-  listTables(projectId?: number): Observable<TableListItem[]> {
-    if (!projectId) {
-      // ถ้าไม่มี projectId ก็ fallback เป็น empty (UI ไม่พัง)
-      return new Observable<TableListItem[]>(sub => { sub.next([]); sub.complete(); });
-    }
-    return this.http.get<any[]>(`${this.base}/tables/project/${projectId}`).pipe(
-      map(arr => (arr ?? []).map(t => ({ tableId: t.id ?? t.tableId, name: t.name } as TableListItem)))
-    );
-  }
-
-  // ---------------- Columns ----------------
-  /** GET /api/columns/table/{tableId} */
+  // ---------- Columns ----------
   listColumns(tableId: number): Observable<ColumnDto[]> {
-    return this.http.get<any[]>(`${this.base}/columns/table/${tableId}`).pipe(
-      map(arr => (arr ?? []).map(c => ({
-        columnId: c.id ?? c.columnId,
-        tableId: c.tableId,
-        name: c.name,
-        dataType: (c.dataType || '').toUpperCase(),
-        isPrimary: !!c.isPrimary,
-        isNullable: !!c.isNullable,
-        targetTableId: c.targetTableId ?? null,
-        targetColumnId: c.targetColumnId ?? null,
-        formulaDefinition: c.formulaDefinition ?? null,
-      } as ColumnDto)))
-    );
+    return this.http.get<ColumnDto[]>(`${this.base}/columns/table/${tableId}`);
   }
 
-  /** GET /api/columns/table/{tableId} (แบบ lite ใช้ชื่อ/ids) */
-  listColumnsLite(tableId: number): Observable<ColumnListItem[]> {
-    return this.listColumns(tableId).pipe(
-      map(cols => cols.map(c => ({ columnId: c.columnId, name: c.name })))
-    );
+  getPrimary(tableId: number): Observable<ColumnDto | null> {
+    return this.http.get<ColumnDto | null>(`${this.base}/columns/table/${tableId}/primary`);
   }
 
-  /** POST /api/columns */
   createColumn(tableId: number, dto: Partial<FieldDialogModel | ColumnDto>): Observable<ColumnDto> {
-    const body: any = {
+    const payload: any = {
       tableId,
       name: (dto as any).name,
-      dataType: (dto as any).dataType,
+      dataType: ((dto as any).dataType ?? 'TEXT').toUpperCase(),
+      isNullable: (dto as any).isNullable ?? true,
       isPrimary: !!(dto as any).isPrimary,
-      isNullable: (dto as any).isNullable !== false,
-      // Lookup/Formula optional fields:
       targetTableId: (dto as any).targetTableId ?? null,
       targetColumnId: (dto as any).targetColumnId ?? null,
       formulaDefinition: (dto as any).formulaDefinition ?? null,
+      // หากเป็น LOOKUP และหลังบ้านต้องการความสัมพันธ์ใหม่:
+      newRelationship: (dto as any).dataType === 'LOOKUP'
+        ? { sourceTableId: tableId, targetTableId: (dto as any).targetTableId, targetColumnId: (dto as any).targetColumnId }
+        : null,
     };
-    return this.http.post<any>(`${this.base}/columns`, body).pipe(
-      map(c => ({
-        columnId: c.id ?? c.columnId,
-        tableId: c.tableId,
-        name: c.name,
-        dataType: (c.dataType || '').toUpperCase(),
-        isPrimary: !!c.isPrimary,
-        isNullable: !!c.isNullable,
-        targetTableId: c.targetTableId ?? null,
-        targetColumnId: c.targetColumnId ?? null,
-        formulaDefinition: c.formulaDefinition ?? null,
-      } as ColumnDto))
-    );
+    return this.http.post<ColumnDto>(`${this.base}/columns`, payload);
   }
 
-  /** PUT /api/columns/{id} — รองรับเปลี่ยนชื่อฟิลด์ */
-  updateColumn(columnId: number, patch: Partial<ColumnDto & { name?: string }>): Observable<ColumnDto> {
-    const body: any = {};
-    if (patch.name) body.newName = patch.name;
-    if (patch.dataType) body.newDataType = patch.dataType;
-    if (typeof patch.isPrimary === 'boolean') body.newIsPrimary = patch.isPrimary;
-    if (typeof patch.isNullable === 'boolean') body.newIsNullable = patch.isNullable;
-    if ('formulaDefinition' in patch) body.newFormulaDefinition = patch.formulaDefinition;
-
-    return this.http.put<any>(`${this.base}/columns/${columnId}`, body).pipe(
-      map(c => ({
-        columnId: c.id ?? c.columnId,
-        tableId: c.tableId,
-        name: c.name,
-        dataType: (c.dataType || '').toUpperCase(),
-        isPrimary: !!c.isPrimary,
-        isNullable: !!c.isNullable,
-        targetTableId: c.targetTableId ?? null,
-        targetColumnId: c.targetColumnId ?? null,
-        formulaDefinition: c.formulaDefinition ?? null,
-      } as ColumnDto))
-    );
+  updateColumn(columnId: number, patch: Partial<ColumnDto>): Observable<ColumnDto> {
+    if (patch.name) {
+      return this.http.put<ColumnDto>(`${this.base}/columns/${columnId}`, { newName: patch.name });
+    }
+    return this.http.put<ColumnDto>(`${this.base}/columns/${columnId}`, patch);
   }
 
-  /** DELETE /api/columns/{id} */
   deleteColumn(columnId: number): Observable<void> {
     return this.http.delete<void>(`${this.base}/columns/${columnId}`);
   }
 
-  // ---------------- Rows ----------------
-  /** GET /api/rows/table/{tableId} */
+  // ---------- Rows ----------
   listRows(tableId: number): Observable<RowDto[]> {
-    return this.http.get<any[]>(`${this.base}/rows/table/${tableId}`).pipe(
-      map(arr => (arr ?? []).map(r => ({
-        rowId: r.id ?? r.rowId,
-        tableId: r.tableId,
-        data: typeof r.data === 'string' ? r.data : JSON.stringify(r.data ?? {}),
-        createdAt: r.createdAt ?? r.created_at ?? new Date().toISOString(),
-      } as RowDto)))
-    );
+    return this.http.get<RowDto[]>(`${this.base}/rows/table/${tableId}`);
   }
 
-  /** POST /api/rows {tableId, data(JSON)} — BE จะ validate + auto-assign PK ถ้าเป็น AUTO_INCREMENT */
   createRow(tableId: number, data: Record<string, any>): Observable<RowDto> {
-    const body = { tableId, data };
-    return this.http.post<any>(`${this.base}/rows`, body).pipe(
-      map(r => ({
-        rowId: r.id ?? r.rowId,
-        tableId: r.tableId,
-        data: typeof r.data === 'string' ? r.data : JSON.stringify(r.data ?? {}),
-        createdAt: r.createdAt ?? r.created_at ?? new Date().toISOString(),
-      } as RowDto))
-    );
+    return this.http.post<RowDto>(`${this.base}/rows`, { tableId, data });
   }
 
-  /** PUT /api/rows/{id} {newData} */
-  updateRow(rowId: number, data: Record<string, any>): Observable<RowDto> {
-    const body = { newData: data };
-    return this.http.put<any>(`${this.base}/rows/${rowId}`, body).pipe(
-      map(r => ({
-        rowId: r.id ?? r.rowId,
-        tableId: r.tableId,
-        data: typeof r.data === 'string' ? r.data : JSON.stringify(r.data ?? {}),
-        createdAt: r.createdAt ?? r.created_at ?? new Date().toISOString(),
-      } as RowDto))
-    );
+  updateRow(rowId: number, newData: Record<string, any>): Observable<RowDto> {
+    return this.http.put<RowDto>(`${this.base}/rows/${rowId}`, { newData });
   }
 
-  /** PATCH แบบอำนวยความสะดวก ถ้า BE ไม่มี endpoint เฉพาะ field ก็ reuse PUT */
-  updateRowField(rowId: number, field: string, value: any): Observable<RowDto> {
-    // โหลดแถวก่อน -> patch -> PUT (เพื่อไม่ทับฟิลด์อื่น)
-    return this.listRowsById(rowId).pipe(
-      map(r => {
-        const obj = typeof r.data === 'string' ? JSON.parse(r.data || '{}') : (r.data ?? {});
-        obj[field] = value;
-        return obj;
-      }),
-      // ส่ง PUT
-      // NOTE: ใช้ switchMap ได้ แต่คงสั้น ๆ:
-    ) as any;
-  }
-
-  /** helper: GET แถวเดียว (ถ้าไม่มี endpoint นี้ ให้ดึงทั้งตารางแล้วหาเอง) */
-  private listRowsById(rowId: number): Observable<RowDto> {
-    // สมมุติคุณมี /api/rows/{id}, ถ้าไม่มีให้ปรับเป็นวิธีอื่น
-    return this.http.get<any>(`${this.base}/rows/${rowId}`).pipe(
-      map(r => ({
-        rowId: r.id ?? r.rowId,
-        tableId: r.tableId,
-        data: typeof r.data === 'string' ? r.data : JSON.stringify(r.data ?? {}),
-        createdAt: r.createdAt ?? r.created_at ?? new Date().toISOString(),
-      } as RowDto))
-    );
-  }
-
-  /** DELETE /api/rows/{id} */
   deleteRow(rowId: number): Observable<void> {
     return this.http.delete<void>(`${this.base}/rows/${rowId}`);
   }
 
-  /** nextRunningId: ดึงจาก BE ถ้ามี; ถ้าไม่มี คำนวณฝั่ง FE จาก max(ID) */
-  nextRunningId(tableId: number, pkName: string): Observable<number> {
-    // ถ้า BE ไม่มี endpoint เฉพาะ ให้ดึง rows แล้วหา max
+  updateRowField(rowId: number, field: string, value: any): Observable<RowDto> {
+    return this.http.put<RowDto>(`${this.base}/rows/${rowId}`, { newData: { [field]: value } });
+  }
+
+  nextRunningId(tableId: number, pkName: string) {
     return this.listRows(tableId).pipe(
       map(rows => {
         let max = 0;
         for (const r of rows) {
           try {
             const obj = JSON.parse(r.data || '{}');
-            const v = Number(obj?.[pkName]);
+            const v = Number(obj[pkName]);
             if (!Number.isNaN(v)) max = Math.max(max, v);
           } catch {}
         }
@@ -225,39 +117,43 @@ export class TableViewService {
     );
   }
 
-  // ---------------- Remote paging (optional) ----------------
-  listRowsPaged(
-    tableId: number,
-    page: number,
-    size: number
-  ): Observable<{ rows: RowDto[]; total: number }> {
-    // ถ้า BE ยังไม่มี server-side paging ให้จำลองด้วย client-side:
+  // เพจจิ้ง (ใช้ได้ทันที; ถ้ามี endpoint เพจจิ้งจริงค่อยสลับไปเรียกของหลังบ้าน)
+  listRowsPaged(tableId: number, page: number, size: number): Observable<{ rows: RowDto[]; total: number }> {
     return this.listRows(tableId).pipe(
       map(all => {
         const total = all.length;
-        const start = (page - 1) * size;
+        const start = Math.max(0, (page - 1) * size);
         return { rows: all.slice(start, start + size), total };
       })
     );
   }
 
-  // ---------------- Upload image ----------------
-  /**
-   * ถ้า BE มี endpoint อัปโหลดไฟล์: POST /api/files (form-data: file) → { url: 'https://...' }
-   * กรอก URL คืน โดย FE จะเก็บ URL ลงฟิลด์ IMAGE ตามเดิม
-   */
-  uploadImage(file: File, meta?: { tableId?: number; rowId?: number; columnId?: number }): Promise<string> {
-    // ถ้า *ยังไม่มี* endpoint อัปโหลด ให้ใช้ URL จากผู้ใช้ (dialog) หรือ bucket ภายนอก
-    // ด้านล่างนี้เป็นโค้ดตัวอย่างเมื่อมี /files/upload
-    // const fd = new FormData();
-    // fd.append('file', file);
-    // return lastValueFrom(this.http.post<{url:string}>(`${this.base}/files/upload`, fd)).then(res => res.url);
+  // ---------- Tables สำหรับ dropdown ใน FieldDialog ----------
+  listTablesByProject(projectId: number): Observable<TableListItem[]> {
+    return this.http.get<TableListItem[]>(`${this.base}/tables/project/${projectId}`);
+  }
 
-    // ชั่วคราว: ใช้ dataURL ช่วยพรีวิว (ทำงานเดิมของคุณได้) — เมื่อมี API จริงค่อยสลับ
-    return new Promise(resolve => {
-      const reader = new FileReader();
-      reader.onload = () => resolve(reader.result as string);
-      reader.readAsDataURL(file);
+  // อัปโหลดรูป (ยังใช้ dataURL ไปก่อน)
+  uploadImage(file: File): Promise<string> {
+    return new Promise((resolve) => {
+      const rd = new FileReader();
+      rd.onload = () => resolve(rd.result as string);
+      rd.readAsDataURL(file);
     });
   }
+
+  // ภายในคลาส TableViewService
+listColumnsLite(tableId: number): Observable<ColumnListItem[]> {
+  return this.listColumns(tableId).pipe(
+    map(cols => cols.map(c => ({ columnId: c.columnId, name: c.name })))
+  );
+}
+
+// โหลดรายชื่อตาราง (กรณี generic ทั้งระบบ)
+listTables(): Observable<TableListItem[]> {
+  return this.http.get<TableListItem[]>(`${this.base}/tables`);
+}
+
+
+
 }
