@@ -13,6 +13,7 @@ import { RouterLink, Router } from '@angular/router';
 import { DatePipe, NgClass, CommonModule } from '@angular/common';
 import { ProjectsService, Project } from '../../core/projects.service';
 import { FooterStateService } from '../../core/footer-state.service';
+import { UsersService, MeDto } from '../../core/users.service';
 
 @Component({
   selector: 'app-dashboard',
@@ -23,6 +24,8 @@ import { FooterStateService } from '../../core/footer-state.service';
 })
 export class Dashboard implements AfterViewInit, OnDestroy {
   @ViewChild('pagerZone', { static: false }) pagerZone?: ElementRef<HTMLElement>;
+
+  me = signal<MeDto | null>(null);
 
   private updateFooterAvoidOverlap() {
     const pager = this.pagerZone?.nativeElement;
@@ -66,7 +69,7 @@ export class Dashboard implements AfterViewInit, OnDestroy {
 
     // =================================================
 
-  ngAfterViewInit() {
+  async ngAfterViewInit() {
     this.footer.setThreshold(720);
     setTimeout(() => {
       this.updateFooterAvoidOverlap();
@@ -75,6 +78,24 @@ export class Dashboard implements AfterViewInit, OnDestroy {
 
     window.addEventListener('scroll', this.onScroll, { passive: true });
     window.addEventListener('resize', this.onResize, { passive: true });
+
+     // 👇 โหลดโปรไฟล์ (เพื่อได้ userId/รูป/ชื่อ/อีเมล)
+    try {
+      const info = await this.users.getMe();
+      this.me.set(info);
+    } catch {
+      // ถ้า 401 ส่งไปหน้า login
+      this.router.navigateByUrl('/login');
+      return;
+    }
+
+    // 👇 โหลดโปรเจกต์ของ user (claims)
+    await this.svc.refresh();
+
+    // sync signal ใช้กับส่วนกรอง/เพจ เหมือนเดิม
+    effect(() => this.projects.set(this.svc.list()), { allowSignalWrites: true });
+    effect(() => { const _q = this.keyword(); const _s = this.pageSize(); this.pageIndex.set(0); }, { allowSignalWrites: true });
+    effect(() => { const pc = this.pageCount(); if (this.pageIndex() >= pc) this.pageIndex.set(pc - 1); }, { allowSignalWrites: true });
   }
 
   ngOnDestroy() {
@@ -115,7 +136,8 @@ export class Dashboard implements AfterViewInit, OnDestroy {
   constructor(
     private svc: ProjectsService,
     private router: Router,
-    private footer: FooterStateService
+    private footer: FooterStateService,
+    private users: UsersService,  
   ) {
     // sync รายการจาก service ตามเดิม
     effect(() => this.projects.set(this.svc.list()), { allowSignalWrites: true });
@@ -219,17 +241,14 @@ closeRenameDialog() {
   this.renameProjectName.set('');
 }
 
-confirmRenameProject() {
+// Rename
+async confirmRenameProject() {
   const id = this.renameProjectId();
   const name = this.renameProjectName().trim();
-  if (!id || !name) {
-    this.closeRenameDialog();
-    return;
-  }
-  this.svc.rename(id, name);
+  if (!id || !name) { this.closeRenameDialog(); return; }
+  await this.svc.rename(id, name);     
   this.closeRenameDialog();
 }
-
 //=====================================================
 
   toggleProfileMenu() {
@@ -264,7 +283,8 @@ confirmRenameProject() {
 
   //======================================================
 
-  removeOne(id: number) {
+  // Delete หนึ่งรายการจาก kebab
+async removeOne(id: number) {
   const p = this.projects().find(x => x.id === id);
   if (!p) return;
   this.closeMenu();
@@ -279,26 +299,26 @@ closeDeleteDialog() {
   this.deleteProjectName.set('');
 }
 
-confirmDeleteProject() {
+async confirmDeleteProject() {
   const id = this.deleteProjectId();
-  if (!id) {
-    this.closeDeleteDialog();
-    return;
-  }
-  this.svc.remove(id);
+  if (!id) { this.closeDeleteDialog(); return; }
+  await this.svc.remove(id);            
   this.closeDeleteDialog();
 }
 
 // ========================================================
 
-  removeManySelected() {
-    const ids = Array.from(this.selected());
-    if (ids.length) this.svc.removeMany(ids);
-    this.selected.set(new Set());
-  }
-  toggleFavorite(id: number) {
-    this.svc.toggleFavorite(id);
-  }
+  // Delete หลายรายการ
+async removeManySelected() {
+  const ids = Array.from(this.selected());
+  if (ids.length) await this.svc.removeMany(ids);   
+  this.selected.set(new Set());
+}
+
+// Toggle favorite
+async toggleFavorite(id: number) {
+  await this.svc.toggleFavorite(id);    
+}
   exportCSV() {
     this.svc.downloadCSV(this.filtered());
   }
@@ -329,13 +349,15 @@ closeNewProjectDialog() {
   this.newProjectName.set('');
 }
 
-confirmCreateProject() {
+// Create project (กดปุ่ม Create ใน dialog)
+async confirmCreateProject() {
   const name = this.newProjectName().trim();
-  if (!name) {
-    this.closeNewProjectDialog();
-    return;
-  }
-  this.svc.add(name);
+  if (!name) { this.closeNewProjectDialog(); return; }
+
+  const uid = this.me()?.userId ?? Number(this.me()?.sub);
+  if (!uid) { alert('Missing user id'); return; }
+
+  await this.svc.add(name, uid);        // ⬅️ ตอนนี้ยิง POST
   this.keyword.set('');
   this.closeNewProjectDialog();
 }

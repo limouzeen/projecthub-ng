@@ -22,7 +22,7 @@ import { FooterStateService } from '../../core/footer-state.service';
   styleUrl: './project-detail.css',
 })
 export class ProjectDetail implements OnInit {
-  private readonly api = inject(ProjectDetailService);
+  private readonly api: ProjectDetailService = inject(ProjectDetailService);
   private readonly router = inject(Router);
   private readonly route = inject(ActivatedRoute);
 
@@ -82,7 +82,7 @@ export class ProjectDetail implements OnInit {
   async refresh() {
     this.loading.set(true);
     try {
-      this.tables.set(await firstValueFrom(this.api.listTables(this.projectId)));
+      this.tables.set(await firstValueFrom<TableDto[]>(this.api.listTables(this.projectId)));
       this.normalizePage();
     } finally {
       this.loading.set(false);
@@ -96,7 +96,7 @@ export class ProjectDetail implements OnInit {
   async onCreateTable(payload: { name: string; useAutoIncrement: boolean }) {
     this.creating.set(true);
     try {
-      const created = await firstValueFrom(
+      const created = await firstValueFrom<TableDto>(
         this.api.createTable(this.projectId, payload.name, payload.useAutoIncrement)
       );
 
@@ -116,81 +116,74 @@ export class ProjectDetail implements OnInit {
     }
   }
 
-
   // ===== Rename & Delete Table =======
 
-renameTable(t: TableDto) {
-  this.targetTable.set(t);
-  this.renameName.set(t.name);
-  this.renameDlgOpen.set(true);
-}
-
-deleteTable(t: TableDto) {
-  this.targetTable.set(t);
-  this.deleteDlgOpen.set(true);
-}
-
-
-// ======== Method ช่วยสำหรับ Rename & Delete Table =======
-
-
-closeRenameDialog() {
-  this.renameDlgOpen.set(false);
-  this.renameName.set('');
-  this.targetTable.set(null);
-}
-
-async confirmRenameTable() {
-  const t = this.targetTable();
-  const next = this.renameName().trim();
-
-  if (!t) {
-    this.closeRenameDialog();
-    return;
-  }
-  if (!next || next === t.name) {
-    this.closeRenameDialog();
-    return;
+  renameTable(t: TableDto) {
+    this.targetTable.set(t);
+    this.renameName.set(t.name);
+    this.renameDlgOpen.set(true);
   }
 
-  this.renamingId.set(t.tableId);
-  try {
-    await firstValueFrom(this.api.renameTable(t.tableId, next));
-    await this.refresh();
-  } finally {
-    this.renamingId.set(null);
-    this.closeRenameDialog();
-  }
-}
-
-
-
-closeDeleteDialog() {
-  this.deleteDlgOpen.set(false);
-  this.targetTable.set(null);
-}
-
-async confirmDeleteTable() {
-  const t = this.targetTable();
-  if (!t) {
-    this.closeDeleteDialog();
-    return;
+  deleteTable(t: TableDto) {
+    this.targetTable.set(t);
+    this.deleteDlgOpen.set(true);
   }
 
-  this.deletingId.set(t.tableId);
-  try {
-    await firstValueFrom(this.api.deleteTable(t.tableId));
-    localStorage.removeItem(`ph:auto:${t.tableId}`);
-    await this.refresh();
-  } finally {
-    this.deletingId.set(null);
-    this.closeDeleteDialog();
+  // ======== Method ช่วยสำหรับ Rename & Delete Table =======
+
+  closeRenameDialog() {
+    this.renameDlgOpen.set(false);
+    this.renameName.set('');
+    this.targetTable.set(null);
   }
-}
 
+  async confirmRenameTable() {
+    const t = this.targetTable();
+    const next = this.renameName().trim();
 
-//=========================================================================================================
+    if (!t) {
+      this.closeRenameDialog();
+      return;
+    }
+    if (!next || next === t.name) {
+      this.closeRenameDialog();
+      return;
+    }
 
+    this.renamingId.set(t.tableId);
+    try {
+      await firstValueFrom<void>(this.api.renameTable(t.tableId, next));
+      await this.refresh();
+    } finally {
+      this.renamingId.set(null);
+      this.closeRenameDialog();
+    }
+  }
+
+  closeDeleteDialog() {
+    this.deleteDlgOpen.set(false);
+    this.targetTable.set(null);
+  }
+
+  async confirmDeleteTable() {
+    const t = this.targetTable();
+    if (!t) {
+      this.closeDeleteDialog();
+      return;
+    }
+
+    this.deletingId.set(t.tableId);
+    try {
+      await firstValueFrom<void>(this.api.deleteTable(t.tableId));
+      localStorage.removeItem(`ph:auto:${t.tableId}`);
+      await this.refresh();
+    } finally {
+      this.deletingId.set(null);
+      this.closeDeleteDialog();
+    }
+  }
+
+  //=========================================================================================================
 
   open(t: TableDto) {
     this.router.navigate(['/table', t.tableId], { queryParams: { projectId: this.projectId } });

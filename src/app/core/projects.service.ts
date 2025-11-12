@@ -1,50 +1,69 @@
-import { Injectable, signal, computed } from '@angular/core';
+// src/app/core/projects.service.ts
+import { Injectable, signal, computed, inject } from '@angular/core';
+import { ProjectsApi, ProjectResponseDto } from './projects.api'; 
 
 export type Project = {
-  id: number;                 // ใช้ number ให้ตรงกับฝั่ง .NET ง่าย ๆ
+  id: number;
   name: string;
-  updatedAt: string;          // ISO
+  updatedAt: string;   // ISO
   tables: number;
   favorite?: boolean;
 };
 
+function mapDto(d: ProjectResponseDto): Project {
+  return {
+    id: d.projectId,
+    name: d.name,
+    updatedAt: d.updatedAt,
+    tables: d.tableCount,
+    favorite: d.isFavorite,
+  };
+}
+
 @Injectable({ providedIn: 'root' })
 export class ProjectsService {
-  // ให้ seq สูงกว่าไอดีปัจจุบันเพื่อกันชนตอน add()
-  private seq = 1003;
+  private readonly api = inject(ProjectsApi);
 
-  /**
-   * ✅ ปรับให้มีโปรเจกต์ id: 1 ตรงกับ mock ของ ProjectDetailService
-   *    เพื่อที่เวลาเปิด /projects/1 จะเห็นตาราง mock (Products, Orders) ทันที
-   */
-  private readonly _list = signal<Project[]>([
-    { id: 1,    name: 'Sales Analytics',          updatedAt: new Date().toISOString(), tables: 8,  favorite: false },
-    { id: 1002, name: 'Marketing Campaign 2025',  updatedAt: new Date().toISOString(), tables: 15, favorite: true  },
-  ]);
-
-  /** expose read-only signal */
+  private readonly _list = signal<Project[]>([]);
   readonly list = computed(() => this._list());
 
-  add(name: string) {
-    const p: Project = { id: this.seq++, name, updatedAt: new Date().toISOString(), tables: 0, favorite: false };
+  /** โหลดรายการโปรเจกต์ของ user จาก backend */
+  async refresh(): Promise<void> {
+    const rows = await this.api.getAll();
+    this._list.set(rows.map(mapDto));
+  }
+
+  /** ===== API actions ===== */
+  async add(name: string, userId: number): Promise<void> {
+    const dto = await this.api.create(userId, name);
+    const p = mapDto(dto);
     this._list.update(arr => [p, ...arr]);
   }
 
-  remove(id: number) {
+  async rename(id: number, name: string): Promise<void> {
+    const dto = await this.api.rename(id, name);
+    const p = mapDto(dto);
+    this._list.update(arr => arr.map(x => (x.id === id ? p : x)));
+  }
+
+  async remove(id: number): Promise<void> {
+    await this.api.delete(id);
     this._list.update(arr => arr.filter(p => p.id !== id));
   }
 
-  removeMany(ids: number[]) {
+  async removeMany(ids: number[]): Promise<void> {
+    for (const id of ids) await this.api.delete(id);
     const set = new Set(ids);
     this._list.update(arr => arr.filter(p => !set.has(p.id)));
   }
 
-  toggleFavorite(id: number) {
-    this._list.update(arr =>
-      arr.map(p => (p.id === id ? { ...p, favorite: !p.favorite } : p))
-    );
+  async toggleFavorite(id: number): Promise<void> {
+    const dto = await this.api.toggleFavorite(id);
+    const p = mapDto(dto);
+    this._list.update(arr => arr.map(x => (x.id === id ? p : x)));
   }
 
+  /** CSV เดิม */
   downloadCSV(rows: Project[]) {
     const header = ['id','name','updatedAt','tables','favorite'];
     const csv = [
@@ -59,15 +78,8 @@ export class ProjectsService {
     a.click();
     URL.revokeObjectURL(url);
   }
-
   private escape(s: string) {
     const needs = /[" ,\n]/.test(s);
     return needs ? `"${s.replace(/"/g, '""')}"` : s;
-  }
-
-  rename(id: number, name: string) {
-    this._list.update(arr =>
-      arr.map(p => (p.id === id ? { ...p, name, updatedAt: new Date().toISOString() } : p))
-    );
   }
 }
