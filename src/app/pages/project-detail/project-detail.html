@@ -21,69 +21,68 @@
       <span class="font-semibold text-slate-900">ProjectHub</span>
 
       <!-- Profile -->
-      <div class="ml-auto relative" (click)="$event.stopPropagation()">
+<div class="ml-auto relative" (click)="$event.stopPropagation()">
+  <button
+    class="flex items-center gap-2 pl-2 pr-2 py-1 rounded-xl hover:bg-white/60 transition"
+    (click)="toggleProfileMenu()"
+    aria-haspopup="menu"
+    [attr.aria-expanded]="profileOpen()">
+    <img
+      [src]="me()?.profilePictureUrl || '/assets/ph_profile.png'"
+      alt="Profile"
+      class="w-8 h-8 rounded-full ring-1 ring-white/60" />
+  </button>
+
+  @if (profileOpen()) {
+    <div
+      class="absolute right-0 top-full mt-2 w-72 rounded-2xl
+             bg-white border border-white/40 shadow-md z-[70] overflow-hidden"
+      role="menu">
+      <div class="p-4 flex items-center gap-3">
+        <img
+          [src]="me()?.profilePictureUrl || '/assets/ph_profile.png'"
+          alt=""
+          class="w-12 h-12 rounded-full ring-1 ring-white/70" />
+        <div class="min-w-0">
+          <div class="font-semibold text-slate-900 truncate">
+            {{ me()?.username || me()?.name || 'User' }}
+          </div>
+          <div class="text-xs text-slate-500 truncate">
+            {{ me()?.email }}
+          </div>
+        </div>
+      </div>
+      <div class="h-px bg-gradient-to-r from-transparent via-slate-200 to-transparent"></div>
+      <div class="p-2">
         <button
-          class="flex items-center gap-2 pl-2 pr-2 py-1 rounded-xl hover:bg-white/60 transition"
-          (click)="toggleProfileMenu()"
-          aria-haspopup="menu"
-          [attr.aria-expanded]="profileOpen()">
-          <img
-            src="/assets/ph_profile.png"
-            alt="Profile"
-            class="w-8 h-8 rounded-full ring-1 ring-white/60" />
+          class="w-full flex items-center gap-3 px-3 py-2 rounded-xl
+                 hover:bg-slate-100/70 text-slate-700 transition"
+          (click)="onEditProfile()">
+          <svg class="w-5 h-5 text-indigo-500" viewBox="0 0 24 24" fill="none"
+               stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 20h9"></path>
+            <path d="M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4 12.5-12.5z"></path>
+          </svg>
+          <span class="text-sm font-medium">Edit Profile</span>
         </button>
 
-        @if (profileOpen()) {
-          <div
-            class="absolute right-0 top-full mt-2 w-72 rounded-2xl
-                   bg-white border border-white/40
-                   shadow-md z-[70] overflow-hidden"
-            role="menu">
-            <div class="p-4 flex items-center gap-3">
-              <img src="/assets/ph_profile.png"
-                   alt=""
-                   class="w-12 h-12 rounded-full ring-1 ring-white/70" />
-              <div class="min-w-0">
-                <div class="font-semibold text-slate-900 truncate">
-                  Phakin Kamwilaisak
-                </div>
-                <div class="text-xs text-slate-500 truncate">
-                  s65524100xx@sau.ac.th
-                </div>
-              </div>
-            </div>
-            <div class="h-px bg-gradient-to-r from-transparent via-slate-200 to-transparent"></div>
-            <div class="p-2">
-              <button
-                class="w-full flex items-center gap-3 px-3 py-2 rounded-xl
-                       hover:bg-slate-100/70 text-slate-700 transition"
-                (click)="onEditProfile()">
-                <svg class="w-5 h-5 text-indigo-500" viewBox="0 0 24 24" fill="none"
-                     stroke="currentColor" stroke-width="2"
-                     stroke-linecap="round" stroke-linejoin="round">
-                  <path d="M12 20h9"></path>
-                  <path d="M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4 12.5-12.5z"></path>
-                </svg>
-                <span class="text-sm font-medium">Edit Profile</span>
-              </button>
-
-              <button
-                class="w-full flex items-center gap-3 px-3 py-2 rounded-xl
-                       hover:bg-rose-50 text-rose-600 transition"
-                (click)="onLogout()">
-                <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none"
-                     stroke="currentColor" stroke-width="2"
-                     stroke-linecap="round" stroke-linejoin="round">
-                  <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
-                  <path d="M16 17l5-5-5-5"></path>
-                  <path d="M21 12H9"></path>
-                </svg>
-                <span class="text-sm font-medium">Logout</span>
-              </button>
-            </div>
-          </div>
-        }
+        <button
+          class="w-full flex items-center gap-3 px-3 py-2 rounded-xl
+                 hover:bg-rose-50 text-rose-600 transition"
+          (click)="onLogout()">
+          <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none"
+               stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
+            <path d="M16 17l5-5-5-5"></path>
+            <path d="M21 12H9"></path>
+          </svg>
+          <span class="text-sm font-medium">Logout</span>
+        </button>
       </div>
+    </div>
+  }
+</div>
+
     </div>
   </div>
 
