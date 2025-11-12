@@ -1,4 +1,3 @@
-// src/app/pages/edit-profile/edit-profile.ts
 import { Component, OnInit, OnDestroy, signal, computed, inject } from '@angular/core';
 import { CommonModule, Location } from '@angular/common';
 import { FooterStateService } from '../../core/footer-state.service';
@@ -43,6 +42,13 @@ export class EditProfile implements OnInit, OnDestroy {
     confirmNewPassword: '',
   });
 
+  // ⬅️ snapshot สำหรับปุ่ม Cancel
+  private readonly baseline = signal<Pick<ProfileForm, 'displayName'|'email'|'avatarPreview'>>({
+    displayName: 'Your name',
+    email: 'you@example.com',
+    avatarPreview: null,
+  });
+
   readonly savingProfile = signal(false);
   readonly savingPassword = signal(false);
 
@@ -74,22 +80,28 @@ export class EditProfile implements OnInit, OnDestroy {
     this.footer.setForceCompact(null);
 
     try {
-      const me = await this.users.getMe(); // { sub, email, name }
+      const me = await this.users.getMe(); // { sub, email, name, profilePictureUrl }
       // เก็บ userId จาก token
       const sub = (me.sub ?? '').trim();
       if (sub && !isNaN(+sub)) this.userId.set(+sub);
 
       this.patchFromMe(me);
 
-      // ถ้าหลังบ้าน “ส่ง string ของรูป” มาทาง field อื่น (เช่น avatarUrl) รองรับโชว์ทันที:
-      // - ถ้าเป็น data URL (เริ่มต้นด้วย data:) → ใช้ได้เลย
-      // - ถ้าเป็น base64 เปล่า → เติม prefix แล้วโชว์
+      // รองรับ data url และ base64
       const maybe = me.profilePictureUrl?.trim();
       if (maybe) {
         const looksDataUrl = maybe.startsWith('data:');
         const preview = looksDataUrl ? maybe : `data:image/png;base64,${maybe}`;
         this.model.update(m => ({ ...m, avatarPreview: preview }));
       }
+
+      // ⬅️ บันทึกค่า baseline หลังโหลดครั้งแรก
+      const snap = this.model();
+      this.baseline.set({
+        displayName: snap.displayName,
+        email: snap.email,
+        avatarPreview: snap.avatarPreview,
+      });
     } catch (e) {
       console.warn('Failed to load profile', e);
     }
@@ -146,6 +158,12 @@ export class EditProfile implements OnInit, OnDestroy {
       return this.setStatusProfile('error', 'Invalid email.');
     }
 
+    // ⬅️ บังคับให้มีรูปก่อนอัปเดต (หากต้องการบังคับทุกกรณี)
+    const hasCurrentAvatar = !!avatarPreview || !!avatarFile;
+    if (!hasCurrentAvatar) {
+      return this.setStatusProfile('error', 'Please add a profile photo before saving.');
+    }
+
     this.savingProfile.set(true);
     try {
       let profilePictureUrl: string | null | undefined = undefined;
@@ -164,7 +182,7 @@ export class EditProfile implements OnInit, OnDestroy {
       const dto: UpdateProfileDto = {
         username: displayName.trim(),
         email: email.trim(),
-        profilePictureUrl, // ⬅️ ส่ง string ไปตามหลังบ้าน (Required ใน Command ของคุณ)
+        profilePictureUrl, // ⬅️ ส่ง string ไปตามหลังบ้าน
       };
 
       const updated = await this.users.updateProfile(dto); // UserResponseDto
@@ -177,6 +195,14 @@ export class EditProfile implements OnInit, OnDestroy {
       } else if (profilePictureUrl === null) {
         this.model.update(m => ({ ...m, avatarPreview: null, avatarFile: null }));
       }
+
+      // ⬅️ อัปเดต baseline หลังเซฟสำเร็จ
+      const cur = this.model();
+      this.baseline.set({
+        displayName: cur.displayName,
+        email: cur.email,
+        avatarPreview: cur.avatarPreview,
+      });
 
       this.setStatusProfile('success', '✓ Profile updated.');
     } catch (e: any) {
@@ -225,7 +251,6 @@ export class EditProfile implements OnInit, OnDestroy {
     try {
       await this.users.deleteUser(id); // DELETE /api/Users/{id}
       localStorage.removeItem('access_token');
-      // พาไปหน้า register หรือหน้าแรก
       this.router.navigateByUrl('/register');
     } catch (e: any) {
       this.setStatusProfile('error', e?.error?.error || e?.message || 'Delete failed.');
@@ -259,6 +284,30 @@ export class EditProfile implements OnInit, OnDestroy {
 
   private clearPasswordFields() {
     this.model.update(m => ({ ...m, currentPassword: '', newPassword: '', confirmNewPassword: '' }));
+  }
+
+  // ปุ่ม Cancel โปรไฟล์ — คืนค่ากลับ baseline
+  onCancelProfile() {
+    this.clearProfileStatus();
+    const prev = this.model().avatarPreview;
+    if (prev && prev.startsWith('blob:')) URL.revokeObjectURL(prev);
+
+    const base = this.baseline();
+    this.model.set({
+      avatarFile: null,
+      avatarPreview: base.avatarPreview ?? null,
+      displayName: base.displayName,
+      email: base.email,
+      currentPassword: '',
+      newPassword: '',
+      confirmNewPassword: '',
+    });
+  }
+
+  // ปุ่ม Cancel รหัสผ่าน — เคลียร์ช่อง
+  onCancelPassword() {
+    this.clearPasswordStatus();
+    this.clearPasswordFields();
   }
 
   // ⬅️ แปลงไฟล์รูป → string (data URL) เพื่อส่งหลังบ้าน

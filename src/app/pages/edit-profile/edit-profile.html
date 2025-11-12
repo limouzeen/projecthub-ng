@@ -5,7 +5,7 @@
   <a
     class="absolute cursor-pointer left-6 top-6 inline-flex items-center gap-2 rounded-full bg-white/70 backdrop-blur-md border border-white/30 shadow-md px-3 py-1.5 text-slate-700 hover:scale-105 transition"
     (click)="onBack()"
-    >
+  >
     <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none">
       <path
         d="M15 18l-6-6 6-6"
@@ -40,20 +40,11 @@
       <!-- Avatar -->
       <div class="flex items-center gap-4 mb-5">
         <div class="relative">
-          @if (model().avatarPreview) {
           <img
-            [src]="model().avatarPreview!"
+            [src]="model().avatarPreview || '/assets/ph_profile.png'"
             class="w-16 h-16 rounded-full object-cover shadow-md"
             alt="avatar"
           />
-          } @else {
-          <!-- TODO(REMOVE-HARDCODE): หาก API คืน url รูป ให้แสดงรูปจาก API -->
-          <img
-            src="/assets/ph_profile.png"
-            class="w-16 h-16 rounded-full object-cover shadow-md"
-            alt="avatar"
-          />
-          }
           <label class="absolute -bottom-1 -right-1 cursor-pointer">
             <input type="file" accept="image/*" class="hidden" (change)="onPickAvatar($event)" />
             <span
@@ -83,16 +74,16 @@
           <div class="text-[11px] text-slate-500">PNG/JPG/WEBP up to 2MB</div>
         </div>
         <!-- Delete Account -->
-    <div class=" flex  flex-col justify-between flex-auto gap-4 items-center">
-  <div class="-mt-10 mr-5 text-[10px] mx-auto text-slate-500">Danger zone</div>
-  <button
-    type="button"
-    class="ml-auto text-[10px] px-3 py-1.5 rounded-lg text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 shadow-sm transition"
-    (click)="deleteAccount()"
-  >
-    Delete account
-  </button>
-</div>
+        <div class="flex flex-col justify-between flex-auto gap-4 items-center">
+          <div class="-mt-10 mr-5 text-[10px] mx-auto text-slate-500">Danger zone</div>
+          <button
+            type="button"
+            class="ml-auto text-[10px] px-3 py-1.5 rounded-lg text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 shadow-sm transition"
+            (click)="deleteAccount()"
+          >
+            Delete account
+          </button>
+        </div>
       </div>
 
       <!-- Profile form -->
@@ -123,7 +114,6 @@
         <!-- Status (profile) -->
 
         <div class="pt-1">
-
           <div class="h-9 flex items-center">
             <div
               class="rounded-xl px-3 py-2 text-sm border inline-flex items-center gap-2 transition-opacity duration-200"
@@ -154,15 +144,12 @@
           >
             @if (!savingProfile()) { <span>Save profile</span> } @else { <span>Saving...</span> }
           </button>
-          <button type="button" class="btn-ghost-enhance">Cancel</button>
-          
+          <button type="button" class="btn-ghost-enhance" (click)="onCancelProfile()">
+            Cancel
+          </button>
         </div>
       </form>
-
-      
     </div>
-
-    
 
     <!-- === Card 2: Change Password === -->
     <div class="glass rounded-3xl p-5 sm:p-6">
@@ -207,9 +194,7 @@
               class="absolute inset-y-0 right-2 my-[6px] p-2 rounded-full text-slate-500/80 hover:text-slate-700 hover:bg-white/55 transition active:scale-95 focus:outline-none select-none"
               [attr.aria-pressed]="showCurrent()"
               [title]="showCurrent() ? 'Hide password' : 'Show password'"
-            >
-              
-            </button>
+            ></button>
           </div>
         </div>
 
@@ -338,7 +323,6 @@
 
         <!-- Actions (password) -->
         <div class="flex gap-3 justify-end">
-
           <button
             type="button"
             class="btn-primary-enhance"
@@ -348,10 +332,10 @@
             @if (!savingPassword()) { <span>Update password</span> } @else {
             <span>Saving...</span> }
           </button>
-          <button type="button" class="btn-ghost-enhance">Cancel</button>
-
+          <button type="button" class="btn-ghost-enhance" (click)="onCancelPassword()">
+            Cancel
+          </button>
         </div>
-
       </form>
     </div>
   </div>

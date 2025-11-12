@@ -7,7 +7,6 @@ import { environment } from '../../environments/environment';
 /* ============================
  * DTOs (Frontend)
  * ============================ */
-
 export type MeDto = {
   sub?: string | null;
   email?: string | null;
@@ -22,15 +21,8 @@ export type UpdateProfileDto = {
   profilePictureUrl?: string | null;
 };
 
-export type ChangePasswordDto = {
-  currentPassword: string;
-  newPassword: string;
-};
-
-export type LoginRequestDto = {
-  email: string;
-  password: string;
-};
+export type ChangePasswordDto = { currentPassword: string; newPassword: string; };
+export type LoginRequestDto   = { email: string; password: string; };
 
 export type TokenResponseDto = {
   accessToken: string;
@@ -42,7 +34,7 @@ export type RegisterRequestDto = {
   email: string;
   username: string;
   password: string;
-  profilePictureUrl: string;
+  profilePictureUrl: string; // ฝั่งหลังบ้าน Required
 };
 
 export type UserResponseDto = {
@@ -55,24 +47,24 @@ export type UserResponseDto = {
 
 @Injectable({ providedIn: 'root' })
 export class UsersService {
-  private readonly http = inject(HttpClient);
-  private readonly base = `${environment.apiBase}/api/Users`;
-
-  // ===== MOCK CONFIG =====
+  private readonly http  = inject(HttpClient);
+  private readonly base  = `${environment.apiBase}/api/Users`;
   private readonly USE_MOCK = false;
+
+  /** รูป default ของระบบ (ใช้ทั้งตอน register และ fallback กรณีค่ามาเพี้ยน) */
+  private static readonly DEFAULT_AVATAR = '/assets/ph_profile.png';
 
   private mockMe: MeDto = {
     sub: '9',
     email: 's65524100xx@sau.ac.th',
     username: 'Phakin Kamwilaisak',
-    profilePictureUrl: '/assets/ph_profile.png',
+    profilePictureUrl: UsersService.DEFAULT_AVATAR,
   };
   private mockPassword = '12345678';
 
   /* ============================
    * Helpers
    * ============================ */
-
   private authHeaders(): HttpHeaders {
     const token = localStorage.getItem('access_token');
     return new HttpHeaders(token ? { Authorization: `Bearer ${token}` } : {});
@@ -88,11 +80,25 @@ export class UsersService {
   private applyPatch(me: MeDto): MeDto {
     return this.mePatch ? { ...me, ...this.mePatch } : me;
   }
-  setLocalMePatch(patch: Partial<MeDto>) {
-    this.mePatch = { ...(this.mePatch ?? {}), ...patch };
-  }
-  clearLocalMePatch() {
-    this.mePatch = null;
+  setLocalMePatch(patch: Partial<MeDto>) { this.mePatch = { ...(this.mePatch ?? {}), ...patch }; }
+  clearLocalMePatch() { this.mePatch = null; }
+
+  /** ทำให้ avatar ใช้ได้เสมอ (data:, http(s), หรือ path /assets/…) + กรองค่าขยะ */
+  private normalizeAvatar(src?: string | null): string | null {
+    if (!src) return UsersService.DEFAULT_AVATAR;
+    const s = src.trim();
+    if (!s) return UsersService.DEFAULT_AVATAR;
+
+    // กันค่าขยะจาก DB เช่น "string" / "null" / "undefined"
+    const junk = /^(string|null|undefined)$/i;
+    if (junk.test(s)) return UsersService.DEFAULT_AVATAR;
+
+    if (s.startsWith('data:')) return s;                               // data URL พร้อมใช้
+    if (s.startsWith('http://') || s.startsWith('https://')) return s; // URL ตรง
+    if (s.startsWith('/')) return s;                                   // path ภายในแอป เช่น /assets/...
+
+    // กรณี backend ส่ง base64 ล้วนๆ
+    return `data:image/png;base64,${s}`;
   }
 
   /* ============================
@@ -106,13 +112,13 @@ export class UsersService {
       }
       const token: TokenResponseDto = { accessToken: 'mock-access-token' };
       localStorage.setItem('access_token', token.accessToken);
+      this.clearLocalMePatch();
       return token;
     }
 
-    const res = await firstValueFrom(
-      this.http.post<TokenResponseDto>(`${this.base}/login`, dto)
-    );
+    const res = await firstValueFrom(this.http.post<TokenResponseDto>(`${this.base}/login`, dto));
     localStorage.setItem('access_token', res.accessToken);
+    this.clearLocalMePatch();
     return res;
   }
 
@@ -122,13 +128,21 @@ export class UsersService {
   async getMe(): Promise<MeDto> {
     if (this.USE_MOCK) {
       await new Promise(r => setTimeout(r, 200));
-      return this.applyPatch({ ...this.mockMe });
+      return this.applyPatch({
+        ...this.mockMe,
+        profilePictureUrl: this.normalizeAvatar(this.mockMe.profilePictureUrl),
+      });
     }
 
     const me = await firstValueFrom(
       this.http.get<MeDto>(`${this.base}/me`, { headers: this.authHeaders() })
     );
-    return this.applyPatch(me);
+
+    const normalized: MeDto = {
+      ...me,
+      profilePictureUrl: this.normalizeAvatar(me.profilePictureUrl),
+    };
+    return this.applyPatch(normalized);
   }
 
   /* ============================
@@ -139,14 +153,18 @@ export class UsersService {
       this.http.put<UserResponseDto>(`${this.base}/me`, dto, { headers: this.authHeaders() })
     );
 
-    // อัปเดต cache สำหรับรอบถัดไป (จนกว่าจะรีเฟรช/ลบ account/ล็อกเอาต์)
+    // อัปเดต cache สำหรับรอบถัดไป
     this.setLocalMePatch({
       email: res.email,
       username: res.username,
-      profilePictureUrl: res.profilePictureUrl ?? null,
+      profilePictureUrl: this.normalizeAvatar(res.profilePictureUrl ?? null),
     });
 
-    return res;
+    // คืนค่าที่ normalize แล้ว
+    return {
+      ...res,
+      profilePictureUrl: this.normalizeAvatar(res.profilePictureUrl ?? null),
+    };
   }
 
   /* ============================
@@ -154,9 +172,7 @@ export class UsersService {
    * ============================ */
   async changePassword(dto: ChangePasswordDto): Promise<void> {
     await firstValueFrom(
-      this.http.put<void>(`${this.base}/change-password`, dto, {
-        headers: this.authHeaders(),
-      })
+      this.http.put<void>(`${this.base}/change-password`, dto, { headers: this.authHeaders() })
     );
   }
 
@@ -170,7 +186,6 @@ export class UsersService {
       this.mockMe = { ...this.mockMe, profilePictureUrl: url };
       return { url };
     }
-
     return this.notWired<{ url: string }>('POST /api/users/me/avatar');
   }
 
@@ -178,30 +193,21 @@ export class UsersService {
    * DELETE /api/users/{id}
    * ============================ */
   async deleteUser(userId: number): Promise<void> {
-    if (this.USE_MOCK) {
-      await new Promise(r => setTimeout(r, 150));
-      return;
-    }
-
-    await firstValueFrom(
-      this.http.delete<void>(`${this.base}/${userId}`, {
-        headers: this.authHeaders(),
-      })
-    );
-
-    // ล้าง cache เพื่อไม่ให้ค้างข้อมูลหลังลบ
+    if (this.USE_MOCK) { await new Promise(r => setTimeout(r, 150)); return; }
+    await firstValueFrom(this.http.delete<void>(`${this.base}/${userId}`, { headers: this.authHeaders() }));
     this.clearLocalMePatch();
+    localStorage.removeItem('access_token');
   }
 
   /* ============================
    * POST /api/users/register
    * ============================ */
-  async register(input: { email: string; username: string; password: string }): Promise<UserResponseDto> {
+  async register(input: { email: string; username: string; password: string; }): Promise<UserResponseDto> {
     const payload: RegisterRequestDto = {
       email: input.email.trim(),
       username: input.username.trim(),
       password: input.password,
-      profilePictureUrl: '/assets/ph_profile.png', // default
+      profilePictureUrl: UsersService.DEFAULT_AVATAR,
     };
 
     if (this.USE_MOCK) {
@@ -214,14 +220,14 @@ export class UsersService {
       };
     }
 
-    const res = await firstValueFrom(
-      this.http.post<UserResponseDto>(`${this.base}/register`, payload)
-    );
+    const res = await firstValueFrom(this.http.post<UserResponseDto>(`${this.base}/register`, payload));
 
-    // หลังสมัครเสร็จ: ล้าง cache และ token เดิม เพื่อให้ login ใหม่ได้
     this.clearLocalMePatch();
     localStorage.removeItem('access_token');
 
-    return res;
+    return {
+      ...res,
+      profilePictureUrl: this.normalizeAvatar(res.profilePictureUrl ?? null),
+    };
   }
 }
