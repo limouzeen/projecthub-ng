@@ -317,20 +317,23 @@ async refresh() {
     this.rowOpen.set(true);
   }
 
-  async onSaveRow(newObj: Record<string, any>) {
+    async onSaveRow(newObj: Record<string, any>) {
     this.rowOpen.set(false);
     this.rowInitData = null;
 
+    const normalized = this.normalizeRowForSave(newObj);
+
     if (this.editingRow) {
-      await firstValueFrom(this.api.updateRow(this.editingRow.rowId, newObj));
+      await firstValueFrom(this.api.updateRow(this.editingRow.rowId, normalized));
       if (TableView.USE_REMOTE) this.reloadRemoteCurrentPage();
       else this.reloadLocalCurrentPage();
     } else {
-      await firstValueFrom(this.api.createRow(this.tableId, newObj));
+      await firstValueFrom(this.api.createRow(this.tableId, normalized));
       if (TableView.USE_REMOTE) await this.reloadRemoteToLastPage();
       else await this.reloadLocalToLastPage();
     }
   }
+
 
   async onDeleteRow(r: RowDto) {
     if (!confirm('Delete this row?')) return;
@@ -339,11 +342,17 @@ async refresh() {
     else this.reloadLocalCurrentPage(true);
   }
 
-  private async saveRowByRecord(record: any) {
+    private async saveRowByRecord(record: any) {
     const rowId = record.__rowId as number;
+
     const payload: Record<string, any> = {};
-    for (const c of this.columns()) payload[c.name] = record[c.name];
-    await firstValueFrom(this.api.updateRow(rowId, payload));
+    for (const c of this.columns()) {
+      payload[c.name] = record[c.name];
+    }
+
+    const normalized = this.normalizeRowForSave(payload);
+
+    await firstValueFrom(this.api.updateRow(rowId, normalized));
     if (TableView.USE_REMOTE) this.reloadRemoteCurrentPage();
     else this.reloadLocalCurrentPage();
   }
@@ -975,5 +984,50 @@ async refresh() {
     this.router.navigate(['/projects']);
   }
 }
+
+
+
+  /** แปลงชนิดข้อมูลตาม schema columns ก่อนส่งให้ backend */
+  private normalizeRowForSave(raw: Record<string, any>): Record<string, any> {
+    const out: Record<string, any> = {};
+
+    for (const c of this.columns()) {
+      const key = c.name;
+      const t = (c.dataType || '').toUpperCase();
+      const v = raw[key];
+
+      // ว่าง → null
+      if (v === '' || v === undefined) {
+        out[key] = null;
+        continue;
+      }
+
+      switch (t) {
+        case 'INTEGER':
+        case 'INT':
+          out[key] = v === null ? null : Number.parseInt(v as any, 10);
+          break;
+
+        case 'REAL':
+        case 'NUMBER':
+        case 'FLOAT':
+          out[key] = v === null ? null : Number.parseFloat(v as any);
+          break;
+
+        case 'BOOLEAN':
+          out[key] =
+            v === true ||
+            v === 'true' ||
+            v === 1 ||
+            v === '1';
+          break;
+
+        default:
+          out[key] = v;
+      }
+    }
+
+    return out;
+  }
 
 }

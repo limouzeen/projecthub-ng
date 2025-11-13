@@ -21,6 +21,8 @@ export interface RowDto {
   data: string | null;
 }
 
+
+
 export type FieldDialogModel = {
   name: string;
   dataType: 'TEXT'|'STRING'|'IMAGE'|'INTEGER'|'REAL'|'BOOLEAN'|'LOOKUP'|'FORMULA';
@@ -40,34 +42,78 @@ export class TableViewService {
   private readonly base = '/api';
   constructor(@Optional() private http: HttpClient) {}
 
+  private mapRow(r: any): RowDto {
+  return {
+    rowId: r.rowId ?? r.Row_id,
+    data:  r.data  ?? r.Data ?? null,
+  };
+}
+
+
   // ---------- Columns ----------
   listColumns(tableId: number): Observable<ColumnDto[]> {
-    return this.http.get<ColumnDto[]>(`${this.base}/columns/table/${tableId}`);
-  }
+  return this.http.get<any[]>(`${this.base}/columns/table/${tableId}`).pipe(
+    map(cols =>
+      (cols ?? []).map((c: any) => ({
+        columnId:      c.columnId      ?? c.column_id      ?? c.ColumnId,
+        tableId:       c.tableId       ?? c.table_id       ?? c.TableId,
+        name:          c.name          ?? c.Name,
+        dataType:      c.dataType      ?? c.data_type      ?? c.DataType,
+        isPrimary:     c.isPrimary     ?? c.is_primary     ?? c.Is_primary ?? false,
+        isNullable:    c.isNullable    ?? c.is_nullable    ?? c.Is_nullable ?? true,
+        targetTableId: c.targetTableId ?? c.target_table_id ?? c.TargetTableId ?? null,
+        targetColumnId:c.targetColumnId?? c.target_column_id?? c.TargetColumnId ?? null,
+        formulaDefinition: c.formulaDefinition ?? c.FormulaDefinition ?? null,
+        primaryKeyType:    c.primaryKeyType    ?? c.PrimaryKeyType    ?? null,
+      }))
+    )
+  );
+}
 
     /** บอกว่าเป็น Auto-increment ไหม (ดูจากคอลัมน์ Primary) */
   getPrimary(tableId: number) {
-    return this.http.get<ColumnDto | null>(`${this.base}/columns/table/${tableId}/primary`);
-  }
+  return this.http.get<any | null>(`${this.base}/columns/table/${tableId}/primary`).pipe(
+    map(c =>
+      !c
+        ? null
+        : ({
+            columnId:   c.columnId   ?? c.column_id   ?? c.ColumnId,
+            tableId:    c.tableId    ?? c.table_id    ?? c.TableId,
+            name:       c.name       ?? c.Name,
+            dataType:   c.dataType   ?? c.data_type   ?? c.DataType,
+            isPrimary:  c.isPrimary  ?? c.is_primary  ?? c.Is_primary ?? false,
+            isNullable: c.isNullable ?? c.is_nullable ?? c.Is_nullable ?? true,
+            primaryKeyType: c.primaryKeyType ?? c.PrimaryKeyType ?? null,
+          } as ColumnDto)
+    )
+  );
+}
 
 
   createColumn(tableId: number, dto: Partial<FieldDialogModel | ColumnDto>): Observable<ColumnDto> {
-    const payload: any = {
-      tableId,
-      name: (dto as any).name,
-      dataType: ((dto as any).dataType ?? 'TEXT').toUpperCase(),
-      isNullable: (dto as any).isNullable ?? true,
-      isPrimary: !!(dto as any).isPrimary,
-      targetTableId: (dto as any).targetTableId ?? null,
-      targetColumnId: (dto as any).targetColumnId ?? null,
-      formulaDefinition: (dto as any).formulaDefinition ?? null,
-      // หากเป็น LOOKUP และหลังบ้านต้องการความสัมพันธ์ใหม่:
-      newRelationship: (dto as any).dataType === 'LOOKUP'
-        ? { sourceTableId: tableId, targetTableId: (dto as any).targetTableId, targetColumnId: (dto as any).targetColumnId }
-        : null,
-    };
-    return this.http.post<ColumnDto>(`${this.base}/columns`, payload);
-  }
+  const rawType = (((dto as any).dataType ?? 'TEXT') as string).trim().toUpperCase();
+  const dataType = rawType === 'STRING' ? 'TEXT' : rawType;  
+  const payload: any = {
+    tableId,
+    name: (dto as any).name,
+    dataType,
+    isNullable: (dto as any).isNullable ?? true,
+    isPrimary: !!(dto as any).isPrimary,
+    targetTableId: (dto as any).targetTableId ?? null,
+    targetColumnId: (dto as any).targetColumnId ?? null,
+    formulaDefinition: (dto as any).formulaDefinition ?? null,
+    newRelationship: (dto as any).dataType === 'LOOKUP'
+      ? {
+          sourceTableId: tableId,
+          targetTableId: (dto as any).targetTableId,
+          targetColumnId: (dto as any).targetColumnId,
+        }
+      : null,
+  };
+
+  return this.http.post<ColumnDto>(`${this.base}/columns`, payload);
+}
+
 
   updateColumn(columnId: number, patch: Partial<ColumnDto>): Observable<ColumnDto> {
     if (patch.name) {
@@ -83,31 +129,55 @@ export class TableViewService {
   // ---------- Rows ----------
   listRows(tableId: number): Observable<RowDto[]> {
   return this.http.get<any[]>(`${this.base}/rows/table/${tableId}`).pipe(
-    map(rows =>
-      rows.map(r => ({
-        rowId: r.rowId ?? r.Row_id,      // รองรับทั้ง rowId และ Row_id
-        data:  r.data  ?? r.Data ?? null // รองรับทั้ง data และ Data
-      }) as RowDto)
-    )
+    map(rows => rows.map(r => this.mapRow(r)))
   );
 }
 
 
-  createRow(tableId: number, data: Record<string, any>): Observable<RowDto> {
-    return this.http.post<RowDto>(`${this.base}/rows`, { tableId, data });
-  }
 
-  updateRow(rowId: number, newData: Record<string, any>): Observable<RowDto> {
-    return this.http.put<RowDto>(`${this.base}/rows/${rowId}`, { newData });
-  }
+  /** POST /api/rows */
+createRow(tableId: number, data: Record<string, any>): Observable<RowDto> {
+  const body = {
+    tableId,                     // <- ชื่อเดียวกับ DTO
+    data: JSON.stringify(data),  // <- แปลง object → string JSON
+  };
+
+  return this.http.post<any>(`${this.base}/rows`, body).pipe(
+    map(r => this.mapRow(r))
+  );
+}
+
+/** PUT /api/rows/{id} สำหรับแก้ทั้ง row */
+updateRow(rowId: number, newData: Record<string, any>): Observable<RowDto> {
+  const body = {
+    newData: JSON.stringify(newData),   // backend ใช้ property ชื่อ NewData
+  };
+
+  return this.http.put<any>(`${this.base}/rows/${rowId}`, body).pipe(
+    map(r => this.mapRow(r))
+  );
+}
+
+/** PUT /api/rows/{id} สำหรับแก้ field เดียว (image / cell) */
+updateRowField(rowId: number, field: string, value: any): Observable<RowDto> {
+  const newData = { [field]: value };
+
+  const body = {
+    newData: JSON.stringify(newData),
+  };
+
+  return this.http.put<any>(`${this.base}/rows/${rowId}`, body).pipe(
+    map(r => this.mapRow(r))
+  );
+}
+
+
 
   deleteRow(rowId: number): Observable<void> {
     return this.http.delete<void>(`${this.base}/rows/${rowId}`);
   }
 
-  updateRowField(rowId: number, field: string, value: any): Observable<RowDto> {
-    return this.http.put<RowDto>(`${this.base}/rows/${rowId}`, { newData: { [field]: value } });
-  }
+  
 
   /** ใช้โชว์ next running id ของ PK 'ID' ถ้าอยากเด้งเลขในฟอร์ม */
   nextRunningId(tableId: number, pkName: string) {

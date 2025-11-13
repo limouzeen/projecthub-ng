@@ -167,7 +167,7 @@ this.tables.set(tabs);
         break;
 
       case 'Date':
-        this.dataType = 'STRING';
+        this.dataType = 'TEXT';
         break;
 
       case 'YesNo':

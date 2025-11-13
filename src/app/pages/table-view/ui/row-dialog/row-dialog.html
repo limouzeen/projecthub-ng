@@ -7,7 +7,7 @@
         @for (c of columns; track c.name) {
           <label class="text-xs font-medium text-slate-600">{{ c.name }}</label>
 
-          @switch ((c.dataType || '').toUpperCase()) {
+          @switch (typeOf(c)) {
 
             @case ('INTEGER') {
               <input
@@ -18,6 +18,8 @@
                 [disabled]="(!!c.isPrimary) && isAutoTable" />
             }
 
+            
+
             @case ('REAL') {
               <input
                 class="input"
@@ -27,6 +29,18 @@
                 [name]="c.name"
                 [disabled]="(!!c.isPrimary) && isAutoTable" />
             }
+
+
+            @case ('NUMBER') {
+              <input
+                class="input"
+                type="number"
+                step="any"
+                [(ngModel)]="model[c.name]"
+                [name]="c.name"
+                [disabled]="(!!c.isPrimary) && isAutoTable" />
+            }
+
 
             @case ('BOOLEAN') {
               <div class="flex items-center gap-6">

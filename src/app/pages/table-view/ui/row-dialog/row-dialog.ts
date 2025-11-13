@@ -56,6 +56,71 @@ export class RowDialog implements OnChanges {
 
   private readonly api = inject(TableViewService);
 
+  private normalizeTypeStr(t?: string): string {
+    return (t ?? '').trim().toUpperCase();
+  }
+  
+  /** ใช้เรียกจาก template */
+  typeOf(c: RowDialogColumn): string {
+    return this.normalizeTypeStr(c.dataType);
+  }
+
+  // ---------- normalize ----------
+  private normalizeBeforeSave(src: Record<string, any>): Record<string, any> {
+    const out: Record<string, any> = {};
+
+    for (const c of this.columns) {
+      const key = c.name;
+      const t = this.normalizeTypeStr(c.dataType);
+      const v = src[key];
+
+      if (c.isPrimary) {
+        if (this.isAutoTable) {
+          out[key] =
+            this.initData && this.initData[key] !== undefined
+              ? this.initData[key]
+              : v ?? null;
+          continue;
+        }
+      }
+
+      if (v === '' || v === undefined) {
+        out[key] = null;
+        continue;
+      }
+
+      switch (t) {
+        case 'INTEGER':
+        case 'INT':
+          out[key] = Number.parseInt(v as any, 10);
+          break;
+
+        case 'REAL':
+        case 'NUMBER':
+        case 'FLOAT':
+          out[key] = Number.parseFloat(v as any);
+          break;
+
+        case 'BOOLEAN':
+          out[key] =
+            v === true ||
+            v === 'true' ||
+            v === '1' ||
+            v === 1;
+          break;
+
+        default:
+          if (typeof v === 'string' && /^[+-]?\d+(\.\d+)?$/.test(v)) {
+            out[key] = Number.parseFloat(v);
+          } else {
+            out[key] = v;
+          }
+      }
+    }
+
+    return out;
+  }
+
   ngOnChanges(changes: SimpleChanges): void {
     const openedNow   = !!changes['open'] && this.open;
     const dataChanged = !!changes['initData'];
@@ -108,38 +173,6 @@ export class RowDialog implements OnChanges {
   onClearImage(fieldName: string) {
     this.model[fieldName] = '';
     this.uploadSource[fieldName] = undefined;
-  }
-
-  // ---------- normalize ----------
-  private normalizeBeforeSave(src: Record<string, any>): Record<string, any> {
-    const out: Record<string, any> = {};
-
-    for (const c of this.columns) {
-      const key = c.name;
-      const t = (c.dataType || '').toUpperCase();
-      const v = src[key];
-
-      // PK:
-      if (c.isPrimary) {
-        // ถ้าเป็น auto table → ล็อกค่าจาก initData (ห้ามแก้)
-        if (this.isAutoTable) {
-          out[key] = this.initData && this.initData[key] !== undefined ? this.initData[key] : v ?? null;
-          continue;
-        }
-        // ไม่ auto → รับค่าที่ผู้ใช้กรอกได้ตามปกติ
-      }
-
-      if (v === '' || v === undefined) { out[key] = null; continue; }
-
-      switch (t) {
-        case 'INTEGER': out[key] = Number.parseInt(v as any, 10); break;
-        case 'REAL':    out[key] = Number.parseFloat(v as any);   break;
-        case 'BOOLEAN': out[key] = v === true || v === 'true';     break;
-        default:        out[key] = v;
-      }
-    }
-
-    return out;
   }
 
   onSubmit(): void {
