@@ -16,12 +16,10 @@ export type ColumnDto = {
   primaryKeyType?: string | null; // 'AUTO_INCREMENT' เมื่อเป็น auto
 };
 
-export type RowDto = {
+export interface RowDto {
   rowId: number;
-  tableId: number;
-  data: string;
-  createdAt: string;
-};
+  data: string | null;
+}
 
 export type FieldDialogModel = {
   name: string;
@@ -84,8 +82,16 @@ export class TableViewService {
 
   // ---------- Rows ----------
   listRows(tableId: number): Observable<RowDto[]> {
-    return this.http.get<RowDto[]>(`${this.base}/rows/table/${tableId}`);
-  }
+  return this.http.get<any[]>(`${this.base}/rows/table/${tableId}`).pipe(
+    map(rows =>
+      rows.map(r => ({
+        rowId: r.rowId ?? r.Row_id,      // รองรับทั้ง rowId และ Row_id
+        data:  r.data  ?? r.Data ?? null // รองรับทั้ง data และ Data
+      }) as RowDto)
+    )
+  );
+}
+
 
   createRow(tableId: number, data: Record<string, any>): Observable<RowDto> {
     return this.http.post<RowDto>(`${this.base}/rows`, { tableId, data });

@@ -271,7 +271,7 @@
     <div class="pt-10 px-40">
       <div class="text-slate-600 text-sm font-semibold mb-1">Fields</div>
       <ul class="space-y-1">
-        @for (c of columns(); track c.columnId) {
+        @for (c of columns(); track c) {
           <li class="flex justify-between text-sm">
             <span>
               {{ c.name }}

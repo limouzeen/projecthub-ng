@@ -109,10 +109,7 @@ selectedCount = computed(() => this.selected().size);
     // 👇 โหลดโปรเจกต์ของ user (claims)
     await this.svc.refresh();
 
-    // sync signal ใช้กับส่วนกรอง/เพจ เหมือนเดิม
-    effect(() => this.projects.set(this.svc.list()), { allowSignalWrites: true });
-    effect(() => { const _q = this.keyword(); const _s = this.pageSize(); this.pageIndex.set(0); }, { allowSignalWrites: true });
-    effect(() => { const pc = this.pageCount(); if (this.pageIndex() >= pc) this.pageIndex.set(pc - 1); }, { allowSignalWrites: true });
+    
   }
 
   ngOnDestroy() {
