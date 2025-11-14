@@ -25,7 +25,7 @@ export interface RowDto {
 
 export type FieldDialogModel = {
   name: string;
-  dataType: 'TEXT'|'STRING'|'IMAGE'|'INTEGER'|'REAL'|'BOOLEAN'|'LOOKUP'|'FORMULA';
+  dataType: 'TEXT'|'STRING'|'IMAGE'|'INTEGER'|'REAL'|'BOOLEAN'|'LOOKUP'|'FORMULA' | 'DATE';
   isNullable: boolean;
   isPrimary: boolean;
   targetTableId: number|null;
@@ -92,7 +92,7 @@ export class TableViewService {
 
   createColumn(tableId: number, dto: Partial<FieldDialogModel | ColumnDto>): Observable<ColumnDto> {
   const rawType = (((dto as any).dataType ?? 'TEXT') as string).trim().toUpperCase();
-  const dataType = rawType === 'STRING' ? 'TEXT' : rawType;  
+   const dataType = rawType === 'STRING' ? 'TEXT' : rawType;
   const payload: any = {
     tableId,
     name: (dto as any).name,

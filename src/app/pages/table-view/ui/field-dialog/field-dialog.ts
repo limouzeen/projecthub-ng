@@ -57,7 +57,7 @@ export class FieldDialog implements OnChanges {
 
   isNullable = true;
   isPrimary = false;
-  dataType: 'TEXT' | 'INTEGER' | 'REAL' | 'BOOLEAN' | 'STRING' | 'IMAGE' | 'LOOKUP' | 'FORMULA' = 'TEXT';
+  dataType: 'TEXT' | 'INTEGER' | 'REAL' | 'BOOLEAN' | 'STRING' | 'IMAGE' | 'LOOKUP' | 'FORMULA' | 'DATE' = 'TEXT';
 
   // lookup
   targetTableId: number | null = null;
@@ -167,7 +167,7 @@ this.tables.set(tabs);
         break;
 
       case 'Date':
-        this.dataType = 'TEXT';
+        this.dataType = 'DATE';
         break;
 
       case 'YesNo':

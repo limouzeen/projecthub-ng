@@ -788,20 +788,50 @@ export class TableView implements OnInit, OnDestroy, AfterViewInit {
         }
 
         // DATE type
-        case 'DATE': {
-          const def: any = { ...base };
-          if (!lock) {
-            def.editor = 'input';
-            def.editorParams = {
-              elementAttributes: {
-                type: 'date', // ทำให้เป็น date picker
-              },
-            };
-          } else {
-            def.editor = false;
+         case 'DATE': {
+    return {
+      ...base,
+
+      // ใช้ custom editor เป็น <input type="date">
+      editor: (cell: any, onRendered: any, success: (v: any) => void, cancel: () => void) => {
+        const input = document.createElement('input');
+        input.type = 'date';
+        input.className = 'ph-date-editor-input'; // ใช้ class เดิม/ธีมเดิมได้ตามใจ
+
+        const raw = cell.getValue();
+        input.value = this.toInputDateValue(raw);
+
+        onRendered(() => {
+          input.focus();
+          input.select?.();
+        });
+
+        const commit = () => success(input.value);
+
+        input.addEventListener('change', commit);
+        input.addEventListener('blur', commit);
+        input.addEventListener('keydown', (e: KeyboardEvent) => {
+          if (e.key === 'Enter') {
+            e.preventDefault();
+            commit();
           }
-          return def;
-        }
+          if (e.key === 'Escape') {
+            e.preventDefault();
+            cancel();
+          }
+        });
+
+        return input;
+      },
+
+      // formatter: แสดงเป็น dd-MM-yyyy เสมอ
+      formatter: (cell: any) => {
+        const raw = cell.getValue();
+        const text = this.formatDateDdMmYyyy(raw);
+        return `<span>${text}</span>`;
+      },
+    };
+  }
 
         default:
           return { ...base, editor: lock ? false : 'input' };
@@ -1105,4 +1135,56 @@ export class TableView implements OnInit, OnDestroy, AfterViewInit {
 
     return out;
   }
+
+
+  // แปลง string วันที่จาก backend → แสดงเป็น dd-MM-yyyy
+private formatDateDdMmYyyy(raw: any): string {
+  if (!raw) return '';
+
+  if (typeof raw !== 'string') {
+    return String(raw);
+  }
+
+  // รองรับทั้ง "yyyy-MM-dd", "yyyy/MM/dd", "dd-MM-yyyy" เผื่อไว้
+  let y: string, m: string, d: string;
+
+  if (/^\d{4}[-/]\d{2}[-/]\d{2}$/.test(raw)) {
+    // yyyy-MM-dd หรือ yyyy/MM/dd
+    const parts = raw.split(/[-/]/);
+    [y, m, d] = parts;
+  } else if (/^\d{2}-\d{2}-\d{4}$/.test(raw)) {
+    // dd-MM-yyyy อยู่แล้ว
+    return raw;
+  } else {
+    return raw; // format แปลก ๆ ไม่แปลง
+  }
+
+  return `${d}-${m}-${y}`;
+}
+
+// ใช้ตอน editor (input type="date") ต้องการค่าแบบ yyyy-MM-dd
+private toInputDateValue(raw: any): string {
+  if (!raw) return '';
+
+  if (typeof raw !== 'string') return '';
+
+  // ถ้าเป็น dd-MM-yyyy ให้สลับกลับเป็น yyyy-MM-dd
+  if (/^\d{2}-\d{2}-\d{4}$/.test(raw)) {
+    const [d, m, y] = raw.split('-');
+    return `${y}-${m}-${d}`;
+  }
+
+  // ถ้าเป็น yyyy/MM/dd ให้เปลี่ยน / → -
+  if (/^\d{4}\/\d{2}\/\d{2}$/.test(raw)) {
+    return raw.replace(/\//g, '-');
+  }
+
+  // ถ้าเป็น yyyy-MM-dd อยู่แล้ว
+  if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) {
+    return raw;
+  }
+
+  return '';
+}
+
 }

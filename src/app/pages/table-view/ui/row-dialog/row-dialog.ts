@@ -57,9 +57,24 @@ export class RowDialog implements OnChanges {
   private readonly api = inject(TableViewService);
 
   private normalizeTypeStr(t?: string): string {
-    return (t ?? '').trim().toUpperCase();
+  const up = (t ?? '').trim().toUpperCase();
+
+  switch (up) {
+    case 'INT':
+      return 'INTEGER';
+    case 'FLOAT':
+      return 'REAL';
+    case 'NUMBER':
+      return 'NUMBER';
+    case 'BOOL':
+      return 'BOOLEAN';
+    case 'DATE':
+      return 'DATE';
+    default:
+      return up || 'TEXT';
   }
-  
+}
+
   /** ใช้เรียกจาก template */
   typeOf(c: RowDialogColumn): string {
     return this.normalizeTypeStr(c.dataType);
@@ -113,11 +128,12 @@ export class RowDialog implements OnChanges {
           break;
 
         default:
-          if (typeof v === 'string' && /^[+-]?\d+(\.\d+)?$/.test(v)) {
-            out[key] = Number.parseFloat(v);
-          } else {
-            out[key] = v;
-          }
+          // ถ้าเป็น DATE อย่าไปเดาว่าเป็น number
+        if (t !== 'DATE' && typeof v === 'string' && /^[+-]?\d+(\.\d+)?$/.test(v)) {
+          out[key] = Number.parseFloat(v);
+        } else {
+          out[key] = v;
+        }
       }
     }
 
