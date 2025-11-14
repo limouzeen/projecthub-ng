@@ -123,6 +123,15 @@
               <input class="input" [disabled]="true" [ngModel]="model[c.name]" [name]="c.name" />
             }
 
+            @case ('DATE') {
+        <input
+          class="input"
+          type="date"
+          [(ngModel)]="model[c.name]"
+          [name]="c.name" />
+      }
+
+
             @default {
               <textarea
                 class="input"

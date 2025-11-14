@@ -10,7 +10,7 @@ import {
   HostListener,
   effect,
 } from '@angular/core';
-import { CommonModule , Location } from '@angular/common';
+import { CommonModule, Location } from '@angular/common';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { firstValueFrom } from 'rxjs';
 import { TabulatorFull as Tabulator } from 'tabulator-tables/dist/js/tabulator_esm.js';
@@ -19,7 +19,7 @@ import { TableViewService, ColumnDto, RowDto } from '../../core/table-view.servi
 import { FieldDialog } from './ui/field-dialog/field-dialog';
 import { RowDialog } from './ui/row-dialog/row-dialog';
 import { ImageDialog } from './ui/image-dialog/image-dialog';
-import { UsersService, MeDto } from '../../core/users.service'; 
+import { UsersService, MeDto } from '../../core/users.service';
 import { FooterStateService } from '../../core/footer-state.service';
 import { HttpErrorResponse } from '@angular/common/http';
 import { ToastService } from '../../shared/toast.service';
@@ -37,14 +37,14 @@ export class TableView implements OnInit, OnDestroy, AfterViewInit {
   private readonly api = inject(TableViewService);
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
-  private readonly location = inject(Location); 
-  private readonly users = inject(UsersService);  
-    private readonly toast = inject(ToastService); 
+  private readonly location = inject(Location);
+  private readonly users = inject(UsersService);
+  private readonly toast = inject(ToastService);
 
   private readonly THUMB_H = 70;
 
-    // profile (แสดงขวาบน)
-  readonly me = signal<MeDto | null>(null);   
+  // profile (แสดงขวาบน)
+  readonly me = signal<MeDto | null>(null);
 
   tableId = 0;
   columns = signal<ColumnDto[]>([]);
@@ -90,69 +90,65 @@ export class TableView implements OnInit, OnDestroy, AfterViewInit {
   private _lastPageFromServer = 1;
 
   constructor(private footer: FooterStateService) {
-  effect(() => {
-    const q = this.keyword().trim().toLowerCase();
-    if (!this.grid) return;
+    effect(() => {
+      const q = this.keyword().trim().toLowerCase();
+      if (!this.grid) return;
 
-    // ล้าง filter ถ้าไม่มีคำค้น
-    if (!q) {
+      // ล้าง filter ถ้าไม่มีคำค้น
+      if (!q) {
+        try {
+          this.grid.clearFilter();
+        } catch {}
+        return;
+      }
+
       try {
-        this.grid.clearFilter();
-      } catch {}
-      return;
-    }
+        // ใช้ custom filter ให้เข้ากับ Tabulator:
+        // param = row data object ไม่ใช่ RowComponent
+        this.grid.setFilter((data: any) => {
+          if (!data) return false;
 
-    try {
-      // ใช้ custom filter ให้เข้ากับ Tabulator:
-      // param = row data object ไม่ใช่ RowComponent
-      this.grid.setFilter((data: any) => {
-        if (!data) return false;
+          return Object.keys(data).some((key) => {
+            // ไม่ต้องค้นใน meta fields
+            if (key === '__rowId' || key === '__actions') return false;
 
-        return Object.keys(data).some((key) => {
-          // ไม่ต้องค้นใน meta fields
-          if (key === '__rowId' || key === '__actions') return false;
+            const value = data[key];
 
-          const value = data[key];
+            // ข้าม null/undefined
+            if (value === null || value === undefined) return false;
 
-          // ข้าม null/undefined
-          if (value === null || value === undefined) return false;
-
-          return String(value).toLowerCase().includes(q);
+            return String(value).toLowerCase().includes(q);
+          });
         });
-      });
-    } catch {}
-  });
-}
+      } catch {}
+    });
+  }
 
-
-async ngOnInit() {
-
-  try {
+  async ngOnInit() {
+    try {
       const me = await this.users.getMe();
       this.me.set(me);
     } catch (e) {
-    this.showHttpError(e, 'ไม่สามารถโหลดข้อมูลผู้ใช้ได้');
-    this.router.navigateByUrl('/login');
-    return;
+      this.showHttpError(e, 'ไม่สามารถโหลดข้อมูลผู้ใช้ได้');
+      this.router.navigateByUrl('/login');
+      return;
+    }
+    // Footer
+    this.footer.setThreshold(719);
+    this.footer.setForceCompact(null); // ให้ทำงานแบบ auto ตาม threshold
+
+    this.tableId = Number(this.route.snapshot.paramMap.get('id'));
+
+    // ดึง projectId จาก query param (รองรับ refresh)
+    const fromQuery = this.route.snapshot.queryParamMap.get('projectId');
+    this.projectId = fromQuery ? Number(fromQuery) : null;
+
+    await this.refresh();
   }
-  // Footer
-  this.footer.setThreshold(719);
-  this.footer.setForceCompact(null); // ให้ทำงานแบบ auto ตาม threshold
-
-  this.tableId = Number(this.route.snapshot.paramMap.get('id'));
-
-  // ดึง projectId จาก query param (รองรับ refresh)
-  const fromQuery = this.route.snapshot.queryParamMap.get('projectId');
-  this.projectId = fromQuery ? Number(fromQuery) : null;
-
-  await this.refresh();
-}
-
 
   ngOnDestroy(): void {
     this.footer.resetAll();
   }
-
 
   ngAfterViewInit() {
     this.viewReady = true;
@@ -160,38 +156,38 @@ async ngOnInit() {
   }
 
   /** ตัวช่วยรวม ๆ แปลง HttpErrorResponse -> ข้อความ read-able */
-private showHttpError(e: unknown, fallback = 'เกิดข้อผิดพลาด กรุณาลองอีกครั้ง') {
-  const err = e as HttpErrorResponse;
-  let msg = fallback;
+  private showHttpError(e: unknown, fallback = 'เกิดข้อผิดพลาด กรุณาลองอีกครั้ง') {
+    const err = e as HttpErrorResponse;
+    let msg = fallback;
 
-  // backend ของคุณมักส่ง { Error: "..." }
-  const serverMsg = (err?.error && (err.error.Error || err.error.message || err.error)) ?? null;
+    // backend ของคุณมักส่ง { Error: "..." }
+    const serverMsg = (err?.error && (err.error.Error || err.error.message || err.error)) ?? null;
 
-  switch (err?.status) {
-    case 0:
-      msg = 'เชื่อมต่อเซิร์ฟเวอร์ไม่ได้ กรุณาตรวจสอบอินเทอร์เน็ต';
-      break;
-    case 400:
-      msg = serverMsg || 'ข้อมูลไม่ถูกต้อง';
-      // กรณีชื่อซ้ำจาก CreateTableHandler: message จะบอกชัดเจน
-      break;
-    case 401:
-      msg = 'เซสชันหมดอายุ กรุณาเข้าสู่ระบบใหม่';
-      break;
-    case 403:
-      msg = serverMsg || 'คุณไม่มีสิทธิ์ทำรายการนี้';
-      break;
-    case 404:
-      msg = serverMsg || 'ไม่พบข้อมูล';
-      break;
-    case 409:
-      msg = serverMsg || 'ข้อมูลขัดแย้ง (เช่น ชื่อซ้ำ)';
-      break;
-    default:
-      msg = serverMsg || fallback;
+    switch (err?.status) {
+      case 0:
+        msg = 'เชื่อมต่อเซิร์ฟเวอร์ไม่ได้ กรุณาตรวจสอบอินเทอร์เน็ต';
+        break;
+      case 400:
+        msg = serverMsg || 'ข้อมูลไม่ถูกต้อง';
+        // กรณีชื่อซ้ำจาก CreateTableHandler: message จะบอกชัดเจน
+        break;
+      case 401:
+        msg = 'เซสชันหมดอายุ กรุณาเข้าสู่ระบบใหม่';
+        break;
+      case 403:
+        msg = serverMsg || 'คุณไม่มีสิทธิ์ทำรายการนี้';
+        break;
+      case 404:
+        msg = serverMsg || 'ไม่พบข้อมูล';
+        break;
+      case 409:
+        msg = serverMsg || 'ข้อมูลขัดแย้ง (เช่น ชื่อซ้ำ)';
+        break;
+      default:
+        msg = serverMsg || fallback;
+    }
+    this.toast.error(msg);
   }
-  this.toast.error(msg);
-}
   // ================= Layout / Nav =================
 
   toggleAside() {
@@ -235,26 +231,22 @@ private showHttpError(e: unknown, fallback = 'เกิดข้อผิดพ�
 
   // ================= data ops =================
 
-async refresh() {
-  // 1) schema
-  const cols = await firstValueFrom(this.api.listColumns(this.tableId));
-  this.columns.set(cols);
+  async refresh() {
+    // 1) schema
+    const cols = await firstValueFrom(this.api.listColumns(this.tableId));
+    this.columns.set(cols);
 
- 
-  // 2) หา primary column จาก listColumns แล้วเช็คแค่ primaryKeyType
-  const pk = cols.find(c => c.isPrimary);          // ใช้ flag จาก backend
+    // 2) หา primary column จาก listColumns แล้วเช็คแค่ primaryKeyType
+    const pk = cols.find((c) => c.isPrimary); // ใช้ flag จาก backend
 
-  const isAuto =
-    !!pk &&
-    (pk.primaryKeyType ?? '').toUpperCase() === 'AUTO_INCREMENT';
+    const isAuto = !!pk && (pk.primaryKeyType ?? '').toUpperCase() === 'AUTO_INCREMENT';
 
-  this.isAutoTable.set(isAuto);
+    this.isAutoTable.set(isAuto);
 
-  // 3) โหลด rows ลง grid
-  this.rows.set([]);
-  this.ensureGridAndSync();
-}
-
+    // 3) โหลด rows ลง grid
+    this.rows.set([]);
+    this.ensureGridAndSync();
+  }
 
   parseData(json: string | null | undefined): any {
     if (!json) return {};
@@ -287,13 +279,13 @@ async refresh() {
 
   // ===== Edit Field========
 
-    onEditField(c: ColumnDto) {
+  onEditField(c: ColumnDto) {
     this.editingColumn = c;
     this.editFieldName.set(c.name);
     this.editFieldOpen.set(true);
   }
 
-    onCancelEditField() {
+  onCancelEditField() {
     this.editFieldOpen.set(false);
     this.editFieldName.set('');
     this.editingColumn = null;
@@ -328,9 +320,6 @@ async refresh() {
     }
   }
 
-
-
-
   // ---------- Row ----------
   async onAddRow() {
     this.editingRow = null;
@@ -351,16 +340,15 @@ async refresh() {
     this.rowOpen.set(true);
   }
 
-    async onSaveRow(newObj: Record<string, any>) {
+  async onSaveRow(newObj: Record<string, any>) {
     this.rowOpen.set(false);
     this.rowInitData = null;
 
     const isCreate = !this.editingRow;
     const normalized = this.normalizeRowForSave(
-    newObj,
-    isCreate && this.isAutoTable()   //  create + auto table → ไม่ส่ง PK
-  );
-
+      newObj,
+      isCreate && this.isAutoTable() //  create + auto table → ไม่ส่ง PK
+    );
 
     if (this.editingRow) {
       await firstValueFrom(this.api.updateRow(this.editingRow.rowId, normalized));
@@ -373,7 +361,6 @@ async refresh() {
     }
   }
 
-
   async onDeleteRow(r: RowDto) {
     if (!confirm('Delete this row?')) return;
     await firstValueFrom(this.api.deleteRow(r.rowId));
@@ -381,7 +368,7 @@ async refresh() {
     else this.reloadLocalCurrentPage(true);
   }
 
-    private async saveRowByRecord(record: any) {
+  private async saveRowByRecord(record: any) {
     const rowId = record.__rowId as number;
 
     const payload: Record<string, any> = {};
@@ -406,48 +393,46 @@ async refresh() {
 
   // ---------- Image helpers ----------
   private onImagePicked(record: any, fieldName: string, file: File) {
-  this.api.uploadImage(file)
-    .then((url) => {
-    
-      record[fieldName] = url;
+    this.api
+      .uploadImage(file)
+      .then((url) => {
+        record[fieldName] = url;
 
-      // อัปเดต row ใน Tabulator ให้รีเฟรช cell
-      try {
-        const row = this.grid?.getRow?.(record.__rowId);
-        row?.update(record);
-      } catch {}
-    })
-    .catch(err => console.error('upload failed', err));
-}
-
+        // อัปเดต row ใน Tabulator ให้รีเฟรช cell
+        try {
+          const row = this.grid?.getRow?.(record.__rowId);
+          row?.update(record);
+        } catch {}
+      })
+      .catch((err) => console.error('upload failed', err));
+  }
 
   private async setImageUrl(record: any, fieldName: string, url: string | null) {
-  const rowId = record.__rowId as number;
+    const rowId = record.__rowId as number;
 
-  try {
-    // 1. สร้าง payload ทั้งแถว จากค่าใน grid ปัจจุบัน
-    const raw: Record<string, any> = {};
-    for (const c of this.columns()) {
-      const key = c.name;
-      raw[key] = key === fieldName ? url : record[key];
+    try {
+      // 1. สร้าง payload ทั้งแถว จากค่าใน grid ปัจจุบัน
+      const raw: Record<string, any> = {};
+      for (const c of this.columns()) {
+        const key = c.name;
+        raw[key] = key === fieldName ? url : record[key];
+      }
+
+      // 2. แปลงตาม schema ให้เป็น number / boolean ให้ถูกต้อง
+      const normalized = this.normalizeRowForSave(raw);
+
+      // 3. ยิง PUT /api/rows/{id} ด้วยข้อมูลทั้งแถว
+      await firstValueFrom(this.api.updateRow(rowId, normalized));
+
+      // 4. update ค่าใน grid ฝั่งหน้าเว็บด้วย
+      record[fieldName] = url;
+
+      if (TableView.USE_REMOTE) this.reloadRemoteCurrentPage();
+      else this.reloadLocalCurrentPage();
+    } catch (err) {
+      console.error('set image url failed', err);
     }
-
-    // 2. แปลงตาม schema ให้เป็น number / boolean ให้ถูกต้อง
-    const normalized = this.normalizeRowForSave(raw);
-
-    // 3. ยิง PUT /api/rows/{id} ด้วยข้อมูลทั้งแถว
-    await firstValueFrom(this.api.updateRow(rowId, normalized));
-
-    // 4. update ค่าใน grid ฝั่งหน้าเว็บด้วย
-    record[fieldName] = url;
-
-    if (TableView.USE_REMOTE) this.reloadRemoteCurrentPage();
-    else this.reloadLocalCurrentPage();
-  } catch (err) {
-    console.error('set image url failed', err);
   }
-}
-
 
   // ---------- Image Dialog (ใช้กับ toolbar ใน cell IMAGE) ----------
   private openImageUrlDialog(record: any, field: string, currentUrl: string) {
@@ -470,37 +455,36 @@ async refresh() {
   }
 
   onImageDialogSave(url: string) {
-  this.imageDlgOpen.set(false);
+    this.imageDlgOpen.set(false);
 
-  if (this.imageDlgRecord && this.imageDlgField) {
-    const rec = this.imageDlgRecord;
-    rec[this.imageDlgField] = url;   // แก้เฉพาะฝั่ง UI
+    if (this.imageDlgRecord && this.imageDlgField) {
+      const rec = this.imageDlgRecord;
+      rec[this.imageDlgField] = url; // แก้เฉพาะฝั่ง UI
 
-    try {
-      const row = this.grid?.getRow?.(rec.__rowId);
-      row?.update(rec);             // ให้ Tabulator รีเฟรช cell
-    } catch {}
+      try {
+        const row = this.grid?.getRow?.(rec.__rowId);
+        row?.update(rec); // ให้ Tabulator รีเฟรช cell
+      } catch {}
+    }
+
+    this.resetImageDialogState();
   }
 
-  this.resetImageDialogState();
-}
+  onImageDialogDelete() {
+    this.imageDlgOpen.set(false);
 
-onImageDialogDelete() {
-  this.imageDlgOpen.set(false);
+    if (this.imageDlgRecord && this.imageDlgField) {
+      const rec = this.imageDlgRecord;
+      rec[this.imageDlgField] = null; // หรือ '' ตามที่ชอบ
 
-  if (this.imageDlgRecord && this.imageDlgField) {
-    const rec = this.imageDlgRecord;
-    rec[this.imageDlgField] = null; // หรือ '' ตามที่ชอบ
+      try {
+        const row = this.grid?.getRow?.(rec.__rowId);
+        row?.update(rec);
+      } catch {}
+    }
 
-    try {
-      const row = this.grid?.getRow?.(rec.__rowId);
-      row?.update(rec);
-    } catch {}
+    this.resetImageDialogState();
   }
-
-  this.resetImageDialogState();
-}
-
 
   onImageDialogCancel() {
     this.imageDlgOpen.set(false);
@@ -556,15 +540,15 @@ onImageDialogDelete() {
           };
 
         case 'IMAGE': {
-  return {
-    ...base,
-    cssClass: 'cell-image',
-    minWidth: 160,
-    formatter: (cell: any) => {
-      const current = (cell.getValue() as string) || null;
+          return {
+            ...base,
+            cssClass: 'cell-image',
+            minWidth: 160,
+            formatter: (cell: any) => {
+              const current = (cell.getValue() as string) || null;
 
-      const wrap = document.createElement('div');
-      wrap.style.cssText = `
+              const wrap = document.createElement('div');
+              wrap.style.cssText = `
         position:relative;
         width:100%;
         height:${this.THUMB_H}px;
@@ -575,11 +559,11 @@ onImageDialogDelete() {
         overflow:hidden;
       `;
 
-      // ---------- content ----------
-      if (current) {
-        const img = document.createElement('img');
-        img.src = current;
-        img.style.cssText = `
+              // ---------- content ----------
+              if (current) {
+                const img = document.createElement('img');
+                img.src = current;
+                img.style.cssText = `
           max-height:${this.THUMB_H - 10}px;
           max-width:100%;
           object-fit:contain;
@@ -588,14 +572,16 @@ onImageDialogDelete() {
           border-radius:10px;
           box-shadow:0 4px 14px rgba(15,23,42,0.12);
         `;
-        img.onload = () => {
-          try { cell.getRow().normalizeHeight(); } catch {}
-        };
-        wrap.appendChild(img);
-      } else {
-        const ph = document.createElement('div');
-        ph.textContent = 'Drop / Click to upload';
-        ph.style.cssText = `
+                img.onload = () => {
+                  try {
+                    cell.getRow().normalizeHeight();
+                  } catch {}
+                };
+                wrap.appendChild(img);
+              } else {
+                const ph = document.createElement('div');
+                ph.textContent = 'Drop / Click to upload';
+                ph.style.cssText = `
           padding:6px 12px;
           border-radius:999px;
           border:1px dashed rgba(129,140,248,0.9);
@@ -612,12 +598,12 @@ onImageDialogDelete() {
           overflow:hidden;
           text-overflow:ellipsis;
         `;
-        wrap.appendChild(ph);
-      }
+                wrap.appendChild(ph);
+              }
 
-      // ---------- toolbar: link / delete (vertical) ----------
-      const tools = document.createElement('div');
-      tools.style.cssText = `
+              // ---------- toolbar: link / delete (vertical) ----------
+              const tools = document.createElement('div');
+              tools.style.cssText = `
         position:absolute;
         top:50%;
         right:4px;
@@ -629,11 +615,11 @@ onImageDialogDelete() {
         z-index:10;
       `;
 
-      const mkBtn = (label: string) => {
-        const b = document.createElement('button');
-        b.type = 'button';
-        b.innerText = label;
-        b.style.cssText = `
+              const mkBtn = (label: string) => {
+                const b = document.createElement('button');
+                b.type = 'button';
+                b.innerText = label;
+                b.style.cssText = `
           width:20px;height:20px;
           border:none;
           border-radius:999px;
@@ -648,113 +634,108 @@ onImageDialogDelete() {
           align-items:center;
           justify-content:center;
         `;
-        return b;
-      };
+                return b;
+              };
 
-      const btnUrl = mkBtn('🔗');
-      btnUrl.title = 'Set image URL';
-      btnUrl.onclick = (ev) => {
-        ev.stopPropagation();
-        const rec = cell.getRow().getData() as any;
-        const f = cell.getField() as string;
-        const val = (cell.getValue() as string) || '';
+              const btnUrl = mkBtn('🔗');
+              btnUrl.title = 'Set image URL';
+              btnUrl.onclick = (ev) => {
+                ev.stopPropagation();
+                const rec = cell.getRow().getData() as any;
+                const f = cell.getField() as string;
+                const val = (cell.getValue() as string) || '';
 
-        // dialog ไว้ใส่ URL public เท่านั้น: ถ้าเป็น data: ให้เคลียร์
-        const isDataUrl = val.startsWith('data:');
-        const clean = isDataUrl ? '' : val;
+                // dialog ไว้ใส่ URL public เท่านั้น: ถ้าเป็น data: ให้เคลียร์
+                const isDataUrl = val.startsWith('data:');
+                const clean = isDataUrl ? '' : val;
 
-        this.openImageUrlDialog(rec, f, clean);
-      };
+                this.openImageUrlDialog(rec, f, clean);
+              };
 
-      const btnClear = mkBtn('🗑');
-      btnClear.title = 'Remove image';
-      btnClear.onclick = (ev) => {
-        ev.stopPropagation();
-        const rec = cell.getRow().getData() as any;
-        const f = cell.getField() as string;
-        const val = (cell.getValue() as string) || '';
-        if (!val) return;
-        this.openImageDeleteDialog(rec, f, val);
-      };
+              const btnClear = mkBtn('🗑');
+              btnClear.title = 'Remove image';
+              btnClear.onclick = (ev) => {
+                ev.stopPropagation();
+                const rec = cell.getRow().getData() as any;
+                const f = cell.getField() as string;
+                const val = (cell.getValue() as string) || '';
+                if (!val) return;
+                this.openImageDeleteDialog(rec, f, val);
+              };
 
-      tools.appendChild(btnUrl);
-      tools.appendChild(btnClear);
-      wrap.appendChild(tools);
+              tools.appendChild(btnUrl);
+              tools.appendChild(btnClear);
+              wrap.appendChild(tools);
 
-      // ---------- drag & drop upload ----------
-      const setDragVisual = (on: boolean) => {
-        wrap.style.boxShadow = on
-          ? '0 0 0 1px rgba(129,140,248,0.85), 0 8px 24px rgba(79,70,229,0.25)'
-          : 'none';
-        wrap.style.background =
-          on && !current
-            ? 'rgba(239,246,255,0.9)'
-            : 'transparent';
-      };
+              // ---------- drag & drop upload ----------
+              const setDragVisual = (on: boolean) => {
+                wrap.style.boxShadow = on
+                  ? '0 0 0 1px rgba(129,140,248,0.85), 0 8px 24px rgba(79,70,229,0.25)'
+                  : 'none';
+                wrap.style.background = on && !current ? 'rgba(239,246,255,0.9)' : 'transparent';
+              };
 
-      const handleFiles = (files: FileList | null) => {
-        const file = files?.[0];
-        if (!file) return;
-        const record = cell.getRow().getData() as any;
-        const fieldName = cell.getField() as string;
-        this.onImagePicked(record, fieldName, file);
-      };
+              const handleFiles = (files: FileList | null) => {
+                const file = files?.[0];
+                if (!file) return;
+                const record = cell.getRow().getData() as any;
+                const fieldName = cell.getField() as string;
+                this.onImagePicked(record, fieldName, file);
+              };
 
-      wrap.addEventListener('dragover', (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        setDragVisual(true);
-      });
+              wrap.addEventListener('dragover', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                setDragVisual(true);
+              });
 
-      wrap.addEventListener('dragenter', (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        setDragVisual(true);
-      });
+              wrap.addEventListener('dragenter', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                setDragVisual(true);
+              });
 
-      wrap.addEventListener('dragleave', (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        setDragVisual(false);
-      });
+              wrap.addEventListener('dragleave', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                setDragVisual(false);
+              });
 
-      wrap.addEventListener('drop', (e: DragEvent) => {
-        e.preventDefault();
-        e.stopPropagation();
-        setDragVisual(false);
+              wrap.addEventListener('drop', (e: DragEvent) => {
+                e.preventDefault();
+                e.stopPropagation();
+                setDragVisual(false);
 
-        const dt = e.dataTransfer;
-        if (!dt) return;
-        if (dt.files && dt.files.length) {
-          handleFiles(dt.files);
+                const dt = e.dataTransfer;
+                if (!dt) return;
+                if (dt.files && dt.files.length) {
+                  handleFiles(dt.files);
+                }
+              });
+
+              return wrap;
+            },
+
+            // click พื้นที่ cell (ไม่ใช่ปุ่ม) = เลือกไฟล์
+            cellClick: (e: any, cell: any) => {
+              // กันไม่ให้คลิกปุ่มแล้วเด้ง input
+              const target = e.target as HTMLElement;
+              if (target.closest('button')) return;
+
+              const fileInput = document.createElement('input');
+              fileInput.type = 'file';
+              fileInput.accept = 'image/*';
+              fileInput.onchange = () => {
+                const file = fileInput.files?.[0];
+                if (!file) return;
+                const record = cell.getRow().getData() as any;
+                const fieldName = cell.getField() as string;
+                this.onImagePicked(record, fieldName, file);
+              };
+              fileInput.click();
+            },
+          };
         }
-      });
-
-      return wrap;
-    },
-
-    // click พื้นที่ cell (ไม่ใช่ปุ่ม) = เลือกไฟล์
-    cellClick: (e: any, cell: any) => {
-      // กันไม่ให้คลิกปุ่มแล้วเด้ง input
-      const target = e.target as HTMLElement;
-      if (target.closest('button')) return;
-
-      const fileInput = document.createElement('input');
-      fileInput.type = 'file';
-      fileInput.accept = 'image/*';
-      fileInput.onchange = () => {
-        const file = fileInput.files?.[0];
-        if (!file) return;
-        const record = cell.getRow().getData() as any;
-        const fieldName = cell.getField() as string;
-        this.onImagePicked(record, fieldName, file);
-      };
-      fileInput.click();
-    },
-  };
-}
-
-
 
         case 'FORMULA': {
           let formulaFn: ((record: any) => any) | null = null;
@@ -804,6 +785,22 @@ onImageDialogDelete() {
             },
             tooltip: (c as any).formulaDefinition ? `Formula: ${(c as any).formulaDefinition}` : '',
           };
+        }
+
+        // DATE type
+        case 'DATE': {
+          const def: any = { ...base };
+          if (!lock) {
+            def.editor = 'input';
+            def.editorParams = {
+              elementAttributes: {
+                type: 'date', // ทำให้เป็น date picker
+              },
+            };
+          } else {
+            def.editor = false;
+          }
+          return def;
         }
 
         default:
@@ -920,7 +917,6 @@ onImageDialogDelete() {
     this.lastColSig = this.colSignature();
 
     const baseRowHeight = hasImageCol ? 90 : 46;
-    
 
     const baseOptions: any = {
       columns: this.buildColumnsForGrid(),
@@ -977,14 +973,15 @@ onImageDialogDelete() {
         ajaxRequestFunc: (_url: string, _config: any, params: any) => {
           const page = Number(params?.page ?? 1);
           const size = Number(params?.size ?? 10);
-          return firstValueFrom(this.api.listRowsPaged(this.tableId, page, size)).then((res: { rows: RowDto[]; total: number }) => {
-  const total = Number(res.total ?? 0);
-  const last_page = Math.max(1, Math.ceil(total / size));
-  const data = this.buildDataForGridFromRows(res.rows as RowDto[]);
-  this._lastPageFromServer = last_page;
-  return { last_page, data };
-});
-
+          return firstValueFrom(this.api.listRowsPaged(this.tableId, page, size)).then(
+            (res: { rows: RowDto[]; total: number }) => {
+              const total = Number(res.total ?? 0);
+              const last_page = Math.max(1, Math.ceil(total / size));
+              const data = this.buildDataForGridFromRows(res.rows as RowDto[]);
+              this._lastPageFromServer = last_page;
+              return { last_page, data };
+            }
+          );
         },
         ajaxResponse: (_url: string, _params: any, response: any) => response?.data ?? [],
         pageLoaded: () => {
@@ -1050,18 +1047,19 @@ onImageDialogDelete() {
 
   // ====== BACK 2 Project ==========
   onBackToProject() {
-  if (this.projectId) {
-    this.router.navigate(['/projects', this.projectId]);
-  } else {
-    // fallback ถ้าไม่มี projectId (เช่น เข้ามาจาก URL ตรง)
-    this.router.navigate(['/projects']);
+    if (this.projectId) {
+      this.router.navigate(['/projects', this.projectId]);
+    } else {
+      // fallback ถ้าไม่มี projectId (เช่น เข้ามาจาก URL ตรง)
+      this.router.navigate(['/projects']);
+    }
   }
-}
-
-
 
   /** แปลงชนิดข้อมูลตาม schema columns ก่อนส่งให้ backend */
-  private normalizeRowForSave(raw: Record<string, any>, skipAutoPkForCreate = false): Record<string, any> {
+  private normalizeRowForSave(
+    raw: Record<string, any>,
+    skipAutoPkForCreate = false
+  ): Record<string, any> {
     const out: Record<string, any> = {};
 
     for (const c of this.columns()) {
@@ -1070,15 +1068,13 @@ onImageDialogDelete() {
       const v = raw[key];
 
       if (t === 'FORMULA') {
-      continue;
-    }
+        continue;
+      }
 
-     // 2) ถ้าเป็น create row + table นี้ auto-increment + column นี้เป็น PK → ไม่ต้องส่ง
-    if (skipAutoPkForCreate && this.isAutoTable() && c.isPrimary) {
-      continue;
-    }
-
-
+      // 2) ถ้าเป็น create row + table นี้ auto-increment + column นี้เป็น PK → ไม่ต้องส่ง
+      if (skipAutoPkForCreate && this.isAutoTable() && c.isPrimary) {
+        continue;
+      }
 
       // ว่าง → null
       if (v === '' || v === undefined) {
@@ -1099,11 +1095,7 @@ onImageDialogDelete() {
           break;
 
         case 'BOOLEAN':
-          out[key] =
-            v === true ||
-            v === 'true' ||
-            v === 1 ||
-            v === '1';
+          out[key] = v === true || v === 'true' || v === 1 || v === '1';
           break;
 
         default:
@@ -1113,5 +1105,4 @@ onImageDialogDelete() {
 
     return out;
   }
-
 }
