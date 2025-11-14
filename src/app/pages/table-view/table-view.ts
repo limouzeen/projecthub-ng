@@ -367,34 +367,48 @@ async refresh() {
 
   // ---------- Image helpers ----------
   private onImagePicked(record: any, fieldName: string, file: File) {
-    this.api
-  this.api
-  .uploadImage(file)
-  .then(async (url) => {
-    await this.setImageUrl(record, fieldName, url as any);
-  })
-  .catch(err => console.error('upload failed', err));
-  }
-
-  private async setImageUrl(record: any, fieldName: string, url: string | null) {
-    const rowId = record.__rowId as number;
-    try {
-      if (typeof (this.api as any).updateRowField === 'function') {
-        await firstValueFrom(this.api.updateRowField(rowId, fieldName, url));
-      } else {
-        const payload: Record<string, any> = {};
-        for (const c of this.columns()) payload[c.name] = record[c.name];
-        payload[fieldName] = url;
-        await firstValueFrom(this.api.updateRow(rowId, payload));
-      }
+  this.api.uploadImage(file)
+    .then((url) => {
+    
       record[fieldName] = url;
 
-      if (TableView.USE_REMOTE) this.reloadRemoteCurrentPage();
-      else this.reloadLocalCurrentPage();
-    } catch (err) {
-      console.error('set image url failed', err);
+      // อัปเดต row ใน Tabulator ให้รีเฟรช cell
+      try {
+        const row = this.grid?.getRow?.(record.__rowId);
+        row?.update(record);
+      } catch {}
+    })
+    .catch(err => console.error('upload failed', err));
+}
+
+
+  private async setImageUrl(record: any, fieldName: string, url: string | null) {
+  const rowId = record.__rowId as number;
+
+  try {
+    // 1. สร้าง payload ทั้งแถว จากค่าใน grid ปัจจุบัน
+    const raw: Record<string, any> = {};
+    for (const c of this.columns()) {
+      const key = c.name;
+      raw[key] = key === fieldName ? url : record[key];
     }
+
+    // 2. แปลงตาม schema ให้เป็น number / boolean ให้ถูกต้อง
+    const normalized = this.normalizeRowForSave(raw);
+
+    // 3. ยิง PUT /api/rows/{id} ด้วยข้อมูลทั้งแถว
+    await firstValueFrom(this.api.updateRow(rowId, normalized));
+
+    // 4. update ค่าใน grid ฝั่งหน้าเว็บด้วย
+    record[fieldName] = url;
+
+    if (TableView.USE_REMOTE) this.reloadRemoteCurrentPage();
+    else this.reloadLocalCurrentPage();
+  } catch (err) {
+    console.error('set image url failed', err);
   }
+}
+
 
   // ---------- Image Dialog (ใช้กับ toolbar ใน cell IMAGE) ----------
   private openImageUrlDialog(record: any, field: string, currentUrl: string) {
@@ -417,20 +431,37 @@ async refresh() {
   }
 
   onImageDialogSave(url: string) {
-    this.imageDlgOpen.set(false);
-    if (this.imageDlgRecord && this.imageDlgField) {
-      this.setImageUrl(this.imageDlgRecord, this.imageDlgField, url);
-    }
-    this.resetImageDialogState();
+  this.imageDlgOpen.set(false);
+
+  if (this.imageDlgRecord && this.imageDlgField) {
+    const rec = this.imageDlgRecord;
+    rec[this.imageDlgField] = url;   // แก้เฉพาะฝั่ง UI
+
+    try {
+      const row = this.grid?.getRow?.(rec.__rowId);
+      row?.update(rec);             // ให้ Tabulator รีเฟรช cell
+    } catch {}
   }
 
-  onImageDialogDelete() {
-    this.imageDlgOpen.set(false);
-    if (this.imageDlgRecord && this.imageDlgField) {
-      this.setImageUrl(this.imageDlgRecord, this.imageDlgField, null);
-    }
-    this.resetImageDialogState();
+  this.resetImageDialogState();
+}
+
+onImageDialogDelete() {
+  this.imageDlgOpen.set(false);
+
+  if (this.imageDlgRecord && this.imageDlgField) {
+    const rec = this.imageDlgRecord;
+    rec[this.imageDlgField] = null; // หรือ '' ตามที่ชอบ
+
+    try {
+      const row = this.grid?.getRow?.(rec.__rowId);
+      row?.update(rec);
+    } catch {}
   }
+
+  this.resetImageDialogState();
+}
+
 
   onImageDialogCancel() {
     this.imageDlgOpen.set(false);
@@ -851,6 +882,7 @@ async refresh() {
     this.lastColSig = this.colSignature();
 
     const baseRowHeight = hasImageCol ? 90 : 46;
+    
 
     const baseOptions: any = {
       columns: this.buildColumnsForGrid(),
@@ -863,6 +895,9 @@ async refresh() {
       paginationCounter: 'pages',
       height: '100%',
       reactiveData: false,
+
+      index: '__rowId',
+
       columnDefaults: {
         hozAlign: 'center',
         vertAlign: 'middle',
