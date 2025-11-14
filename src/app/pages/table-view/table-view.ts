@@ -19,7 +19,10 @@ import { TableViewService, ColumnDto, RowDto } from '../../core/table-view.servi
 import { FieldDialog } from './ui/field-dialog/field-dialog';
 import { RowDialog } from './ui/row-dialog/row-dialog';
 import { ImageDialog } from './ui/image-dialog/image-dialog';
+import { UsersService, MeDto } from '../../core/users.service'; 
 import { FooterStateService } from '../../core/footer-state.service';
+import { HttpErrorResponse } from '@angular/common/http';
+import { ToastService } from '../../shared/toast.service';
 
 @Component({
   selector: 'app-table-view',
@@ -35,8 +38,13 @@ export class TableView implements OnInit, OnDestroy, AfterViewInit {
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
   private readonly location = inject(Location); 
+  private readonly users = inject(UsersService);  
+    private readonly toast = inject(ToastService); 
 
   private readonly THUMB_H = 70;
+
+    // profile (แสดงขวาบน)
+  readonly me = signal<MeDto | null>(null);   
 
   tableId = 0;
   columns = signal<ColumnDto[]>([]);
@@ -119,6 +127,14 @@ export class TableView implements OnInit, OnDestroy, AfterViewInit {
 
 async ngOnInit() {
 
+  try {
+      const me = await this.users.getMe();
+      this.me.set(me);
+    } catch (e) {
+    this.showHttpError(e, 'ไม่สามารถโหลดข้อมูลผู้ใช้ได้');
+    this.router.navigateByUrl('/login');
+    return;
+  }
   // Footer
   this.footer.setThreshold(719);
   this.footer.setForceCompact(null); // ให้ทำงานแบบ auto ตาม threshold
@@ -143,7 +159,39 @@ async ngOnInit() {
     this.ensureGridAndSync();
   }
 
+  /** ตัวช่วยรวม ๆ แปลง HttpErrorResponse -> ข้อความ read-able */
+private showHttpError(e: unknown, fallback = 'เกิดข้อผิดพลาด กรุณาลองอีกครั้ง') {
+  const err = e as HttpErrorResponse;
+  let msg = fallback;
 
+  // backend ของคุณมักส่ง { Error: "..." }
+  const serverMsg = (err?.error && (err.error.Error || err.error.message || err.error)) ?? null;
+
+  switch (err?.status) {
+    case 0:
+      msg = 'เชื่อมต่อเซิร์ฟเวอร์ไม่ได้ กรุณาตรวจสอบอินเทอร์เน็ต';
+      break;
+    case 400:
+      msg = serverMsg || 'ข้อมูลไม่ถูกต้อง';
+      // กรณีชื่อซ้ำจาก CreateTableHandler: message จะบอกชัดเจน
+      break;
+    case 401:
+      msg = 'เซสชันหมดอายุ กรุณาเข้าสู่ระบบใหม่';
+      break;
+    case 403:
+      msg = serverMsg || 'คุณไม่มีสิทธิ์ทำรายการนี้';
+      break;
+    case 404:
+      msg = serverMsg || 'ไม่พบข้อมูล';
+      break;
+    case 409:
+      msg = serverMsg || 'ข้อมูลขัดแย้ง (เช่น ชื่อซ้ำ)';
+      break;
+    default:
+      msg = serverMsg || fallback;
+  }
+  this.toast.error(msg);
+}
   // ================= Layout / Nav =================
 
   toggleAside() {
@@ -266,23 +314,8 @@ async refresh() {
     }
 
     try {
-      // ---------- MOCK (ใช้ TableViewService เดิมของคุณ) ----------
-      await firstValueFrom(
-        this.api.updateColumn(col.columnId, {
-          name: newName,
-        } as any)
-      );
-
-      // ---------- REAL API (comment ไว้รอเชื่อม backend จริง) ----------
-      /*
-      await this.http.put<ColumnDto>(`/api/columns/${col.columnId}`, {
-        columnId: col.columnId,
-        newName: newName,
-        newDataType: col.dataType,
-        newIsPrimary: col.isPrimary,
-        newIsNullable: col.isNullable,
-      }).toPromise();
-      */
+      // ---------- call API from service ----------
+      await firstValueFrom(this.api.updateColumn(col, newName));
 
       // โหลด schema + grid ใหม่ให้ชื่อ field อัปเดตทุกที่
       await this.refresh();
@@ -1030,6 +1063,10 @@ onImageDialogDelete() {
       const key = c.name;
       const t = (c.dataType || '').toUpperCase();
       const v = raw[key];
+
+      if (t === 'FORMULA') {
+      continue;
+    }
 
       // ว่าง → null
       if (v === '' || v === undefined) {

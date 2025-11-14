@@ -25,7 +25,7 @@ export class ProjectDetail implements OnInit, OnDestroy {
   private readonly router = inject(Router);
   private readonly route = inject(ActivatedRoute);
   private readonly users = inject(UsersService);            // << เพิ่ม
-  private readonly footer = inject(FooterStateService);
+  
 
 
   private readonly toast = inject(ToastService);

@@ -115,12 +115,18 @@ export class TableViewService {
 }
 
 
-  updateColumn(columnId: number, patch: Partial<ColumnDto>): Observable<ColumnDto> {
-    if (patch.name) {
-      return this.http.put<ColumnDto>(`${this.base}/columns/${columnId}`, { newName: patch.name });
-    }
-    return this.http.put<ColumnDto>(`${this.base}/columns/${columnId}`, patch);
-  }
+  updateColumn(col: ColumnDto, newName: string): Observable<ColumnDto> {
+  const body = {
+    // API รับชื่อว่า ColumnName, DataType, IsPrimary, IsNullable
+    // ชื่อ key เป็นตัวเล็ก/ใหญ่ไม่ซีเรียส เพราะ backend ใช้ case-insensitive
+    columnName: newName,
+    dataType: col.dataType,
+    isPrimary: col.isPrimary,
+    isNullable: col.isNullable,
+  };
+
+  return this.http.put<ColumnDto>(`${this.base}/columns/${col.columnId}`, body);
+}
 
   deleteColumn(columnId: number): Observable<void> {
     return this.http.delete<void>(`${this.base}/columns/${columnId}`);

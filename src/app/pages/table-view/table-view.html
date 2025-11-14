@@ -47,7 +47,7 @@
           aria-haspopup="menu"
           [attr.aria-expanded]="profileOpen()">
           <img
-            src="/assets/ph_profile.png"
+            [src]="me()?.profilePictureUrl || '/assets/ph_profile.png'"
             alt="Profile"
             class="w-8 h-8 rounded-full ring-1 ring-white/60" />
         </button>
@@ -59,15 +59,16 @@
                    shadow-md z-[70] overflow-hidden"
             role="menu">
             <div class="p-4 flex items-center gap-3">
-              <img src="/assets/ph_profile.png"
+              <img 
+                   [src]="me()?.profilePictureUrl || '/assets/ph_profile.png'"
                    alt=""
                    class="w-12 h-12 rounded-full ring-1 ring-white/70" />
               <div class="min-w-0">
                 <div class="font-semibold text-slate-900 truncate">
-                  Phakin Kamwilaisak
+                   {{ me()?.username || me()?.name || 'User' }}
                 </div>
                 <div class="text-xs text-slate-500 truncate">
-                  s65524100xx@sau.ac.th
+                  {{ me()?.email }}
                 </div>
               </div>
             </div>
