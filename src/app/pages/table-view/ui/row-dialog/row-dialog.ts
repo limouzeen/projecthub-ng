@@ -76,11 +76,14 @@ export class RowDialog implements OnChanges {
 
       if (c.isPrimary) {
         if (this.isAutoTable) {
-          out[key] =
-            this.initData && this.initData[key] !== undefined
-              ? this.initData[key]
-              : v ?? null;
+         if (!this.initData) {
+          // new row + auto-increment: ไม่ส่ง PK ให้ backend
           continue;
+        } else {
+          // edit row: ล็อก ID เป็นค่าตาม initData
+          out[key] = this.initData[key];
+          continue;
+        }
         }
       }
 
@@ -184,4 +187,9 @@ export class RowDialog implements OnChanges {
     this.model = {};
     this.cancel.emit();
   }
+
+  get isNewRow(): boolean {
+  return !this.initData;
+}
+
 }

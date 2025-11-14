@@ -240,14 +240,15 @@ async refresh() {
   const cols = await firstValueFrom(this.api.listColumns(this.tableId));
   this.columns.set(cols);
 
-  // 2) อ่าน primary จากหลังบ้าน → ตั้งค่า auto-table
-  try {
-    const primary = await firstValueFrom(this.api.getPrimary(this.tableId));
-    const isAuto = !!primary && (primary.primaryKeyType?.toUpperCase() === 'AUTO_INCREMENT' || primary.name?.toUpperCase() === 'ID');
-    this.isAutoTable.set(isAuto);
-  } catch {
-    this.isAutoTable.set(false);
-  }
+ 
+  // 2) หา primary column จาก listColumns แล้วเช็คแค่ primaryKeyType
+  const pk = cols.find(c => c.isPrimary);          // ใช้ flag จาก backend
+
+  const isAuto =
+    !!pk &&
+    (pk.primaryKeyType ?? '').toUpperCase() === 'AUTO_INCREMENT';
+
+  this.isAutoTable.set(isAuto);
 
   // 3) โหลด rows ลง grid
   this.rows.set([]);
@@ -340,9 +341,9 @@ async refresh() {
     }
 
     if (this.isAutoTable()) {
-      const pk = this.columns().find((c) => c.isPrimary)?.name || 'ID';
-      const next = await firstValueFrom(this.api.nextRunningId(this.tableId, pk));
-      this.rowInitData = { [pk]: next };
+      // const pk = this.columns().find((c) => c.isPrimary)?.name || 'ID';
+      // const next = await firstValueFrom(this.api.nextRunningId(this.tableId, pk));
+      // this.rowInitData = { [pk]: next };
     } else {
       this.rowInitData = null;
     }
@@ -354,7 +355,12 @@ async refresh() {
     this.rowOpen.set(false);
     this.rowInitData = null;
 
-    const normalized = this.normalizeRowForSave(newObj);
+    const isCreate = !this.editingRow;
+    const normalized = this.normalizeRowForSave(
+    newObj,
+    isCreate && this.isAutoTable()   //  create + auto table → ไม่ส่ง PK
+  );
+
 
     if (this.editingRow) {
       await firstValueFrom(this.api.updateRow(this.editingRow.rowId, normalized));
@@ -540,7 +546,6 @@ onImageDialogDelete() {
 
       switch ((c.dataType || '').toUpperCase()) {
         case 'INTEGER':
-        case 'REAL':
           return { ...base, editor: lock ? false : 'number' };
 
         case 'BOOLEAN':
@@ -1056,7 +1061,7 @@ onImageDialogDelete() {
 
 
   /** แปลงชนิดข้อมูลตาม schema columns ก่อนส่งให้ backend */
-  private normalizeRowForSave(raw: Record<string, any>): Record<string, any> {
+  private normalizeRowForSave(raw: Record<string, any>, skipAutoPkForCreate = false): Record<string, any> {
     const out: Record<string, any> = {};
 
     for (const c of this.columns()) {
@@ -1067,6 +1072,13 @@ onImageDialogDelete() {
       if (t === 'FORMULA') {
       continue;
     }
+
+     // 2) ถ้าเป็น create row + table นี้ auto-increment + column นี้เป็น PK → ไม่ต้องส่ง
+    if (skipAutoPkForCreate && this.isAutoTable() && c.isPrimary) {
+      continue;
+    }
+
+
 
       // ว่าง → null
       if (v === '' || v === undefined) {
