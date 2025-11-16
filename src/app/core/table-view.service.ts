@@ -3,18 +3,23 @@ import { Injectable, Optional } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Observable, map } from 'rxjs';
 
-export type ColumnDto = {
+export interface ColumnDto {
   columnId: number;
   tableId: number;
   name: string;
   dataType: string;
   isPrimary: boolean;
   isNullable: boolean;
-  targetTableId?: number | null;
-  targetColumnId?: number | null;
+  primaryKeyType?: string | null;
+
+  lookupRelationshipId?: number | null;
+  lookupTargetColumnId?: number | null;
+  lookupTargetTableId?: number | null;
+  lookupTargetColumnName?: string | null;
+
   formulaDefinition?: string | null;
-  primaryKeyType?: string | null; // 'AUTO_INCREMENT' เมื่อเป็น auto
-};
+}
+
 
 export interface RowDto {
   rowId: number;
@@ -66,24 +71,53 @@ export class TableViewService {
 
 
   // ---------- Columns ----------
-  listColumns(tableId: number): Observable<ColumnDto[]> {
+//   listColumns(tableId: number): Observable<ColumnDto[]> {
+//   return this.http.get<any[]>(`${this.base}/columns/table/${tableId}`).pipe(
+//     map(cols =>
+//       (cols ?? []).map((c: any) => ({
+//         columnId:   c.columnId   ?? c.column_id   ?? c.ColumnId,
+//         tableId:    c.tableId    ?? c.table_id    ?? c.TableId,
+//         name:       c.name       ?? c.Name,
+//         dataType:   c.dataType   ?? c.data_type   ?? c.DataType,
+//         isPrimary:  c.isPrimary  ?? c.is_primary  ?? c.Is_primary ?? false,
+//         isNullable: c.isNullable ?? c.is_nullable ?? c.Is_nullable ?? true,
+
+//         // 🔹 lookup meta
+//         lookupRelationshipId:   c.lookupRelationshipId   ?? c.LookupRelationshipId   ?? null,
+//         lookupTargetTableId:    c.lookupTargetTableId    ?? c.LookupTargetTableId    ?? c.targetTableId  ?? c.TargetTableId  ?? null,
+//         lookupTargetColumnId:   c.lookupTargetColumnId   ?? c.LookupTargetColumnId   ?? c.targetColumnId ?? c.TargetColumnId ?? null,
+//         lookupTargetColumnName: c.lookupTargetColumnName ?? c.LookupTargetColumnName ?? null,
+
+//         // formula + PK type
+//         formulaDefinition: c.formulaDefinition ?? c.FormulaDefinition ?? null,
+//         primaryKeyType:    c.primaryKeyType    ?? c.PrimaryKeyType    ?? null,
+//       }))
+//     )
+//   );
+// }
+
+listColumns(tableId: number): Observable<ColumnDto[]> {
   return this.http.get<any[]>(`${this.base}/columns/table/${tableId}`).pipe(
     map(cols =>
       (cols ?? []).map((c: any) => ({
-        columnId:      c.columnId      ?? c.column_id      ?? c.ColumnId,
-        tableId:       c.tableId       ?? c.table_id       ?? c.TableId,
-        name:          c.name          ?? c.Name,
-        dataType:      c.dataType      ?? c.data_type      ?? c.DataType,
-        isPrimary:     c.isPrimary     ?? c.is_primary     ?? c.Is_primary ?? false,
-        isNullable:    c.isNullable    ?? c.is_nullable    ?? c.Is_nullable ?? true,
-        targetTableId: c.targetTableId ?? c.target_table_id ?? c.TargetTableId ?? null,
-        targetColumnId:c.targetColumnId?? c.target_column_id?? c.TargetColumnId ?? null,
-        formulaDefinition: c.formulaDefinition ?? c.FormulaDefinition ?? null,
-        primaryKeyType:    c.primaryKeyType    ?? c.PrimaryKeyType    ?? null,
+        columnId:      c.columnId,
+        tableId:       c.tableId,
+        name:          c.name,
+        dataType:      c.dataType,
+        isPrimary:     c.isPrimary ?? false,
+        isNullable:    c.isNullable ?? true,
+        primaryKeyType: c.primaryKeyType ?? null,
+
+        lookupRelationshipId: c.lookupRelationshipId ?? null,
+        lookupTargetColumnId: c.lookupTargetColumnId ?? null,
+        lookupTargetTableId:  c.lookupTargetTableId  ?? null,   
+        lookupTargetColumnName: c.lookupTargetColumnName ?? null,
       }))
     )
   );
 }
+
+
 
     /** บอกว่าเป็น Auto-increment ไหม (ดูจากคอลัมน์ Primary) */
   getPrimary(tableId: number) {
@@ -105,37 +139,6 @@ export class TableViewService {
 }
 
 
-// createColumn(tableId: number, dto: Partial<FieldDialogModel | ColumnDto>): Observable<ColumnDto> {
-//   const rawType = (((dto as any).dataType ?? 'TEXT') as string).trim().toUpperCase();
-//   const dataType = rawType === 'STRING' ? 'TEXT' : rawType;
-//   const isLookup = dataType === 'LOOKUP';
-
-//   const payload: any = {
-//     tableId,
-//     name: (dto as any).name,
-//     dataType,
-//     isNullable: (dto as any).isNullable ?? true,
-//     isPrimary: !!(dto as any).isPrimary,
-//     formulaDefinition: (dto as any).formulaDefinition ?? null,
-
-//     // ใช้ column ปลายทางเหมือนเดิม
-//     lookupTargetColumnId: isLookup ? (dto as any).targetColumnId ?? null : null,
-
-//     lookupRelationshipId: null,
-
-//     newRelationship: isLookup
-//       ? {
-//           primaryTableId:  (dto as any).targetTableId,              // ตารางปลายทาง
-//           primaryColumnId: (dto as any).targetColumnId,             // PK ปลายทาง
-//           foreignTableId:  tableId,                                 // ตารางปัจจุบัน
-//           //  column ในตารางปัจจุบันที่เก็บค่า FK (ต้องมาจาก dialog)
-//           foreignColumnId:  null,
-//         }
-//       : null,
-//   };
-
-//   return this.http.post<ColumnDto>(`${this.base}/columns`, payload);
-// }
 
 createColumn(tableId: number, dto: Partial<FieldDialogModel | ColumnDto>): Observable<ColumnDto> {
   const rawType = (((dto as any).dataType ?? 'TEXT') as string).trim().toUpperCase();
@@ -294,6 +297,11 @@ listColumnsLite(tableId: number): Observable<ColumnListItem[]> {
   listTables(projectId: number) {
     return this.http.get<TableListItem[]>(`${this.base}/tables/project/${projectId}`);
   }
+
+
+  getLookupOptions(targetTableId: number): Observable<{ id: number; label: string }[]> {
+  return this.http.get<{ id: number; label: string }[]>(`/api/lookups/${targetTableId}`);
+}
 
 
 }

@@ -1,155 +1,178 @@
 @if (open) {
-  <div class="overlay">
-    <div class="dialog glass rounded-3xl p-5 sm:p-6 w-[min(92vw,720px)]">
-      <div class="title mb-3">Row</div>
+<div class="overlay">
+  <div class="dialog glass rounded-3xl p-5 sm:p-6 w-[min(92vw,720px)]">
+    <div class="title mb-3">Row</div>
 
-      <form class="grid grid-cols-1 sm:grid-cols-2 gap-3" (submit)="$event.preventDefault()">
-        @for (c of columns; track c.name) {
+    <form class="grid grid-cols-1 sm:grid-cols-2 gap-3" (submit)="$event.preventDefault()">
+      @for (c of columns; track c.name) { @if (typeOf(c) !== 'FORMULA' && !(isAutoTable && isNewRow
+      && c.isPrimary)) {
+      <label class="text-xs font-medium text-slate-600">{{ c.name }}</label>
 
-           @if (typeOf(c) !== 'FORMULA' && !(isAutoTable && isNewRow && c.isPrimary)) {
-          <label class="text-xs font-medium text-slate-600">{{ c.name }}</label>
+      @switch (typeOf(c)) { @case ('INTEGER') {
+      <input
+        class="input"
+        type="number"
+        [(ngModel)]="model[c.name]"
+        [name]="c.name"
+        [disabled]="!!c.isPrimary && isAutoTable"
+      />
+      } @case ('REAL') {
+      <input
+        class="input"
+        type="number"
+        step="any"
+        [(ngModel)]="model[c.name]"
+        [name]="c.name"
+        [disabled]="!!c.isPrimary && isAutoTable"
+      />
+      } @case ('NUMBER') {
+      <input
+        class="input"
+        type="number"
+        step="any"
+        [(ngModel)]="model[c.name]"
+        [name]="c.name"
+        [disabled]="!!c.isPrimary && isAutoTable"
+      />
+      } @case ('BOOLEAN') {
+      <div class="flex items-center gap-6">
+        <label class="inline-flex items-center gap-2">
+          <input
+            type="radio"
+            [name]="c.name + '_bool'"
+            [value]="true"
+            [(ngModel)]="model[c.name]"
+            [disabled]="!!c.isPrimary && isAutoTable"
+          />
+          <span class="text-xs text-slate-500">Yes</span>
+        </label>
 
-          @switch (typeOf(c)) {
-
-            @case ('INTEGER') {
-              <input
-                class="input"
-                type="number"
-                [(ngModel)]="model[c.name]"
-                [name]="c.name"
-                [disabled]="(!!c.isPrimary) && isAutoTable" />
-            }
-
-            
-
-            @case ('REAL') {
-              <input
-                class="input"
-                type="number"
-                step="any"
-                [(ngModel)]="model[c.name]"
-                [name]="c.name"
-                [disabled]="(!!c.isPrimary) && isAutoTable" />
-            }
-
-
-            @case ('NUMBER') {
-              <input
-                class="input"
-                type="number"
-                step="any"
-                [(ngModel)]="model[c.name]"
-                [name]="c.name"
-                [disabled]="(!!c.isPrimary) && isAutoTable" />
-            }
-
-
-            @case ('BOOLEAN') {
-              <div class="flex items-center gap-6">
-                <label class="inline-flex items-center gap-2">
-                  <input
-                    type="radio"
-                    [name]="c.name + '_bool'"
-                    [value]="true"
-                    [(ngModel)]="model[c.name]"
-                    [disabled]="(!!c.isPrimary) && isAutoTable" />
-                  <span class="text-xs text-slate-500">Yes</span>
-                </label>
-
-                <label class="inline-flex items-center gap-2">
-                  <input
-                    type="radio"
-                    [name]="c.name + '_bool'"
-                    [value]="false"
-                    [(ngModel)]="model[c.name]"
-                    [disabled]="(!!c.isPrimary) && isAutoTable" />
-                  <span class="text-xs text-slate-500">No</span>
-                </label>
-              </div>
-            }
-
-            @case ('IMAGE') {
-              <div class="img-field">
-                @if (model[c.name]) {
-                  <div class="img-preview">
-                    <img [src]="model[c.name]" alt="" />
-                  </div>
-                }
-
-                <div class="img-actions">
-                  <label class="icon-btn" title="Upload image">
-                    <input type="file" accept="image/*" (change)="onFileChange($event, c.name)" hidden />
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
-                      <path d="M4 5a2 2 0 0 1 2-2h6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
-                      <path d="M20 8v9a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V7" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
-                      <path d="M15 3h6m-3-3v6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
-                      <path d="M8.5 12.5l2-2 5 5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
-                      <circle cx="9" cy="8" r="1.5" fill="currentColor"/>
-                    </svg>
-                  </label>
-
-                  <button type="button"
-                          class="icon-btn danger"
-                          title="Clear"
-                          (click)="onClearImage(c.name)"
-                          [disabled]="!model[c.name] && uploadSource[c.name] !== 'url'">
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
-                      <path d="M3 6h18" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
-                      <path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
-                      <path d="M19 6l-1 13a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
-                      <path d="M10 11v6M14 11v6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
-                    </svg>
-                  </button>
-
-                  @if (shouldShowUrlInput(c)) {
-                    <span class="or">or</span>
-                    <input
-                      class="input url"
-                      placeholder="https://example.com/image.png"
-                      [(ngModel)]="model[c.name]"
-                      (input)="markUrlSource(c.name)"
-                      [name]="c.name"
-                      [disabled]="(!!c.isPrimary) && isAutoTable" />
-                  }
-                </div>
-              </div>
-            }
-
-            @case ('LOOKUP') {
-              <input class="input" [disabled]="true" [ngModel]="model[c.name]" [name]="c.name" />
-            }
-
-            @case ('FORMULA') {
-              <input class="input" [disabled]="true" [ngModel]="model[c.name]" [name]="c.name" />
-            }
-
-            @case ('DATE') {
-        <input
-          class="input"
-          type="date"
-          [(ngModel)]="model[c.name]"
-          [name]="c.name" />
-      }
-
-
-            @default {
-              <textarea
-                class="input"
-                rows="2"
-                [(ngModel)]="model[c.name]"
-                [name]="c.name"
-                [disabled]="(!!c.isPrimary) && isAutoTable">
-              </textarea>
-            }
-          }
-        }
-      }
-
-        <div class="col-span-full flex justify-end gap-2 pt-3">
-          <button type="button" class="btn-ghost-enhance" (click)="onCancel()">Cancel</button>
-          <button type="button" class="btn-primary-enhance" (click)="onSubmit()">Save</button>
+        <label class="inline-flex items-center gap-2">
+          <input
+            type="radio"
+            [name]="c.name + '_bool'"
+            [value]="false"
+            [(ngModel)]="model[c.name]"
+            [disabled]="!!c.isPrimary && isAutoTable"
+          />
+          <span class="text-xs text-slate-500">No</span>
+        </label>
+      </div>
+      } @case ('IMAGE') {
+      <div class="img-field">
+        @if (model[c.name]) {
+        <div class="img-preview">
+          <img [src]="model[c.name]" alt="" />
         </div>
-      </form>
-    </div>
+        }
+
+        <div class="img-actions">
+          <label class="icon-btn" title="Upload image">
+            <input type="file" accept="image/*" (change)="onFileChange($event, c.name)" hidden />
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+              <path
+                d="M4 5a2 2 0 0 1 2-2h6"
+                stroke="currentColor"
+                stroke-width="1.8"
+                stroke-linecap="round"
+              />
+              <path
+                d="M20 8v9a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V7"
+                stroke="currentColor"
+                stroke-width="1.8"
+                stroke-linecap="round"
+              />
+              <path
+                d="M15 3h6m-3-3v6"
+                stroke="currentColor"
+                stroke-width="1.8"
+                stroke-linecap="round"
+              />
+              <path
+                d="M8.5 12.5l2-2 5 5"
+                stroke="currentColor"
+                stroke-width="1.8"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              />
+              <circle cx="9" cy="8" r="1.5" fill="currentColor" />
+            </svg>
+          </label>
+
+          <button
+            type="button"
+            class="icon-btn danger"
+            title="Clear"
+            (click)="onClearImage(c.name)"
+            [disabled]="!model[c.name] && uploadSource[c.name] !== 'url'"
+          >
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+              <path d="M3 6h18" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" />
+              <path
+                d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"
+                stroke="currentColor"
+                stroke-width="1.8"
+                stroke-linecap="round"
+              />
+              <path
+                d="M19 6l-1 13a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"
+                stroke="currentColor"
+                stroke-width="1.8"
+                stroke-linecap="round"
+              />
+              <path
+                d="M10 11v6M14 11v6"
+                stroke="currentColor"
+                stroke-width="1.8"
+                stroke-linecap="round"
+              />
+            </svg>
+          </button>
+
+          @if (shouldShowUrlInput(c)) {
+          <span class="or">or</span>
+          <input
+            class="input url"
+            placeholder="https://example.com/image.png"
+            [(ngModel)]="model[c.name]"
+            (input)="markUrlSource(c.name)"
+            [name]="c.name"
+            [disabled]="!!c.isPrimary && isAutoTable"
+          />
+          }
+        </div>
+      </div>
+      }@case ('LOOKUP') {
+  <select class="input" [(ngModel)]="model[c.name]" [name]="c.name">
+  <option [ngValue]="null">-- Select ID --</option>
+  @for (opt of lookupOptions[c.name] || []; track opt.value) {
+    <option [ngValue]="opt.value">{{ opt.label }}</option>
+  }
+</select>
+
+}
+
+
+ @case ('FORMULA') {
+      <input class="input" [disabled]="true" [ngModel]="model[c.name]" [name]="c.name" />
+      } @case ('DATE') {
+      <input class="input" type="date" [(ngModel)]="model[c.name]" [name]="c.name" />
+      } @default {
+      <textarea
+        class="input"
+        rows="2"
+        [(ngModel)]="model[c.name]"
+        [name]="c.name"
+        [disabled]="!!c.isPrimary && isAutoTable"
+      >
+      </textarea>
+      } } } }
+
+      <div class="col-span-full flex justify-end gap-2 pt-3">
+        <button type="button" class="btn-ghost-enhance" (click)="onCancel()">Cancel</button>
+        <button type="button" class="btn-primary-enhance" (click)="onSubmit()">Save</button>
+      </div>
+    </form>
   </div>
+</div>
 }

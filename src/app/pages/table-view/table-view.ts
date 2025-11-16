@@ -341,25 +341,27 @@ export class TableView implements OnInit, OnDestroy, AfterViewInit {
   }
 
   async onSaveRow(newObj: Record<string, any>) {
-    this.rowOpen.set(false);
-    this.rowInitData = null;
+  this.rowOpen.set(false);
+  this.rowInitData = null;
 
-    const isCreate = !this.editingRow;
-    const normalized = this.normalizeRowForSave(
-      newObj,
-      isCreate && this.isAutoTable() //  create + auto table → ไม่ส่ง PK
-    );
+  const isCreate = !this.editingRow;
+  const normalized = this.normalizeRowForSave(
+    newObj,
+    isCreate && this.isAutoTable(), // สำหรับ auto PK
+    isCreate                        // ส่ง flag ว่านี่คือ create
+  );
 
-    if (this.editingRow) {
-      await firstValueFrom(this.api.updateRow(this.editingRow.rowId, normalized));
-      if (TableView.USE_REMOTE) this.reloadRemoteCurrentPage();
-      else this.reloadLocalCurrentPage();
-    } else {
-      await firstValueFrom(this.api.createRow(this.tableId, normalized));
-      if (TableView.USE_REMOTE) await this.reloadRemoteToLastPage();
-      else await this.reloadLocalToLastPage();
-    }
+  if (this.editingRow) {
+    await firstValueFrom(this.api.updateRow(this.editingRow.rowId, normalized));
+    if (TableView.USE_REMOTE) this.reloadRemoteCurrentPage();
+    else this.reloadLocalCurrentPage();
+  } else {
+    await firstValueFrom(this.api.createRow(this.tableId, normalized));
+    if (TableView.USE_REMOTE) await this.reloadRemoteToLastPage();
+    else await this.reloadLocalToLastPage();
   }
+}
+
 
   async onDeleteRow(r: RowDto) {
     if (!confirm('Delete this row?')) return;
@@ -376,7 +378,7 @@ export class TableView implements OnInit, OnDestroy, AfterViewInit {
       payload[c.name] = record[c.name];
     }
 
-    const normalized = this.normalizeRowForSave(payload);
+    const normalized = this.normalizeRowForSave(payload, false, false); // ส่ง flag ว่านี่คือ update
 
     await firstValueFrom(this.api.updateRow(rowId, normalized));
     if (TableView.USE_REMOTE) this.reloadRemoteCurrentPage();
@@ -419,7 +421,8 @@ export class TableView implements OnInit, OnDestroy, AfterViewInit {
       }
 
       // 2. แปลงตาม schema ให้เป็น number / boolean ให้ถูกต้อง
-      const normalized = this.normalizeRowForSave(raw);
+      const normalized = this.normalizeRowForSave(raw, false, false);
+
 
       // 3. ยิง PUT /api/rows/{id} ด้วยข้อมูลทั้งแถว
       await firstValueFrom(this.api.updateRow(rowId, normalized));
@@ -836,7 +839,7 @@ export class TableView implements OnInit, OnDestroy, AfterViewInit {
    case 'LOOKUP': {
     return {
       ...base,
-      editor: 'number',   // เป็น read-only ใน grid
+      editor: 'false',   // เป็น read-only ใน grid
       // สามารถใส่ formatter ให้เป็น badge สวย ๆ ได้
     };
   }
@@ -1114,55 +1117,65 @@ export class TableView implements OnInit, OnDestroy, AfterViewInit {
   }
 
   /** แปลงชนิดข้อมูลตาม schema columns ก่อนส่งให้ backend */
-  private normalizeRowForSave(
-    raw: Record<string, any>,
-    skipAutoPkForCreate = false
-  ): Record<string, any> {
-    const out: Record<string, any> = {};
+ private normalizeRowForSave(
+  raw: Record<string, any>,
+  skipAutoPkForCreate = false,
+  isCreate = false
+): Record<string, any> {
+  const out: Record<string, any> = {};
 
-    for (const c of this.columns()) {
-  const key = c.name;
-  const t = (c.dataType || '').toUpperCase();
-  const v = raw[key];
+  for (const c of this.columns()) {
+    const key = c.name;
+    const t = (c.dataType || '').toUpperCase();
+    const v = raw[key];
 
-  // 1) FORMULA กับ LOOKUP เป็นคอลัมน์คำนวณ → ห้ามส่งค่าให้ backend
-  if (t === 'FORMULA') {
-    continue;
+    // 1) FORMULA = ห้ามส่งทุกกรณี
+    if (t === 'FORMULA') {
+      continue;
+    }
+
+    // 2) LOOKUP = ส่งเฉพาะตอน create เท่านั้น
+    if (t === 'LOOKUP') {
+      if (!isCreate) {
+        // update → ไม่ส่ง lookup column
+        continue;
+      }
+      // create → ให้หลุดไป logic ด้านล่าง (cast เป็น number ได้)
+    }
+
+    // 3) ถ้าเป็น create + auto-table + เป็น PK → ไม่ต้องส่ง
+    if (skipAutoPkForCreate && this.isAutoTable() && c.isPrimary) {
+      continue;
+    }
+
+    if (v === '' || v === undefined) {
+      out[key] = null;
+      continue;
+    }
+
+    switch (t) {
+      case 'INTEGER':
+      case 'INT':
+        out[key] = v === null ? null : Number.parseInt(v as any, 10);
+        break;
+
+      case 'REAL':
+      case 'NUMBER':
+      case 'FLOAT':
+        out[key] = v === null ? null : Number.parseFloat(v as any);
+        break;
+
+      case 'BOOLEAN':
+        out[key] = v === true || v === 'true' || v === 1 || v === '1';
+        break;
+
+      default:
+        out[key] = v;
+    }
   }
 
-  // 2) ถ้าเป็น create + table auto-increment + คอลัมน์นี้เป็น PK → ไม่ต้องส่ง
-  if (skipAutoPkForCreate && this.isAutoTable() && c.isPrimary) {
-    continue;
-  }
-
-  if (v === '' || v === undefined) {
-    out[key] = null;
-    continue;
-  }
-
-  switch (t) {
-    case 'INTEGER':
-    case 'INT':
-      out[key] = v === null ? null : Number.parseInt(v as any, 10);
-      break;
-
-    case 'REAL':
-    case 'NUMBER':
-    case 'FLOAT':
-      out[key] = v === null ? null : Number.parseFloat(v as any);
-      break;
-
-    case 'BOOLEAN':
-      out[key] = v === true || v === 'true' || v === 1 || v === '1';
-      break;
-
-    default:
-      out[key] = v;
-  }
+  return out;
 }
-
-    return out;
-  }
 
 
   // แปลง string วันที่จาก backend → แสดงเป็น dd-MM-yyyy

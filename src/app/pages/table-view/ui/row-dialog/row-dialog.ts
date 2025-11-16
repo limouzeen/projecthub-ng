@@ -9,17 +9,12 @@ import {
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-
-import { TableViewService } from '../../../../core/table-view.service';
+import { firstValueFrom } from 'rxjs';
+import { TableViewService,  ColumnDto} from '../../../../core/table-view.service';
 
 export type RowDialogSave = Record<string, any>;
 
-export type RowDialogColumn = {
-  name: string;
-  dataType?: string;
-  isPrimary?: boolean;
-  isNullable?: boolean;
-};
+export type RowDialogColumn = ColumnDto;
 
 @Component({
   selector: 'ph-row-dialog',
@@ -53,6 +48,11 @@ export class RowDialog implements OnChanges {
   model: Record<string, any> = {};
   uploading: Record<string, boolean> = {};
   uploadSource: Record<string, 'file' | 'url' | undefined> = {};
+
+  lookupOptions: Record<string, { value: number; label: string }[]> = {};
+  lookupLoading: Record<string, boolean> = {};
+
+
 
   private readonly api = inject(TableViewService);
 
@@ -141,31 +141,79 @@ export class RowDialog implements OnChanges {
   }
 
   ngOnChanges(changes: SimpleChanges): void {
-    const openedNow   = !!changes['open'] && this.open;
-    const dataChanged = !!changes['initData'];
-    const colsChanged = !!changes['columns'];
+  const openedNow   = !!changes['open'] && this.open;
+  const dataChanged = !!changes['initData'];
+  const colsChanged = !!changes['columns'];
 
-    if (openedNow || dataChanged || colsChanged) {
-      this.model = { ...(this.initData ?? {}) };
-      this.uploadSource = {};
+  if (openedNow || dataChanged || colsChanged) {
+    this.model = { ...(this.initData ?? {}) };
+    this.uploadSource = {};
 
-      for (const c of this.columns) {
-        c.isPrimary = !!c.isPrimary;
+    // init ค่า default / image
+    for (const c of this.columns) {
+      c.isPrimary = !!c.isPrimary;
 
-        if (!(c.name in this.model)) {
-          const t = (c.dataType || '').toUpperCase();
-          this.model[c.name] = t === 'BOOLEAN' ? false : '';
-        }
+      if (!(c.name in this.model)) {
+        const t = (c.dataType || '').toUpperCase();
+        this.model[c.name] = t === 'BOOLEAN' ? false : '';
+      }
 
-        if ((c.dataType || '').toUpperCase() === 'IMAGE') {
-          const v = this.model[c.name];
-          if (v !== '' && v !== null && v !== undefined) {
-            this.uploadSource[c.name] = 'url';
-          }
+      if ((c.dataType || '').toUpperCase() === 'IMAGE') {
+        const v = this.model[c.name];
+        if (v !== '' && v !== null && v !== undefined) {
+          this.uploadSource[c.name] = 'url';
         }
       }
     }
+
+    // 🔹 โหลด lookup options สำหรับทุกคอลัมน์ LOOKUP
+    for (const col of this.columns) {
+      const t = this.normalizeTypeStr(col.dataType);
+      if (t === 'LOOKUP' && col.lookupTargetTableId) {
+        this.loadLookupOptionsForColumn(col);
+      }
+    }
   }
+}
+
+
+
+  // ---------- lookup for Dropdown----------
+ private async loadLookupOptionsForColumn(c: RowDialogColumn) {
+  const tableId = c.lookupTargetTableId;
+  if (!tableId) {
+    this.lookupOptions[c.name] = [];
+    return;
+  }
+
+  try {
+    // ดึง rows จาก table ปลายทางด้วย service เดิม
+    const rows = await firstValueFrom(this.api.listRows(tableId));
+
+    // สมมติ PK column ชื่อ "ID" (แบบที่ backend สร้าง auto-increment)
+    const pkName = 'ID';
+
+    const opts = rows.map(r => {
+      const data =
+        typeof r.data === 'string'
+          ? JSON.parse(r.data || '{}')
+          : (r as any);
+
+      const val = Number(data[pkName]);
+
+      return {
+        value: val,
+        label: String(val),  // ถ้าอยากโชว์ชื่ออื่น เช่น Name ก็เปลี่ยนตรงนี้
+      };
+    }).filter(o => !Number.isNaN(o.value));
+
+    this.lookupOptions[c.name] = opts;
+  } catch (err) {
+    console.error('load lookup options failed', err);
+    this.lookupOptions[c.name] = [];
+  }
+}
+ 
 
   // ---------- upload ----------
   async onFileChange(ev: Event, fieldName: string) {
@@ -207,5 +255,66 @@ export class RowDialog implements OnChanges {
   get isNewRow(): boolean {
   return !this.initData;
 }
+
+
+private async loadLookupOptions(col: RowDialogColumn) {
+  const t = this.typeOf(col);
+  if (t !== 'LOOKUP') return;
+
+  const targetTableId = col.lookupTargetTableId;
+  if (!targetTableId) {
+    console.warn('No lookupTargetTableId on column', col);
+    return;
+  }
+
+  this.lookupLoading[col.name] = true;
+
+  try {
+    // 1) ดึง schema ของตารางเป้าหมาย เพื่อหา PK และ column ที่ใช้แสดง
+    const cols = await firstValueFrom(this.api.listColumns(targetTableId));
+    const pkCol = cols.find(c => c.isPrimary);
+    if (!pkCol) {
+      console.warn('No primary key on lookup target table', targetTableId);
+      this.lookupOptions[col.name] = [];
+      return;
+    }
+
+    const pkName = pkCol.name;
+
+    // จะเลือกใช้ column ไหนเป็น label ก็ได้ เช่น ถ้ามี TEXT column ชื่อ "Name"
+    const textCol =
+      cols.find(c => (c.dataType || '').toUpperCase() === 'TEXT' && c.name !== pkName) ?? pkCol;
+    const textName = textCol.name;
+
+    // 2) ดึง rows จากตารางเป้าหมาย
+    const rows = await firstValueFrom(this.api.listRows(targetTableId));
+
+    // 3) map เป็น options
+    const opts: { value: number; label: string }[] = rows
+      .map(r => {
+        let data: any = {};
+        try {
+          data = JSON.parse(r.data ?? '{}');
+        } catch {}
+
+        const id = data[pkName];
+        if (id === null || id === undefined) return null;
+
+        const text = data[textName];
+        const label = text != null ? `${text} (ID: ${id})` : `ID: ${id}`;
+
+        return { value: Number(id), label };
+      })
+      .filter((x): x is { value: number; label: string } => !!x);
+
+    this.lookupOptions[col.name] = opts;
+  } catch (err) {
+    console.error('loadLookupOptions failed', err);
+    this.lookupOptions[col.name] = [];
+  } finally {
+    this.lookupLoading[col.name] = false;
+  }
+}
+
 
 }
