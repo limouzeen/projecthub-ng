@@ -505,8 +505,25 @@ export class TableView implements OnInit, OnDestroy, AfterViewInit {
   //                 TABULATOR CONFIG
   // =====================================================
   private hasImageColumn(): boolean {
-    return this.columns().some((c) => (c.dataType || '').toUpperCase() === 'IMAGE');
-  }
+  return this.columns().some((c) => {
+    const t = (c.dataType || '').toUpperCase();
+    if (t === 'IMAGE') return true;
+
+    if (t === 'LOOKUP') {
+      const name = (c.name || '').toLowerCase();
+      const target = (c.lookupTargetColumnName || '').toLowerCase();
+      return (
+        name.includes('img') ||
+        name.includes('image') ||
+        target.includes('img') ||
+        target.includes('image')
+      );
+    }
+
+    return false;
+  });
+}
+
 
   private colSignature(): string {
     return this.columns()
@@ -837,12 +854,83 @@ export class TableView implements OnInit, OnDestroy, AfterViewInit {
   }
 
    case 'LOOKUP': {
-    return {
-      ...base,
-      editor: 'false',   // เป็น read-only ใน grid
-      // สามารถใส่ formatter ให้เป็น badge สวย ๆ ได้
-    };
-  }
+      // เดาว่าเป็น lookup รูป:
+      //  - ชื่อ column มีคำว่า img / image
+      //  - หรือ lookupTargetColumnName มีคำว่า img / image
+      const name = (c.name || '').toLowerCase();
+      const targetName = (c.lookupTargetColumnName || '').toLowerCase();
+      const isImageLookup =
+        name.includes('img') ||
+        name.includes('image') ||
+        targetName.includes('img') ||
+        targetName.includes('image');
+
+      if (!isImageLookup) {
+        // lookup ปกติ → แสดงเป็น text เฉย ๆ
+        return {
+          ...base,
+          editor: false,
+        };
+      }
+
+      //  lookup ที่เอาไว้โชว์รูป → แสดงเป็น cell รูป (read-only)
+      return {
+        ...base,
+        cssClass: 'cell-image',
+        minWidth: 160,
+        editor: false, // read-only
+
+        formatter: (cell: any) => {
+          const url = (cell.getValue() as string) || '';
+
+          const wrap = document.createElement('div');
+          wrap.style.cssText = `
+            position:relative;
+            width:100%; 
+            height:${this.THUMB_H}px;
+            display:flex;
+            align-items:center;
+            justify-content:center;
+            box-sizing:border-box;
+            overflow:hidden;
+          `;
+
+          // ถ้า value ดูเหมือนเป็น URL รูป → แสดงรูป
+          if (url && (/^https?:\/\//i.test(url) || url.startsWith('data:'))) {
+            const img = document.createElement('img');
+            img.src = url;
+            img.style.cssText = `
+              max-height:${this.THUMB_H - 10}px;
+              max-width:100%;
+              height:88px
+              object-fit:contain;
+              display:block;
+              margin:0 auto;
+              border-radius:10px;
+              box-shadow:0 4px 14px rgba(15,23,42,0.12);
+            `;
+            img.onload = () => {
+              try {
+                cell.getRow().normalizeHeight();
+              } catch {}
+            };
+            wrap.appendChild(img);
+          } else {
+            // ถ้าไม่ใช่ URL ก็แสดงเป็น text ปกติ
+            const span = document.createElement('span');
+            span.textContent = url;
+            span.style.cssText = `
+              font-size:11px;
+              color:rgba(71,85,105,0.9);
+              word-break:break-all;
+            `;
+            wrap.appendChild(span);
+          }
+
+          return wrap;
+        },
+      };
+    }
 
         default:
           return { ...base, editor: lock ? false : 'input' };
