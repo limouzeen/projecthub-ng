@@ -9,7 +9,6 @@ type Member = {
   img: string;
   socials: {
     line?: string;
-    instagram?: string;
     ig?: string;          
     facebook?: string;
   };
@@ -54,7 +53,7 @@ export class About implements OnInit, OnDestroy {
       img: '/assets/char1.png',
       socials: {
         line: 'https://line.me/ti/p/~pixelcat',
-        instagram: 'https://instagram.com/pixelcat',
+        ig: 'https://instagram.com/pixelcat',
         facebook: 'https://facebook.com/pixelcat'
       }
     },
