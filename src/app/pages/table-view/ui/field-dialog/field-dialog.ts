@@ -62,6 +62,7 @@ export class FieldDialog implements OnChanges {
   // lookup
   targetTableId: number | null = null;
   targetColumnId: number | null = null;
+ 
 
   // formula (จะเก็บ JSON string ตาม format ใหม่)
   formulaDefinition = '';
@@ -69,6 +70,8 @@ export class FieldDialog implements OnChanges {
   // ===== formula builder state =====
   /** รายการคอลัมน์ตัวเลขของ table ปัจจุบัน (ใช้ทั้ง left/right) */
   readonly numericCols = signal<ColumnListItem[]>([]);
+  // ใหม่: list คอลัมน์ของ table ปัจจุบัน สำหรับ dropdown Source column
+  readonly currentCols = signal<ColumnListItem[]>([]);
 
   formulaOp: '+' | '-' | '*' | '/' = '+';
   formulaLeftColumnId: number | null = null;
@@ -90,8 +93,12 @@ export class FieldDialog implements OnChanges {
       const tabs = (await firstValueFrom(this.api.listTables(this.projectId))) ?? [];
 this.tables.set(tabs);
 
-      // mock: โหลดคอลัมน์ numeric ของ table ปัจจุบัน (ไว้ให้ Formula เลือก)
-      await this.loadNumericColumns();
+      // โหลด numericCols สำหรับ Formula เดิม
+    await this.loadNumericColumns();
+
+    // โหลดคอลัมน์ทั้งหมดของ table ปัจจุบัน สำหรับใช้เป็น sourceColumn
+    const current = (await firstValueFrom(this.api.listColumnsLite(this.tableId))) ?? [];
+    this.currentCols.set(current);
 
       this.applyPreset();
     }
@@ -110,6 +117,7 @@ this.tables.set(tabs);
     this.targetTableId = null;
     this.targetColumnId = null;
     this.targetCols.set([]);
+
 
     this.formulaDefinition = '';
 
@@ -269,15 +277,20 @@ this.tables.set(tabs);
   }
 
   canSubmit(): boolean {
-    if (!this.name.trim()) return false;
+  if (!this.name.trim()) return false;
 
-    if (this.preset === 'Formula') {
-      return this.buildFormulaDefinition() !== null;
-    }
-
-    // preset อื่น ๆ ใช้ validation ปกติ (อยากเพิ่มเงื่อนไขก็เติมได้)
-    return true;
+  if (this.preset === 'Formula') {
+    return this.buildFormulaDefinition() !== null;
   }
+
+  if (this.preset === 'Lookup') {
+    // ต้องเลือก targetTable, targetColumn, sourceColumn ให้ครบ
+    return !!this.targetTableId && !!this.targetColumnId ;
+  }
+
+  return true;
+}
+
 
   // ========== actions ==========
   submit() {
@@ -293,6 +306,7 @@ this.tables.set(tabs);
       isPrimary: this.isPrimary,
       targetTableId: this.preset === 'Lookup' ? this.targetTableId : null,
       targetColumnId: this.preset === 'Lookup' ? this.targetColumnId : null,
+      
       formulaDefinition: null,
     };
 

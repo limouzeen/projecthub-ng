@@ -833,6 +833,14 @@ export class TableView implements OnInit, OnDestroy, AfterViewInit {
     };
   }
 
+   case 'LOOKUP': {
+    return {
+      ...base,
+      editor: 'number',   // เป็น read-only ใน grid
+      // สามารถใส่ formatter ให้เป็น badge สวย ๆ ได้
+    };
+  }
+
         default:
           return { ...base, editor: lock ? false : 'input' };
       }
@@ -868,17 +876,37 @@ export class TableView implements OnInit, OnDestroy, AfterViewInit {
   }
 
   private buildDataForGridFromRows(rows: RowDto[]): any[] {
-    const cols = this.columns();
-    return rows.map((r) => {
-      let obj: any = {};
-      try {
-        obj = JSON.parse(r.data ?? '{}');
-      } catch {}
-      const rec: any = { __rowId: r.rowId };
-      for (const c of cols) rec[c.name] = obj?.[c.name] ?? null;
-      return rec;
-    });
-  }
+  const cols = this.columns();
+
+  return rows.map((r) => {
+    let obj: any = {};
+    try {
+      obj = JSON.parse(r.data ?? '{}');
+    } catch {}
+
+    const rec: any = { __rowId: r.rowId };
+    const anyRow = r as any;
+
+    for (const c of cols) {
+      const name = c.name;
+      const t = (c.dataType || '').toUpperCase();
+
+      if (t === 'LOOKUP') {
+        // 1) ถ้า backend JOIN มาให้แล้ว (เช่น r["Product"] = "Notebook A4") ให้ใช้ค่านี้ก่อน
+        if (anyRow[name] !== undefined && anyRow[name] !== null) {
+          rec[name] = anyRow[name];
+          continue;
+        }
+      }
+
+      // 2) กรณีธรรมดา หรือไม่มีค่า JOIN
+      rec[name] = obj?.[name] ?? null;
+    }
+
+    return rec;
+  });
+}
+
 
   // ---------- Local helpers ----------
   private async loadLocalData(goLast = false) {
@@ -1093,45 +1121,45 @@ export class TableView implements OnInit, OnDestroy, AfterViewInit {
     const out: Record<string, any> = {};
 
     for (const c of this.columns()) {
-      const key = c.name;
-      const t = (c.dataType || '').toUpperCase();
-      const v = raw[key];
+  const key = c.name;
+  const t = (c.dataType || '').toUpperCase();
+  const v = raw[key];
 
-      if (t === 'FORMULA') {
-        continue;
-      }
+  // 1) FORMULA กับ LOOKUP เป็นคอลัมน์คำนวณ → ห้ามส่งค่าให้ backend
+  if (t === 'FORMULA') {
+    continue;
+  }
 
-      // 2) ถ้าเป็น create row + table นี้ auto-increment + column นี้เป็น PK → ไม่ต้องส่ง
-      if (skipAutoPkForCreate && this.isAutoTable() && c.isPrimary) {
-        continue;
-      }
+  // 2) ถ้าเป็น create + table auto-increment + คอลัมน์นี้เป็น PK → ไม่ต้องส่ง
+  if (skipAutoPkForCreate && this.isAutoTable() && c.isPrimary) {
+    continue;
+  }
 
-      // ว่าง → null
-      if (v === '' || v === undefined) {
-        out[key] = null;
-        continue;
-      }
+  if (v === '' || v === undefined) {
+    out[key] = null;
+    continue;
+  }
 
-      switch (t) {
-        case 'INTEGER':
-        case 'INT':
-          out[key] = v === null ? null : Number.parseInt(v as any, 10);
-          break;
+  switch (t) {
+    case 'INTEGER':
+    case 'INT':
+      out[key] = v === null ? null : Number.parseInt(v as any, 10);
+      break;
 
-        case 'REAL':
-        case 'NUMBER':
-        case 'FLOAT':
-          out[key] = v === null ? null : Number.parseFloat(v as any);
-          break;
+    case 'REAL':
+    case 'NUMBER':
+    case 'FLOAT':
+      out[key] = v === null ? null : Number.parseFloat(v as any);
+      break;
 
-        case 'BOOLEAN':
-          out[key] = v === true || v === 'true' || v === 1 || v === '1';
-          break;
+    case 'BOOLEAN':
+      out[key] = v === true || v === 'true' || v === 1 || v === '1';
+      break;
 
-        default:
-          out[key] = v;
-      }
-    }
+    default:
+      out[key] = v;
+  }
+}
 
     return out;
   }

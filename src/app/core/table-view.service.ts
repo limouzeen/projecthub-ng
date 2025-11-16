@@ -19,18 +19,26 @@ export type ColumnDto = {
 export interface RowDto {
   rowId: number;
   data: string | null;
+    [key: string]: any;  
 }
 
 
 
+// src/app/core/table-view.service.ts
 export type FieldDialogModel = {
   name: string;
-  dataType: 'TEXT'|'STRING'|'IMAGE'|'INTEGER'|'REAL'|'BOOLEAN'|'LOOKUP'|'FORMULA' | 'DATE';
+  dataType: 'TEXT'|'STRING'|'IMAGE'|'INTEGER'|'REAL'|'BOOLEAN'|'LOOKUP'|'FORMULA'|'DATE';
   isNullable: boolean;
   isPrimary: boolean;
-  targetTableId: number|null;
-  targetColumnId: number|null;
-  formulaDefinition: string|null;
+
+ 
+  targetTableId: number | null;
+  targetColumnId: number | null;
+
+ 
+  
+
+  formulaDefinition: string | null;
 };
 
 export type ColumnListItem = { columnId: number; name: string };
@@ -43,9 +51,16 @@ export class TableViewService {
   constructor(@Optional() private http: HttpClient) {}
 
   private mapRow(r: any): RowDto {
+  const rowId = r.rowId ?? r.Row_id;
+  const data  = r.data  ?? r.Data ?? null;
+
+  // ดึงส่วนที่เหลือ (รวม alias ที่ backend JOIN มาให้ เช่น Product, CustomerName ฯลฯ)
+  const { rowId: _, Row_id, data: __, Data, ...rest } = r;
+
   return {
-    rowId: r.rowId ?? r.Row_id,
-    data:  r.data  ?? r.Data ?? null,
+    rowId,
+    data,
+    ...rest,  //พก field อื่น ๆ มาด้วย เช่น Product, PriceName ฯลฯ
   };
 }
 
@@ -90,30 +105,71 @@ export class TableViewService {
 }
 
 
-  createColumn(tableId: number, dto: Partial<FieldDialogModel | ColumnDto>): Observable<ColumnDto> {
+// createColumn(tableId: number, dto: Partial<FieldDialogModel | ColumnDto>): Observable<ColumnDto> {
+//   const rawType = (((dto as any).dataType ?? 'TEXT') as string).trim().toUpperCase();
+//   const dataType = rawType === 'STRING' ? 'TEXT' : rawType;
+//   const isLookup = dataType === 'LOOKUP';
+
+//   const payload: any = {
+//     tableId,
+//     name: (dto as any).name,
+//     dataType,
+//     isNullable: (dto as any).isNullable ?? true,
+//     isPrimary: !!(dto as any).isPrimary,
+//     formulaDefinition: (dto as any).formulaDefinition ?? null,
+
+//     // ใช้ column ปลายทางเหมือนเดิม
+//     lookupTargetColumnId: isLookup ? (dto as any).targetColumnId ?? null : null,
+
+//     lookupRelationshipId: null,
+
+//     newRelationship: isLookup
+//       ? {
+//           primaryTableId:  (dto as any).targetTableId,              // ตารางปลายทาง
+//           primaryColumnId: (dto as any).targetColumnId,             // PK ปลายทาง
+//           foreignTableId:  tableId,                                 // ตารางปัจจุบัน
+//           //  column ในตารางปัจจุบันที่เก็บค่า FK (ต้องมาจาก dialog)
+//           foreignColumnId:  null,
+//         }
+//       : null,
+//   };
+
+//   return this.http.post<ColumnDto>(`${this.base}/columns`, payload);
+// }
+
+createColumn(tableId: number, dto: Partial<FieldDialogModel | ColumnDto>): Observable<ColumnDto> {
   const rawType = (((dto as any).dataType ?? 'TEXT') as string).trim().toUpperCase();
-   const dataType = rawType === 'STRING' ? 'TEXT' : rawType;
+  const dataType = rawType === 'STRING' ? 'TEXT' : rawType;
+  const isLookup = dataType === 'LOOKUP';
+
   const payload: any = {
     tableId,
     name: (dto as any).name,
     dataType,
     isNullable: (dto as any).isNullable ?? true,
     isPrimary: !!(dto as any).isPrimary,
-    targetTableId: (dto as any).targetTableId ?? null,
-    targetColumnId: (dto as any).targetColumnId ?? null,
     formulaDefinition: (dto as any).formulaDefinition ?? null,
-    newRelationship: (dto as any).dataType === 'LOOKUP'
+
+    // column ของ "ตารางปลายทาง" ที่ใช้เป็น display (เช่น Price)
+    lookupTargetColumnId: isLookup ? (dto as any).targetColumnId ?? null : null,
+
+    // ตอนนี้ยังไม่ใช้ reuse relationship เดิม เลยส่ง null ไปก่อน
+    lookupRelationshipId: null,
+
+    // ข้อมูลคร่าว ๆ เพื่อบอก "ตารางปลายทาง" ให้ backend รู้
+    // backend จะ "หา PK เอง" ไม่ใช้ PrimaryColumnId ที่ส่งมา
+    newRelationship: isLookup
       ? {
-          sourceTableId: tableId,
-          targetTableId: (dto as any).targetTableId,
-          targetColumnId: (dto as any).targetColumnId,
+          primaryTableId:  (dto as any).targetTableId,   // ตารางปลายทาง (เช่น Price / Table 14)
+          primaryColumnId: (dto as any).targetColumnId,  // ส่งไปให้ครบตาม contract แต่ backend จะ override
+          foreignTableId:  tableId,                      // ตารางปัจจุบัน (เช่น Ji / Table 27)
+          foreignColumnId: null                          // backend เติมให้ = Column_id ของ LKUP
         }
       : null,
   };
 
   return this.http.post<ColumnDto>(`${this.base}/columns`, payload);
 }
-
 
   updateColumn(col: ColumnDto, newName: string): Observable<ColumnDto> {
   const body = {
