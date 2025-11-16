@@ -108,6 +108,8 @@ listColumns(tableId: number): Observable<ColumnDto[]> {
         isNullable:    c.isNullable ?? true,
         primaryKeyType: c.primaryKeyType ?? null,
 
+        formulaDefinition: c.formulaDefinition ?? c.FormulaDefinition ?? null,
+//        
         lookupRelationshipId: c.lookupRelationshipId ?? null,
         lookupTargetColumnId: c.lookupTargetColumnId ?? null,
         lookupTargetTableId:  c.lookupTargetTableId  ?? null,   
