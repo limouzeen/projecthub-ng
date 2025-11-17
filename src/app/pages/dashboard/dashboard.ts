@@ -14,6 +14,7 @@ import { DatePipe, NgClass, CommonModule } from '@angular/common';
 import { ProjectsService, Project } from '../../core/projects.service';
 import { FooterStateService } from '../../core/footer-state.service';
 import { UsersService, MeDto } from '../../core/users.service';
+import { RecentlyUsedProjectsService } from '../../core/recently-used-projects.service';
 import { ToastService } from '../../shared/toast.service';
 
 @Component({
@@ -153,6 +154,7 @@ selectedCount = computed(() => this.selected().size);
     private router: Router,
     private footer: FooterStateService,
     private users: UsersService,  
+    private recently: RecentlyUsedProjectsService,
     private toast: ToastService,   
   ) {
     // sync รายการจาก service ตามเดิม
@@ -218,9 +220,17 @@ onEsc() {
     this.menuOpenId.set(null);
   }
   openProject(id: number) {
-    this.router.navigate(['/projects', id]);
-    this.closeMenu();
+  const p = this.projects().find(x => x.id === id);
+
+  if (p) {
+    // sync ไปที่ RecentlyUsed ให้เพิ่ม openCount + update lastOpened
+    this.recently.markOpened(p.id, p.name, p.tables);
   }
+
+  this.router.navigate(['/projects', id]);
+  this.closeMenu();
+}
+
  
   //================= Dialog ===========================================
   renameProject(id: number, currentName: string) {
