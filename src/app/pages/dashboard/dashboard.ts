@@ -98,7 +98,7 @@ selectedCount = computed(() => this.selected().size);
     window.addEventListener('scroll', this.onScroll, { passive: true });
     window.addEventListener('resize', this.onResize, { passive: true });
 
-     // 👇 โหลดโปรไฟล์ (เพื่อได้ userId/รูป/ชื่อ/อีเมล)
+     //  โหลดโปรไฟล์ (เพื่อได้ userId/รูป/ชื่อ/อีเมล)
     try {
       const info = await this.users.getMe();
       this.me.set(info);
@@ -108,7 +108,7 @@ selectedCount = computed(() => this.selected().size);
       return;
     }
 
-    // 👇 โหลดโปรเจกต์ของ user (claims)
+    //  โหลดโปรเจกต์ของ user (claims)
     await this.svc.refresh();
 
     
@@ -158,7 +158,7 @@ selectedCount = computed(() => this.selected().size);
     private toast: ToastService,   
   ) {
     // sync รายการจาก service ตามเดิม
-    effect(() => this.projects.set(this.svc.list()), { allowSignalWrites: true });
+    effect(() => this.projects.set(this.svc.list()));
 
     //  รีเซ็ตหน้าเฉพาะเมื่อเงื่อนไขการค้นหา/ขนาดหน้าเปลี่ยน
     effect(
@@ -167,7 +167,7 @@ selectedCount = computed(() => this.selected().size);
         const _s = this.pageSize(); // ผูกกับ pageSize
         this.pageIndex.set(0);
       },
-      { allowSignalWrites: true }
+      
     );
 
     // (เสริม) ถ้าจำนวนหน้าลดลง ให้ clamp หน้าไม่ให้เกิน
@@ -176,7 +176,7 @@ selectedCount = computed(() => this.selected().size);
         const pc = this.pageCount();
         if (this.pageIndex() >= pc) this.pageIndex.set(pc - 1);
       },
-      { allowSignalWrites: true }
+      
     );
   }
 
@@ -252,15 +252,24 @@ async confirmRenameProject() {
   const name = this.renameProjectName().trim();
   if (!id || !name) { this.closeRenameDialog(); return; }
 
+  // TODO Validate: Duplicate project name
+  const exists = this.projects().some(
+    p => p.id !== id && p.name.toLowerCase() === name.toLowerCase()
+  );
+  if (exists) {
+    this.toast.error("Project name already exists. Please choose another name.", "Duplicate name");
+    return;
+  }
+
   try {
     await this.svc.rename(id, name);
+    this.toast.success("Project renamed successfully!");
     this.closeRenameDialog();
-
-    this.toast.success(`Project renamed to "${name}".`, 'Rename successful');
   } catch {
-    this.toast.error('Could not rename this project.', 'Rename failed');
+    this.toast.error("Failed to rename project.");
   }
 }
+
 
 //=====================================================
 
@@ -400,22 +409,26 @@ async confirmCreateProject() {
   const name = this.newProjectName().trim();
   if (!name) { this.closeNewProjectDialog(); return; }
 
-  const uid = this.me()?.userId ?? Number(this.me()?.sub);
-  if (!uid) {
-    this.toast.error('Missing user id, please re-login.', 'Create project failed');
+  // TODO Validate: Duplicate project name
+  const exists = this.projects().some(p => p.name.toLowerCase() === name.toLowerCase());
+  if (exists) {
+    this.toast.error("Project name already exists. Please choose another name.", "Duplicate name");
     return;
   }
 
+  const uid = this.me()?.userId ?? Number(this.me()?.sub);
+  if (!uid) { this.toast.error("Missing user ID."); return; }
+
   try {
     await this.svc.add(name, uid);
+    this.toast.success("Project created successfully!");
     this.keyword.set('');
     this.closeNewProjectDialog();
-
-    this.toast.success(`Project "${name}" has been created.`, 'Project created');
-  } catch {
-    this.toast.error('Cannot create project at the moment.', 'Create project failed');
+  } catch (err) {
+    this.toast.error("Failed to create project. Please try again.");
   }
 }
+
 
 
 // ========================================================

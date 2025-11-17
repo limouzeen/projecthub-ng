@@ -80,7 +80,7 @@
           <button
             type="button"
             class="ml-auto text-[10px] px-3 py-1.5 rounded-lg text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 shadow-sm transition"
-            (click)="deleteAccount()"
+            (click)="openDeleteDialog()"
           >
             Delete account
           </button>
@@ -352,4 +352,82 @@
       </form>
     </div>
   </div>
+
+  <!-- Delete account Dialog -->
+
+@if (deleteDialogOpen()) {
+    <!-- Overlay -->
+    <div
+      class="fixed inset-0 z-[120] flex items-center justify-center bg-slate-900/40 backdrop-blur-sm"
+      (click)="closeDeleteDialog()"
+    >
+      <!-- Card -->
+      <div
+        class="glass relative w-full max-w-sm mx-4 rounded-3xl bg-white/90 border border-rose-100 shadow-2xl p-5 sm:p-6"
+        (click)="$event.stopPropagation()"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="delete-account-title"
+      >
+        <!-- Badge Danger -->
+        <div class="flex items-center gap-3 mb-3">
+          <div
+            class="w-9 h-9 rounded-2xl bg-rose-100 text-rose-600 flex items-center justify-center shadow-sm"
+          >
+            <svg
+              class="w-5 h-5"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <path d="M12 9v4m0 4h.01" />
+              <path d="M12 2a10 10 0 110 20 10 10 0 010-20z" />
+            </svg>
+          </div>
+          <div>
+            <div
+              id="delete-account-title"
+              class="text-sm font-semibold text-slate-900"
+            >
+              Delete account
+            </div>
+            <div class="text-[11px] text-slate-500">
+              This action cannot be undone.
+            </div>
+          </div>
+        </div>
+
+        <!-- Text -->
+        <p class="text-xs text-slate-600 leading-relaxed mb-4">
+          Your projects, tables, and related data may be permanently removed.
+          Please make sure you have exported anything you need before continuing.
+        </p>
+
+        <!-- Actions -->
+        <div class="flex justify-end gap-2 pt-2">
+          <button
+            type="button"
+            class="px-3.5 py-1.5 rounded-xl text-xs font-medium text-slate-600 bg-white hover:bg-slate-50 border border-slate-200 shadow-sm transition"
+            (click)="closeDeleteDialog()"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            class="px-3.5 py-1.5 rounded-xl text-xs font-medium text-rose-50 bg-rose-600 hover:bg-rose-700 shadow-md border border-rose-500 transition"
+            (click)="confirmDeleteAccount()"
+          >
+            Delete account
+          </button>
+        </div>
+      </div>
+    </div>
+  }
+
+
+
+
 </section>

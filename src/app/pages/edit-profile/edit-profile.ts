@@ -3,6 +3,8 @@ import { CommonModule, Location } from '@angular/common';
 import { FooterStateService } from '../../core/footer-state.service';
 import { UsersService, MeDto, UpdateProfileDto } from '../../core/users.service';
 import { Router } from '@angular/router';
+import { ToastService } from '../../shared/toast.service';
+
 
 type ProfileForm = {
   avatarFile: File | null;
@@ -28,9 +30,12 @@ export class EditProfile implements OnInit, OnDestroy {
   private readonly users = inject(UsersService);
   private readonly location = inject(Location);
   private readonly router = inject(Router);
+  private readonly toast = inject(ToastService);
 
   // เก็บ userId จาก /me เพื่อใช้ลบ
   readonly userId = signal<number | null>(null);
+  //  เก็บ state สำหรับ dialog ยืนยันลบบัญชี
+  readonly deleteDialogOpen = signal(false);
 
   readonly model = signal<ProfileForm>({
     avatarFile: null,
@@ -42,7 +47,7 @@ export class EditProfile implements OnInit, OnDestroy {
     confirmNewPassword: '',
   });
 
-  // ⬅️ snapshot สำหรับปุ่ม Cancel
+  // โหลด snapshot สำหรับปุ่ม Cancel
   private readonly baseline = signal<Pick<ProfileForm, 'displayName' | 'email' | 'avatarPreview'>>({
     displayName: 'Your name',
     email: 'you@example.com',
@@ -164,7 +169,7 @@ export class EditProfile implements OnInit, OnDestroy {
       return this.setStatusProfile('error', 'Invalid email.');
     }
 
-    // ⬅️ บังคับให้มีรูปก่อนอัปเดต (หากต้องการบังคับทุกกรณี)
+    // บังคับให้มีรูปก่อนอัปเดต (หากต้องการบังคับทุกกรณี)
     const hasCurrentAvatar = !!avatarPreview || !!avatarFile;
     if (!hasCurrentAvatar) {
       return this.setStatusProfile('error', 'Please add a profile photo before saving.');
@@ -188,7 +193,7 @@ export class EditProfile implements OnInit, OnDestroy {
       const dto: UpdateProfileDto = {
         username: displayName.trim(),
         email: email.trim(),
-        profilePictureUrl, // ⬅️ ส่ง string ไปตามหลังบ้าน
+        profilePictureUrl, //  ส่ง string ไปตามหลังบ้าน
       };
 
       const updated = await this.users.updateProfile(dto); // UserResponseDto
@@ -202,7 +207,7 @@ export class EditProfile implements OnInit, OnDestroy {
         this.model.update((m) => ({ ...m, avatarPreview: null, avatarFile: null }));
       }
 
-      // ⬅️ อัปเดต baseline หลังเซฟสำเร็จ
+      // อัปเดต baseline หลังเซฟสำเร็จ
       const cur = this.model();
       this.baseline.set({
         displayName: cur.displayName,
@@ -211,8 +216,11 @@ export class EditProfile implements OnInit, OnDestroy {
       });
 
       this.setStatusProfile('success', '✓ Profile updated.');
+      this.toast.success('Profile updated successfully.'); 
     } catch (e: any) {
-      this.setStatusProfile('error', e?.error?.error || e?.message || '✗ Update failed.');
+      const msg = e?.error?.error || e?.message || '✗ Update failed.';
+      this.setStatusProfile('error', msg);
+      this.toast.error(msg); 
     } finally {
       this.savingProfile.set(false);
     }
@@ -237,33 +245,75 @@ export class EditProfile implements OnInit, OnDestroy {
       await this.users.changePassword({ currentPassword, newPassword }); // PUT /change-password
       this.clearPasswordFields();
       this.setStatusPassword('success', '✓ Password updated.');
+      this.toast.success('Password updated successfully.'); 
     } catch (e: any) {
-      this.setStatusPassword('error', e?.error?.error || e?.message || '✗ Update failed.');
+      const msg = e?.error?.error || e?.message || '✗ Update failed.';
+      this.setStatusPassword('error', msg);
+      this.toast.error(msg);
     } finally {
       this.savingPassword.set(false);
     }
   }
 
   // === DELETE ACCOUNT ===
-  async deleteAccount() {
+  // async deleteAccount() {
+  //   const id = this.userId();
+  //   if (!id) {
+  //     this.setStatusProfile('error', 'User id not found.');
+  //     return;
+  //   }
+  //   const ok = window.confirm(
+  //     'Are you sure you want to delete your account? This cannot be undone.'
+  //   );
+  //   if (!ok) return;
+
+  //   try {
+  //     await this.users.deleteUser(id); // DELETE /api/Users/{id}
+  //     localStorage.removeItem('access_token');
+  //     this.toast.success('Account deleted successfully.');
+  //     this.router.navigateByUrl('/register');
+  //   } catch (e: any) {
+  //     const msg = e?.error?.error || e?.message || 'Delete failed.';
+  //   this.setStatusProfile('error', msg);
+  //   this.toast.error(msg);
+  //   }
+  // }
+    // เปิด dialog
+  openDeleteDialog() {
+    this.deleteDialogOpen.set(true);
+  }
+
+  // ปิด dialog (ใช้กับปุ่ม Cancel / overlay / หลังลบเสร็จ)
+  closeDeleteDialog() {
+    this.deleteDialogOpen.set(false);
+  }
+
+  // === CONFIRM DELETE ACCOUNT (กดปุ่ม Delete ใน dialog) ===
+  async confirmDeleteAccount() {
     const id = this.userId();
     if (!id) {
       this.setStatusProfile('error', 'User id not found.');
+      this.toast.error('User id not found.');
+      this.closeDeleteDialog();
       return;
     }
-    const ok = window.confirm(
-      'Are you sure you want to delete your account? This cannot be undone.'
-    );
-    if (!ok) return;
 
     try {
+      // เรียก API ลบบัญชี
       await this.users.deleteUser(id); // DELETE /api/Users/{id}
       localStorage.removeItem('access_token');
+
+      this.toast.success('Account deleted successfully.');
+      this.closeDeleteDialog();
       this.router.navigateByUrl('/register');
     } catch (e: any) {
-      this.setStatusProfile('error', e?.error?.error || e?.message || 'Delete failed.');
+      const msg = e?.error?.error || e?.message || 'Delete failed.';
+      this.setStatusProfile('error', msg);
+      this.toast.error(msg);
+      this.closeDeleteDialog();
     }
   }
+
 
   // === helpers ===
   private setStatusProfile(kind: UpdateStatus, msg: string, ms = 4000) {
