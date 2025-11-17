@@ -14,6 +14,7 @@ import { DatePipe, NgClass, CommonModule } from '@angular/common';
 import { ProjectsService, Project } from '../../core/projects.service';
 import { FooterStateService } from '../../core/footer-state.service';
 import { UsersService, MeDto } from '../../core/users.service';
+import { ToastService } from '../../shared/toast.service';
 
 @Component({
   selector: 'app-dashboard',
@@ -152,6 +153,7 @@ selectedCount = computed(() => this.selected().size);
     private router: Router,
     private footer: FooterStateService,
     private users: UsersService,  
+    private toast: ToastService,   
   ) {
     // sync รายการจาก service ตามเดิม
     effect(() => this.projects.set(this.svc.list()), { allowSignalWrites: true });
@@ -186,20 +188,6 @@ selectedCount = computed(() => this.selected().size);
     if (this.menuOpenId() !== null) this.menuOpenId.set(null);
     if (this.profileOpen()) this.profileOpen.set(false);
   }
-  // @HostListener('document:keydown.escape') onEsc() {
-  //   if (this.profileOpen()) {
-  //     this.profileOpen.set(false);
-  //     return;
-  //   }
-  //   if (this.menuOpenId() !== null) {
-  //     this.menuOpenId.set(null);
-  //     return;
-  //   }
-  //   if (this.asideOpen()) {
-  //     this.asideOpen.set(false);
-  //     if (typeof document !== 'undefined') document.body.style.overflow = '';
-  //   }
-  // }
 
 
   //=============  Close Dialog ================================
@@ -233,15 +221,7 @@ onEsc() {
     this.router.navigate(['/projects', id]);
     this.closeMenu();
   }
-  // renameProject(id: number, currentName: string) {
-  //   const next = window.prompt('Rename project:', currentName?.trim() ?? '');
-  //   if (next != null) {
-  //     const name = next.trim();
-  //     if (name && name !== currentName) this.svc.rename(id, name);
-  //   }
-  //   this.closeMenu();
-  // }
-
+ 
   //================= Dialog ===========================================
   renameProject(id: number, currentName: string) {
   this.closeMenu();
@@ -261,9 +241,17 @@ async confirmRenameProject() {
   const id = this.renameProjectId();
   const name = this.renameProjectName().trim();
   if (!id || !name) { this.closeRenameDialog(); return; }
-  await this.svc.rename(id, name);     
-  this.closeRenameDialog();
+
+  try {
+    await this.svc.rename(id, name);
+    this.closeRenameDialog();
+
+    this.toast.success(`Project renamed to "${name}".`, 'Rename successful');
+  } catch {
+    this.toast.error('Could not rename this project.', 'Rename failed');
+  }
 }
+
 //=====================================================
 
   toggleProfileMenu() {
@@ -277,11 +265,7 @@ async confirmRenameProject() {
     this.router.navigateByUrl('/login');
   }
 
-  // addQuick(name: string) {
-  //   if (!name.trim()) return;
-  //   this.svc.add(name.trim());
-  //   this.keyword.set('');
-  // }
+  
   isChecked(id: number) {
     return this.selected().has(id);
   }
@@ -292,10 +276,7 @@ async confirmRenameProject() {
       return next;
     });
   }
-  // removeOne(id: number) {
-  //   this.svc.remove(id);
-  // }
-
+ 
   //======================================================
 
   // Delete หนึ่งรายการจาก kebab
@@ -316,10 +297,19 @@ closeDeleteDialog() {
 
 async confirmDeleteProject() {
   const id = this.deleteProjectId();
+  const name = this.deleteProjectName();
   if (!id) { this.closeDeleteDialog(); return; }
-  await this.svc.remove(id);            
-  this.closeDeleteDialog();
+
+  try {
+    await this.svc.remove(id);
+    this.closeDeleteDialog();
+
+    this.toast.success(`Project "${name || 'Untitled'}" has been deleted.`, 'Project deleted');
+  } catch {
+    this.toast.error('Could not delete this project.', 'Delete failed');
+  }
 }
+
 
 // ========================================================
 
@@ -331,9 +321,40 @@ async removeManySelected() {
 }
 
 // Toggle favorite
+// Toggle favorite + toast
 async toggleFavorite(id: number) {
-  await this.svc.toggleFavorite(id);    
+  const proj = this.projects().find(p => p.id === id);
+  const wasFav = !!proj?.favorite;
+
+  try {
+    await this.svc.toggleFavorite(id); // ให้ service จัดการ state + call API
+
+    if (proj) {
+      if (wasFav) {
+        this.toast.info(
+          `Removed "${proj.name}" from favorites.`,
+          'Favorite updated'
+        );
+      } else {
+        this.toast.success(
+          `Marked "${proj.name}" as favorite.`,
+          'Favorite updated'
+        );
+      }
+    } else {
+      // กันกรณีหา project ไม่เจอ แต่ก็ยังอัปเดตสำเร็จ
+      this.toast.success('Favorite status updated.', 'Favorite updated');
+    }
+  } catch {
+    this.toast.error(
+      'Could not update favorite status. Please try again.',
+      'Favorite failed'
+    );
+  }
 }
+
+
+// ================ Export CSV ===================== need to optimize more to filter data
   exportCSV() {
     this.svc.downloadCSV(this.filtered());
   }
@@ -370,12 +391,22 @@ async confirmCreateProject() {
   if (!name) { this.closeNewProjectDialog(); return; }
 
   const uid = this.me()?.userId ?? Number(this.me()?.sub);
-  if (!uid) { alert('Missing user id'); return; }
+  if (!uid) {
+    this.toast.error('Missing user id, please re-login.', 'Create project failed');
+    return;
+  }
 
-  await this.svc.add(name, uid);        // ⬅️ ตอนนี้ยิง POST
-  this.keyword.set('');
-  this.closeNewProjectDialog();
+  try {
+    await this.svc.add(name, uid);
+    this.keyword.set('');
+    this.closeNewProjectDialog();
+
+    this.toast.success(`Project "${name}" has been created.`, 'Project created');
+  } catch {
+    this.toast.error('Cannot create project at the moment.', 'Create project failed');
+  }
 }
+
 
 // ========================================================
 
@@ -392,10 +423,22 @@ closeDeleteManyDialog() {
 async confirmDeleteMany() {
   const ids = Array.from(this.selected());
   if (!ids.length) { this.closeDeleteManyDialog(); return; }
-  await this.svc.removeMany(ids);     // เรียก API ลบหลายรายการ
-  this.selected.set(new Set());       // เคลียร์ selection
-  this.closeDeleteManyDialog();
+
+  try {
+    await this.svc.removeMany(ids);
+    const count = ids.length;
+    this.selected.set(new Set());
+    this.closeDeleteManyDialog();
+
+    this.toast.success(
+      `${count} project${count > 1 ? 's' : ''} have been deleted.`,
+      'Delete completed'
+    );
+  } catch {
+    this.toast.error('Could not delete selected projects.', 'Bulk delete failed');
+  }
 }
+
 
 // ========================================================
 

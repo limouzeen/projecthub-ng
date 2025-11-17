@@ -1,14 +1,10 @@
 <section
-  class="min-h-[calc(100vh-6rem)] relative flex items-center justify-center
-         px-6 py-16 overflow-hidden isolate"
+  class="min-h-[calc(100vh-6rem)] relative flex items-center justify-center px-6 py-16 overflow-hidden isolate"
 >
-
-
   <!-- Back -->
   <a
     routerLink="/"
-    class="absolute left-6 top-6 inline-flex items-center gap-2 rounded-full bg-white/70 backdrop-blur-md
-           border border-white/30 shadow-md px-3 py-1.5 text-slate-700 hover:scale-105 transition"
+    class="absolute left-6 top-6 inline-flex items-center gap-2 rounded-full bg-white/70 backdrop-blur-md border border-white/30 shadow-md px-3 py-1.5 text-slate-700 hover:scale-105 transition"
   >
     <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none">
       <path
@@ -53,6 +49,9 @@
             [ngModel]="email()"
             (ngModelChange)="email.set($event)"
           />
+          @if (email() && !isEmailValid) {
+          <div class="text-[11px] text-rose-600 mt-1">Invalid email address.</div>
+          }
         </div>
 
         <div>
@@ -65,30 +64,30 @@
             placeholder="••••••••"
             [ngModel]="password()"
             (ngModelChange)="password.set($event)"
-          />
+          />      
         </div>
 
         <!-- Error -->
-         @if (error()){
-          <div class="text-xs text-red-500">
-            {{ error() }}
-          </div>
-         }
+        @if (error()){
+        <div class="text-xs text-red-500">
+          {{ error() }}
+        </div>
+        }
         <button
           type="submit"
           [disabled]="loading()"
-          class="btn-primary w-full bg-gradient-to-r from-indigo-600 to-cyan-500
-                 hover:shadow-indigo-300/40 hover:scale-[1.02] transition
-                 disabled:opacity-60 disabled:hover:scale-100"
+          class="btn-primary w-full bg-gradient-to-r from-indigo-600 to-cyan-500 hover:shadow-indigo-300/40 hover:scale-[1.02] transition disabled:opacity-60 disabled:hover:scale-100"
         >
           {{ loading() ? 'Signing in...' : 'Login' }}
         </button>
       </form>
       @if (notice()) {
-  <div class="mt-5 mb-3 text-xs rounded-lg px-3 py-2 bg-emerald-50 text-emerald-700 border border-emerald-200">
-    {{ notice() }}
-  </div>
-}
+      <div
+        class="mt-5 mb-3 text-xs rounded-lg px-3 py-2 bg-emerald-50 text-emerald-700 border border-emerald-200"
+      >
+        {{ notice() }}
+      </div>
+      }
       <div class="mt-4 flex items-center justify-between text-sm">
         <a class="text-slate-500 hover:underline" href="javascript:void(0)">Forgot password?</a>
         <a routerLink="/register" class="link">Create account</a>

@@ -3,6 +3,7 @@ import { Router, RouterLink } from '@angular/router';
 import { FormsModule } from '@angular/forms';
 import { FooterStateService } from '../../../core/footer-state.service';
 import { UsersService } from '../../../core/users.service';
+import { HttpErrorResponse } from '@angular/common/http';
 @Component({
   selector: 'app-register',
   imports: [RouterLink, FormsModule],
@@ -33,13 +34,32 @@ export class Register implements OnInit, OnDestroy {
 
   // validate ง่าย ๆ ให้ตรง backend (password >= 6)
   get isEmailValid() {
-    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(this.email().trim());
-  }
+  const value = this.email().trim();
+
+  // 1) เช็ค pattern พื้นฐานให้ดีขึ้น
+  const basicOk = /^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,10}$/.test(value);
+  if (!basicOk) return false;
+
+  // 2) ห้ามมีจุดติดกัน / จุดขึ้นต้น–ลงท้าย ทั้งหน้า–หลัง @
+  const [local, domain] = value.split('@');
+  if (!local || !domain) return false;
+  if (local.startsWith('.') || local.endsWith('.')) return false;
+  if (domain.startsWith('.') || domain.endsWith('.')) return false;
+  if (local.includes('..') || domain.includes('..')) return false;
+
+  // 3) จำกัดความยาว TLD (ส่วนหลังจุดสุดท้าย) เช่น .com / .co / .th
+  const tld = domain.split('.').pop() ?? '';
+  if (tld.length < 2 || tld.length > 6) return false; 
+
+  return true;
+}
+
   get isUsernameValid() {
     return this.username().trim().length >= 2; // ตั้งขั้นต่ำ 2 ตัวอักษร
   }
   get isPasswordValid() {
-    return (this.password() ?? '').length >= 6;
+    const pw = this.password() ?? '';
+    return pw.length >= 6 && pw.length <= 20; 
   }
   get formValid() {
     return this.isEmailValid && this.isUsernameValid && this.isPasswordValid;
@@ -63,12 +83,34 @@ export class Register implements OnInit, OnDestroy {
 
     // 👉 ไปหน้า Login ให้ผู้ใช้กรอกเอง (พ่วง flag ไว้โชว์ข้อความ)
     this.router.navigate(['/login'], { queryParams: { registered: '1' } });
-  } catch (e: any) {
-    const msg = e?.error?.error || e?.message || 'Registration failed.';
+    } catch (e: any) {
+    let msg = 'Registration failed.'; // default
+
+    if (e instanceof HttpErrorResponse) {
+      // กรณี backend โยน exception แล้ว DevExceptionPage ส่ง HTML ยาว ๆ กลับมา
+      const raw = e.error;
+
+      // 1) ถ้า response body เป็น string (HTML) แล้วมีคำว่า "Email already exists"
+      if (typeof raw === 'string' && raw.includes('Email already exists')) {
+        msg = 'An account with this email already exists. Please enter another email.';
+      }
+      // 2) ถ้า backend เคยส่งเป็น JSON เช่น { error: '...' } / { message: '...' }
+      else if (raw && typeof raw === 'object') {
+        msg = (raw.error || raw.message || msg);
+      }
+      // 3) fallback ใช้ message จาก HttpErrorResponse
+      else if (e.message) {
+        msg = e.message;
+      }
+    } else if (e?.message) {
+      msg = e.message;
+    }
+
     this.error.set(msg);
   } finally {
     this.loading.set(false);
   }
+
 }
 
 }

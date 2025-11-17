@@ -27,8 +27,13 @@ export class Login implements OnInit, OnDestroy {
 
   async onSubmit() {
     this.error.set('');
-    this.loading.set(true);
 
+    if (!this.formValid) {
+      this.error.set('Please enter a valid email and password.');
+      return;
+    }
+
+    this.loading.set(true);
     try {
       await this.users.login({
         email: this.email().trim(),
@@ -46,6 +51,7 @@ export class Login implements OnInit, OnDestroy {
     }
   }
 
+
   ngOnInit(): void {
   this.footer.setThreshold(578);
   this.footer.setForceCompact(null);
@@ -57,5 +63,35 @@ export class Login implements OnInit, OnDestroy {
 }
   ngOnDestroy(): void {
     this.footer.resetAll();
+  }
+
+
+  //Validate Login
+  get isEmailValid() {
+    const value = this.email().trim();
+
+    const basicOk = /^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,10}$/.test(value);
+    if (!basicOk) return false;
+
+    const [local, domain] = value.split('@');
+    if (!local || !domain) return false;
+    if (local.startsWith('.') || local.endsWith('.')) return false;
+    if (domain.startsWith('.') || domain.endsWith('.')) return false;
+    if (local.includes('..') || domain.includes('..')) return false;
+
+    const tld = domain.split('.').pop() ?? '';
+    if (tld.length < 2 || tld.length > 6) return false;
+
+    return true;
+  }
+
+
+   get isPasswordValid() {
+    const pw = this.password() ?? '';
+    return pw.length >= 6 && pw.length <= 20; 
+  }
+
+  get formValid() {
+    return this.isEmailValid && this.isPasswordValid;
   }
 }
