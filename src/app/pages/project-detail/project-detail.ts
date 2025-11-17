@@ -1,6 +1,12 @@
 // src/app/pages/project-detail/project-detail.ts
 import {
-  Component, OnInit, OnDestroy, signal, computed, inject, HostListener,
+  Component,
+  OnInit,
+  OnDestroy,
+  signal,
+  computed,
+  inject,
+  HostListener,
 } from '@angular/core';
 import { CommonModule, Location } from '@angular/common';
 import { RouterLink, Router, ActivatedRoute } from '@angular/router';
@@ -9,7 +15,7 @@ import { firstValueFrom } from 'rxjs';
 import { ProjectDetailService, TableDto } from '../../core/project-detail.service';
 import { CreateTableDialog } from './ui/create-table-dialog';
 import { FooterStateService } from '../../core/footer-state.service';
-import { UsersService, MeDto } from '../../core/users.service'; 
+import { UsersService, MeDto } from '../../core/users.service';
 import { ToastService } from '../../shared/toast.service';
 import { HttpErrorResponse } from '@angular/common/http';
 
@@ -24,16 +30,14 @@ export class ProjectDetail implements OnInit, OnDestroy {
   private readonly api = inject(ProjectDetailService);
   private readonly router = inject(Router);
   private readonly route = inject(ActivatedRoute);
-  private readonly users = inject(UsersService);            // << เพิ่ม
-  
-
+  private readonly users = inject(UsersService); // << เพิ่ม
 
   private readonly toast = inject(ToastService);
 
   projectId = 1;
 
   // profile (แสดงขวาบน)
-  readonly me = signal<MeDto | null>(null);                 // << เพิ่ม
+  readonly me = signal<MeDto | null>(null); // << เพิ่ม
 
   // state
   readonly tables = signal<TableDto[]>([]);
@@ -59,38 +63,91 @@ export class ProjectDetail implements OnInit, OnDestroy {
   });
 
   /** ตัวช่วยรวม ๆ แปลง HttpErrorResponse -> ข้อความ read-able */
-private showHttpError(e: unknown, fallback = 'เกิดข้อผิดพลาด กรุณาลองอีกครั้ง') {
-  const err = e as HttpErrorResponse;
-  let msg = fallback;
+  /** ตัวช่วยรวม ๆ แปลง HttpErrorResponse -> ข้อความ read-able */
+  private showHttpError(e: unknown, fallback = 'An unexpected error occurred') {
+    const err = e as HttpErrorResponse;
+    let msg = fallback;
 
-  // backend ของคุณมักส่ง { Error: "..." }
-  const serverMsg = (err?.error && (err.error.Error || err.error.message || err.error)) ?? null;
+    // 1) ดึง "raw" error ที่หลังบ้านส่งมา
+    let raw: any = err?.error;
 
-  switch (err?.status) {
-    case 0:
-      msg = 'เชื่อมต่อเซิร์ฟเวอร์ไม่ได้ กรุณาตรวจสอบอินเทอร์เน็ต';
-      break;
-    case 400:
-      msg = serverMsg || 'ข้อมูลไม่ถูกต้อง';
-      // กรณีชื่อซ้ำจาก CreateTableHandler: message จะบอกชัดเจน
-      break;
-    case 401:
-      msg = 'เซสชันหมดอายุ กรุณาเข้าสู่ระบบใหม่';
-      break;
-    case 403:
-      msg = serverMsg || 'คุณไม่มีสิทธิ์ทำรายการนี้';
-      break;
-    case 404:
-      msg = serverMsg || 'ไม่พบข้อมูล';
-      break;
-    case 409:
-      msg = serverMsg || 'ข้อมูลขัดแย้ง (เช่น ชื่อซ้ำ)';
-      break;
-    default:
-      msg = serverMsg || fallback;
+    // รองรับรูปแบบพวก { Error: "..."} / { error: "..."} / { message: "..." }
+    if (raw && typeof raw === 'object') {
+      raw = raw.Error ?? raw.error ?? raw.message ?? raw;
+    }
+
+    // helper: ดึงข้อความจากฟิลด์ errors ของ .NET ProblemDetails
+    const extractFromErrors = (obj: any): string | null => {
+      const errors = obj?.errors;
+      if (!errors || typeof errors !== 'object') return null;
+
+      const all: string[] = [];
+      for (const key of Object.keys(errors)) {
+        const val = (errors as any)[key];
+        if (Array.isArray(val)) all.push(...val);
+        else if (typeof val === 'string') all.push(val);
+      }
+      return all.length ? all.join('\n') : null;
+    };
+
+    let serverMsg: string | null = null;
+
+    // 2) แปลง raw → string ให้ได้ก่อน
+    if (typeof raw === 'string') {
+      serverMsg = raw;
+    } else if (raw && typeof raw === 'object') {
+      // ลองดู errors (เช่น { errors: { Name: [ "Table name must be unique" ] } })
+      const fromErrors = extractFromErrors(raw);
+      if (fromErrors) serverMsg = fromErrors;
+      else if (typeof raw.title === 'string') serverMsg = raw.title;
+      else {
+        // fallback สุดท้าย: stringify สั้น ๆ กัน [object Object]
+        try {
+          serverMsg = JSON.stringify(raw);
+        } catch {
+          /* ignore */
+        }
+      }
+    }
+
+    // 3) เลือกข้อความตาม status code + serverMsg ถ้ามี
+    switch (err?.status) {
+      case 0:
+        msg = 'Cannot reach the server. Please check your internet connection.';
+        break;
+
+      case 400:
+      case 409:
+        if (
+          serverMsg &&
+          serverMsg.toLowerCase().includes('name') &&
+          serverMsg.toLowerCase().includes('unique')
+        ) {
+          msg = 'Table name already exists. Please choose another name.';
+        } else {
+          msg = serverMsg || 'Invalid data. Please check your input.';
+        }
+        break;
+
+      case 401:
+        msg = 'Session expired. Please sign in again.';
+        break;
+
+      case 403:
+        msg = serverMsg || 'You are not allowed to perform this action.';
+        break;
+
+      case 404:
+        msg = serverMsg || 'The requested resource was not found.';
+        break;
+
+      default:
+        msg = serverMsg || fallback;
+        break;
+    }
+
+    this.toast.error(msg);
   }
-  this.toast.error(msg);
-}
 
   // layout / nav
   asideOpen = signal(false);
@@ -129,10 +186,10 @@ private showHttpError(e: unknown, fallback = 'เกิดข้อผิดพ�
       const me = await this.users.getMe();
       this.me.set(me);
     } catch (e) {
-    this.showHttpError(e, 'ไม่สามารถโหลดข้อมูลผู้ใช้ได้');
-    this.router.navigateByUrl('/login');
-    return;
-  }
+      this.showHttpError(e, 'ไม่สามารถโหลดข้อมูลผู้ใช้ได้');
+      this.router.navigateByUrl('/login');
+      return;
+    }
 
     await this.refresh();
   }
@@ -140,8 +197,6 @@ private showHttpError(e: unknown, fallback = 'เกิดข้อผิดพ�
   ngOnDestroy(): void {
     this.footerSvc.resetAll();
   }
-
-
 
   async refresh() {
     this.loading.set(true);
@@ -151,13 +206,15 @@ private showHttpError(e: unknown, fallback = 'เกิดข้อผิดพ�
       this.tables.set(list);
       this.normalizePage();
     } catch (e) {
-    this.showHttpError(e, 'โหลดรายการตารางไม่สำเร็จ');
-  } finally {
+      this.showHttpError(e, 'โหลดรายการตารางไม่สำเร็จ');
+    } finally {
       this.loading.set(false);
     }
   }
 
-  openCreateDialog() { this.dialogOpen.set(true); }
+  openCreateDialog() {
+    this.dialogOpen.set(true);
+  }
 
   async onCreateTable(payload: { name: string; useAutoIncrement: boolean }) {
     this.creating.set(true);
@@ -174,11 +231,10 @@ private showHttpError(e: unknown, fallback = 'เกิดข้อผิดพ�
       }
 
       await this.refresh();
-    } 
-    catch (e) {
-    this.showHttpError(e, 'สร้างตารางไม่สำเร็จ');
-  }
-    finally {
+      this.toast.success(`Table "${payload.name}" created successfully.`);
+    } catch (e) {
+      this.showHttpError(e, 'สร้างตารางไม่สำเร็จ');
+    } finally {
       this.creating.set(false);
       this.dialogOpen.set(false);
     }
@@ -186,8 +242,22 @@ private showHttpError(e: unknown, fallback = 'เกิดข้อผิดพ�
 
   // ----- UI helpers -----
   onBack() {
-    this.location.back();
+  const from = this.route.snapshot.queryParamMap.get('from');
+
+  // ถ้ามาจาก table-view → ไป Dashboard เลย
+  if (from === 'table') {
+    this.router.navigate(['/dashboard']);
+    return;
   }
+
+  // กรณีอื่น: พยายาม back ตาม history ปกติ
+  if (window.history.length > 1) {
+    this.location.back();
+  } else {
+    // กันเคสเปิดมาจาก URL ตรง ๆ ไม่มี history
+    this.router.navigate(['/dashboard']);
+  }
+}
 
   // ===== Rename & Delete =====
   renameTable(t: TableDto) {
@@ -216,9 +286,10 @@ private showHttpError(e: unknown, fallback = 'เกิดข้อผิดพ�
     try {
       await firstValueFrom(this.api.renameTable(t.tableId, next));
       await this.refresh();
+      this.toast.success(`Table renamed to "${next}".`);
     } catch (e) {
-    this.showHttpError(e, 'แก้ไขชื่อไม่สำเร็จ');
-  }finally {
+      this.showHttpError(e, 'แก้ไขชื่อไม่สำเร็จ');
+    } finally {
       this.renamingId.set(null);
       this.closeRenameDialog();
     }
@@ -238,9 +309,10 @@ private showHttpError(e: unknown, fallback = 'เกิดข้อผิดพ�
       await firstValueFrom(this.api.deleteTable(t.tableId));
       localStorage.removeItem(`ph:auto:${t.tableId}`);
       await this.refresh();
+      this.toast.success(`Table "${t.name}" deleted successfully.`);
     } catch (e) {
-    this.showHttpError(e, 'ลบตารางไม่สำเร็จ');
-  }finally {
+      this.showHttpError(e, 'ลบตารางไม่สำเร็จ');
+    } finally {
       this.deletingId.set(null);
       this.closeDeleteDialog();
     }
@@ -256,15 +328,26 @@ private showHttpError(e: unknown, fallback = 'เกิดข้อผิดพ�
     this.asideOpen.set(next);
     if (typeof document !== 'undefined') document.body.style.overflow = next ? 'hidden' : '';
   }
-  toggleProfileMenu() { this.profileOpen.update(v => !v); }
-  onEditProfile() { this.profileOpen.set(false); this.router.navigateByUrl('/profile/edit'); }
-  onLogout() { this.profileOpen.set(false); this.router.navigateByUrl('/login'); }
+  toggleProfileMenu() {
+    this.profileOpen.update((v) => !v);
+  }
+  onEditProfile() {
+    this.profileOpen.set(false);
+    this.router.navigateByUrl('/profile/edit');
+  }
+  onLogout() {
+    this.profileOpen.set(false);
+    this.router.navigateByUrl('/login');
+  }
 
   @HostListener('document:click') onDocClick() {
     if (this.profileOpen()) this.profileOpen.set(false);
   }
   @HostListener('document:keydown.escape') onEsc() {
-    if (this.profileOpen()) { this.profileOpen.set(false); return; }
+    if (this.profileOpen()) {
+      this.profileOpen.set(false);
+      return;
+    }
     if (this.asideOpen()) {
       this.asideOpen.set(false);
       if (typeof document !== 'undefined') document.body.style.overflow = '';
@@ -277,8 +360,18 @@ private showHttpError(e: unknown, fallback = 'เกิดข้อผิดพ�
     if (this.page() > maxPage) this.page.set(maxPage);
     if (this.page() < 1) this.page.set(1);
   }
-  onSearch(value: string) { this.q.set(value); this.page.set(1); this.normalizePage(); }
-  nextPage() { if (this.page() < this.totalPages()) this.page.update(p => p + 1); }
-  prevPage() { if (this.page() > 1) this.page.update(p => p - 1); }
-  onBackToDashboard() { this.router.navigate(['/dashboard']); }
+  onSearch(value: string) {
+    this.q.set(value);
+    this.page.set(1);
+    this.normalizePage();
+  }
+  nextPage() {
+    if (this.page() < this.totalPages()) this.page.update((p) => p + 1);
+  }
+  prevPage() {
+    if (this.page() > 1) this.page.update((p) => p - 1);
+  }
+  onBackToDashboard() {
+    this.router.navigate(['/dashboard']);
+  }
 }

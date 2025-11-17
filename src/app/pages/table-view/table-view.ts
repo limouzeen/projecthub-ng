@@ -1196,13 +1196,18 @@ export class TableView implements OnInit, OnDestroy, AfterViewInit {
 
   // ====== BACK 2 Project ==========
   onBackToProject() {
-    if (this.projectId) {
-      this.router.navigate(['/projects', this.projectId]);
-    } else {
-      // fallback ถ้าไม่มี projectId (เช่น เข้ามาจาก URL ตรง)
-      this.router.navigate(['/projects']);
-    }
+  const projectId = this.projectId; // ตัวที่คุณอ่านมาจาก queryParams หรือ route ตอนโหลดหน้า
+
+  if (projectId) {
+    this.router.navigate(
+      ['/projects', projectId],
+      { queryParams: { from: 'table' } }   //  flag ว่ามาจาก table-view
+    );
+  } else {
+    // กันเคสไม่มี projectId จริง ๆ
+    this.router.navigate(['/dashboard']);
   }
+}
 
   /** แปลงชนิดข้อมูลตาม schema columns ก่อนส่งให้ backend */
  private normalizeRowForSave(
