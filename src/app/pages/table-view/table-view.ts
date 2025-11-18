@@ -341,27 +341,26 @@ export class TableView implements OnInit, OnDestroy, AfterViewInit {
   }
 
   async onSaveRow(newObj: Record<string, any>) {
-  this.rowOpen.set(false);
-  this.rowInitData = null;
+    this.rowOpen.set(false);
+    this.rowInitData = null;
 
-  const isCreate = !this.editingRow;
-  const normalized = this.normalizeRowForSave(
-    newObj,
-    isCreate && this.isAutoTable(), // สำหรับ auto PK
-    isCreate                        // ส่ง flag ว่านี่คือ create
-  );
+    const isCreate = !this.editingRow;
+    const normalized = this.normalizeRowForSave(
+      newObj,
+      isCreate && this.isAutoTable(), // สำหรับ auto PK
+      isCreate // ส่ง flag ว่านี่คือ create
+    );
 
-  if (this.editingRow) {
-    await firstValueFrom(this.api.updateRow(this.editingRow.rowId, normalized));
-    if (TableView.USE_REMOTE) this.reloadRemoteCurrentPage();
-    else this.reloadLocalCurrentPage();
-  } else {
-    await firstValueFrom(this.api.createRow(this.tableId, normalized));
-    if (TableView.USE_REMOTE) await this.reloadRemoteToLastPage();
-    else await this.reloadLocalToLastPage();
+    if (this.editingRow) {
+      await firstValueFrom(this.api.updateRow(this.editingRow.rowId, normalized));
+      if (TableView.USE_REMOTE) this.reloadRemoteCurrentPage();
+      else this.reloadLocalCurrentPage();
+    } else {
+      await firstValueFrom(this.api.createRow(this.tableId, normalized));
+      if (TableView.USE_REMOTE) await this.reloadRemoteToLastPage();
+      else await this.reloadLocalToLastPage();
+    }
   }
-}
-
 
   async onDeleteRow(r: RowDto) {
     if (!confirm('Delete this row?')) return;
@@ -422,7 +421,6 @@ export class TableView implements OnInit, OnDestroy, AfterViewInit {
 
       // 2. แปลงตาม schema ให้เป็น number / boolean ให้ถูกต้อง
       const normalized = this.normalizeRowForSave(raw, false, false);
-
 
       // 3. ยิง PUT /api/rows/{id} ด้วยข้อมูลทั้งแถว
       await firstValueFrom(this.api.updateRow(rowId, normalized));
@@ -505,25 +503,24 @@ export class TableView implements OnInit, OnDestroy, AfterViewInit {
   //                 TABULATOR CONFIG
   // =====================================================
   private hasImageColumn(): boolean {
-  return this.columns().some((c) => {
-    const t = (c.dataType || '').toUpperCase();
-    if (t === 'IMAGE') return true;
+    return this.columns().some((c) => {
+      const t = (c.dataType || '').toUpperCase();
+      if (t === 'IMAGE') return true;
 
-    if (t === 'LOOKUP') {
-      const name = (c.name || '').toLowerCase();
-      const target = (c.lookupTargetColumnName || '').toLowerCase();
-      return (
-        name.includes('img') ||
-        name.includes('image') ||
-        target.includes('img') ||
-        target.includes('image')
-      );
-    }
+      if (t === 'LOOKUP') {
+        const name = (c.name || '').toLowerCase();
+        const target = (c.lookupTargetColumnName || '').toLowerCase();
+        return (
+          name.includes('img') ||
+          name.includes('image') ||
+          target.includes('img') ||
+          target.includes('image')
+        );
+      }
 
-    return false;
-  });
-}
-
+      return false;
+    });
+  }
 
   private colSignature(): string {
     return this.columns()
@@ -808,83 +805,89 @@ export class TableView implements OnInit, OnDestroy, AfterViewInit {
         }
 
         // DATE type
-         case 'DATE': {
-    return {
-      ...base,
+        case 'DATE': {
+          return {
+            ...base,
 
-      // ใช้ custom editor เป็น <input type="date">
-      editor: (cell: any, onRendered: any, success: (v: any) => void, cancel: () => void) => {
-        const input = document.createElement('input');
-        input.type = 'date';
-        input.className = 'ph-date-editor-input'; // ใช้ class เดิม/ธีมเดิมได้ตามใจ
+            // ใช้ custom editor เป็น <input type="date">
+            editor: (cell: any, onRendered: any, success: (v: any) => void, cancel: () => void) => {
+              const input = document.createElement('input');
+              input.type = 'date';
+              input.className = 'ph-date-editor-input'; // ใช้ class เดิม/ธีมเดิมได้ตามใจ
 
-        const raw = cell.getValue();
-        input.value = this.toInputDateValue(raw);
+              const raw = cell.getValue();
+              input.value = this.toInputDateValue(raw);
 
-        onRendered(() => {
-          input.focus();
-          input.select?.();
-        });
+              onRendered(() => {
+                input.focus();
+                input.select?.();
+              });
 
-        const commit = () => success(input.value);
+              const commit = () => success(input.value);
 
-        input.addEventListener('change', commit);
-        input.addEventListener('blur', commit);
-        input.addEventListener('keydown', (e: KeyboardEvent) => {
-          if (e.key === 'Enter') {
-            e.preventDefault();
-            commit();
+              input.addEventListener('change', commit);
+              input.addEventListener('blur', commit);
+              input.addEventListener('keydown', (e: KeyboardEvent) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault();
+                  commit();
+                }
+                if (e.key === 'Escape') {
+                  e.preventDefault();
+                  cancel();
+                }
+              });
+
+              return input;
+            },
+
+            // formatter: แสดงเป็น dd-MM-yyyy เสมอ
+            formatter: (cell: any) => {
+              const raw = cell.getValue();
+              const text = this.formatDateDdMmYyyy(raw);
+              return `<span>${text}</span>`;
+            },
+          };
+        }
+
+        case 'LOOKUP': {
+          // เดาว่าเป็น lookup รูป:
+          //  - ชื่อ column มีคำว่า img / image
+          //  - หรือ lookupTargetColumnName มีคำว่า img / image
+          const name = (c.name || '').toLowerCase();
+          const targetName = (c.lookupTargetColumnName || '').toLowerCase();
+          const isImageLookup =
+            name.includes('img') ||
+            name.includes('image') ||
+            targetName.includes('img') ||
+            targetName.includes('image');
+
+          // 1) lookup ปกติ → แสดง text จาก __display, แต่เก็บ PK ใน field หลัก
+          if (!isImageLookup) {
+            return {
+              ...base,
+              editor: false, // read-only
+              formatter: (cell: any) => {
+                const data = cell.getRow().getData();
+                const field = cell.getField(); // เช่น "PriceLkup"
+                const disp = data[`${field}__display`];
+                return disp ?? '';
+              },
+            };
           }
-          if (e.key === 'Escape') {
-            e.preventDefault();
-            cancel();
-          }
-        });
 
-        return input;
-      },
+          //  lookup ที่เอาไว้โชว์รูป → แสดงเป็น cell รูป (read-only)
+          return {
+            ...base,
+            cssClass: 'cell-image',
+            minWidth: 160,
+            editor: false, // read-only
 
-      // formatter: แสดงเป็น dd-MM-yyyy เสมอ
-      formatter: (cell: any) => {
-        const raw = cell.getValue();
-        const text = this.formatDateDdMmYyyy(raw);
-        return `<span>${text}</span>`;
-      },
-    };
-  }
+            formatter: (cell: any) => {
+              const url = (cell.getValue() as string) || '';
 
-   case 'LOOKUP': {
-      // เดาว่าเป็น lookup รูป:
-      //  - ชื่อ column มีคำว่า img / image
-      //  - หรือ lookupTargetColumnName มีคำว่า img / image
-      const name = (c.name || '').toLowerCase();
-      const targetName = (c.lookupTargetColumnName || '').toLowerCase();
-      const isImageLookup =
-        name.includes('img') ||
-        name.includes('image') ||
-        targetName.includes('img') ||
-        targetName.includes('image');
-
-      if (!isImageLookup) {
-        // lookup ปกติ → แสดงเป็น text เฉย ๆ
-        return {
-          ...base,
-          editor: false,
-        };
-      }
-
-      //  lookup ที่เอาไว้โชว์รูป → แสดงเป็น cell รูป (read-only)
-      return {
-        ...base,
-        cssClass: 'cell-image',
-        minWidth: 160,
-        editor: false, // read-only
-
-        formatter: (cell: any) => {
-          const url = (cell.getValue() as string) || '';
-
-          const wrap = document.createElement('div');
-          wrap.style.cssText = `
+              const wrap = document.createElement('div');
+              wrap.style.cssText = `
             position:relative;
             width:100%; 
             height:${this.THUMB_H}px;
@@ -895,11 +898,11 @@ export class TableView implements OnInit, OnDestroy, AfterViewInit {
             overflow:hidden;
           `;
 
-          // ถ้า value ดูเหมือนเป็น URL รูป → แสดงรูป
-          if (url && (/^https?:\/\//i.test(url) || url.startsWith('data:'))) {
-            const img = document.createElement('img');
-            img.src = url;
-            img.style.cssText = `
+              // ถ้า value ดูเหมือนเป็น URL รูป → แสดงรูป
+              if (url && (/^https?:\/\//i.test(url) || url.startsWith('data:'))) {
+                const img = document.createElement('img');
+                img.src = url;
+                img.style.cssText = `
               max-height:${this.THUMB_H - 10}px;
               max-width:100%;
               height:88px
@@ -909,28 +912,28 @@ export class TableView implements OnInit, OnDestroy, AfterViewInit {
               border-radius:10px;
               box-shadow:0 4px 14px rgba(15,23,42,0.12);
             `;
-            img.onload = () => {
-              try {
-                cell.getRow().normalizeHeight();
-              } catch {}
-            };
-            wrap.appendChild(img);
-          } else {
-            // ถ้าไม่ใช่ URL ก็แสดงเป็น text ปกติ
-            const span = document.createElement('span');
-            span.textContent = url;
-            span.style.cssText = `
+                img.onload = () => {
+                  try {
+                    cell.getRow().normalizeHeight();
+                  } catch {}
+                };
+                wrap.appendChild(img);
+              } else {
+                // ถ้าไม่ใช่ URL ก็แสดงเป็น text ปกติ
+                const span = document.createElement('span');
+                span.textContent = url;
+                span.style.cssText = `
               font-size:11px;
               color:rgba(71,85,105,0.9);
               word-break:break-all;
             `;
-            wrap.appendChild(span);
-          }
+                wrap.appendChild(span);
+              }
 
-          return wrap;
-        },
-      };
-    }
+              return wrap;
+            },
+          };
+        }
 
         default:
           return { ...base, editor: lock ? false : 'input' };
@@ -967,37 +970,44 @@ export class TableView implements OnInit, OnDestroy, AfterViewInit {
   }
 
   private buildDataForGridFromRows(rows: RowDto[]): any[] {
-  const cols = this.columns();
+    const cols = this.columns();
 
-  return rows.map((r) => {
-    let obj: any = {};
-    try {
-      obj = JSON.parse(r.data ?? '{}');
-    } catch {}
+    return rows.map((r) => {
+      let obj: any = {};
+      try {
+        obj = JSON.parse(r.data ?? '{}');
+      } catch {}
 
-    const rec: any = { __rowId: r.rowId };
-    const anyRow = r as any;
+      const rec: any = { __rowId: r.rowId };
+      const anyRow = r as any;
 
-    for (const c of cols) {
-      const name = c.name;
-      const t = (c.dataType || '').toUpperCase();
+      for (const c of cols) {
+        const name = c.name;
+        const t = (c.dataType || '').toUpperCase();
 
-      if (t === 'LOOKUP') {
-        // 1) ถ้า backend JOIN มาให้แล้ว (เช่น r["Product"] = "Notebook A4") ให้ใช้ค่านี้ก่อน
-        if (anyRow[name] !== undefined && anyRow[name] !== null) {
-          rec[name] = anyRow[name];
+        if (t === 'LOOKUP') {
+          // PK จริงที่เก็บใน JSON (ใช้ส่งกลับ backend เสมอ)
+          const fk = obj?.[name] ?? null;
+
+          // display value จาก backend join หรือ fallback เป็น fk เฉย ๆ
+          const display = anyRow[name] ?? fk;
+
+          rec[name] = fk; // ใช้เก็บ PK
+          rec[`${name}__display`] = display ?? null; // ใช้โชว์ใน grid
           continue;
         }
+
+        if (t === 'LOOKUP') {
+          // (กรณี image lookup ถ้าคุณอยากทำพิเศษค่อยแยกอีกชั้นได้)
+        }
+
+        // 2) กรณีธรรมดา หรือไม่มีค่า JOIN
+        rec[name] = obj?.[name] ?? null;
       }
 
-      // 2) กรณีธรรมดา หรือไม่มีค่า JOIN
-      rec[name] = obj?.[name] ?? null;
-    }
-
-    return rec;
-  });
-}
-
+      return rec;
+    });
+  }
 
   // ---------- Local helpers ----------
   private async loadLocalData(goLast = false) {
@@ -1196,129 +1206,130 @@ export class TableView implements OnInit, OnDestroy, AfterViewInit {
 
   // ====== BACK 2 Project ==========
   onBackToProject() {
-  const projectId = this.projectId; // ตัวที่คุณอ่านมาจาก queryParams หรือ route ตอนโหลดหน้า
+    const projectId = this.projectId; // ตัวที่คุณอ่านมาจาก queryParams หรือ route ตอนโหลดหน้า
 
-  if (projectId) {
-    this.router.navigate(
-      ['/projects', projectId],
-      { queryParams: { from: 'table' } }   //  flag ว่ามาจาก table-view
-    );
-  } else {
-    // กันเคสไม่มี projectId จริง ๆ
-    this.router.navigate(['/dashboard']);
+    if (projectId) {
+      this.router.navigate(
+        ['/projects', projectId],
+        { queryParams: { from: 'table' } } //  flag ว่ามาจาก table-view
+      );
+    } else {
+      // กันเคสไม่มี projectId จริง ๆ
+      this.router.navigate(['/dashboard']);
+    }
   }
-}
 
   /** แปลงชนิดข้อมูลตาม schema columns ก่อนส่งให้ backend */
- private normalizeRowForSave(
-  raw: Record<string, any>,
-  skipAutoPkForCreate = false,
-  isCreate = false
-): Record<string, any> {
-  const out: Record<string, any> = {};
+  private normalizeRowForSave(
+    raw: Record<string, any>,
+    skipAutoPkForCreate = false,
+    isCreate = false
+  ): Record<string, any> {
+    const out: Record<string, any> = {};
 
-  for (const c of this.columns()) {
-    const key = c.name;
-    const t = (c.dataType || '').toUpperCase();
-    const v = raw[key];
+    for (const c of this.columns()) {
+      const key = c.name;
+      const t = (c.dataType || '').toUpperCase();
+      const v = raw[key];
 
-    // 1) FORMULA = ห้ามส่งทุกกรณี
-    if (t === 'FORMULA') {
-      continue;
-    }
-
-    // 2) LOOKUP = ส่งเฉพาะตอน create เท่านั้น
-    if (t === 'LOOKUP') {
-      if (!isCreate) {
-        // update → ไม่ส่ง lookup column
+      // 1) FORMULA = ห้ามส่งทุกกรณี
+      if (t === 'FORMULA') {
         continue;
       }
-      // create → ให้หลุดไป logic ด้านล่าง (cast เป็น number ได้)
-    }
 
-    // 3) ถ้าเป็น create + auto-table + เป็น PK → ไม่ต้องส่ง
-    if (skipAutoPkForCreate && this.isAutoTable() && c.isPrimary) {
+      // 2) LOOKUP = ใช้ PK จาก field หลัก (ไม่ใช้ display)
+    if (t === 'LOOKUP') {
+      // พยายามอ่านจาก hidden field ก่อน (เผื่อคุณอยากเก็บไว้)
+      const fkRaw = raw[key]; // ตอนนี้ raw[key] = PK แน่นอนแล้ว จากข้อ 1
+      if (fkRaw === '' || fkRaw === undefined) {
+        out[key] = null;
+      } else {
+        out[key] = Number.parseInt(fkRaw as any, 10);
+      }
       continue;
     }
 
-    if (v === '' || v === undefined) {
-      out[key] = null;
-      continue;
+      // 3) ถ้าเป็น create + auto-table + เป็น PK → ไม่ต้องส่ง
+      if (skipAutoPkForCreate && this.isAutoTable() && c.isPrimary) {
+        continue;
+      }
+
+      if (v === '' || v === undefined) {
+        out[key] = null;
+        continue;
+      }
+
+      switch (t) {
+        case 'INTEGER':
+        case 'INT':
+          out[key] = v === null ? null : Number.parseInt(v as any, 10);
+          break;
+
+        case 'REAL':
+        case 'NUMBER':
+        case 'FLOAT':
+          out[key] = v === null ? null : Number.parseFloat(v as any);
+          break;
+
+        case 'BOOLEAN':
+          out[key] = v === true || v === 'true' || v === 1 || v === '1';
+          break;
+
+        default:
+          out[key] = v;
+      }
     }
 
-    switch (t) {
-      case 'INTEGER':
-      case 'INT':
-        out[key] = v === null ? null : Number.parseInt(v as any, 10);
-        break;
-
-      case 'REAL':
-      case 'NUMBER':
-      case 'FLOAT':
-        out[key] = v === null ? null : Number.parseFloat(v as any);
-        break;
-
-      case 'BOOLEAN':
-        out[key] = v === true || v === 'true' || v === 1 || v === '1';
-        break;
-
-      default:
-        out[key] = v;
-    }
+    return out;
   }
-
-  return out;
-}
-
 
   // แปลง string วันที่จาก backend → แสดงเป็น dd-MM-yyyy
-private formatDateDdMmYyyy(raw: any): string {
-  if (!raw) return '';
+  private formatDateDdMmYyyy(raw: any): string {
+    if (!raw) return '';
 
-  if (typeof raw !== 'string') {
-    return String(raw);
+    if (typeof raw !== 'string') {
+      return String(raw);
+    }
+
+    // รองรับทั้ง "yyyy-MM-dd", "yyyy/MM/dd", "dd-MM-yyyy" เผื่อไว้
+    let y: string, m: string, d: string;
+
+    if (/^\d{4}[-/]\d{2}[-/]\d{2}$/.test(raw)) {
+      // yyyy-MM-dd หรือ yyyy/MM/dd
+      const parts = raw.split(/[-/]/);
+      [y, m, d] = parts;
+    } else if (/^\d{2}-\d{2}-\d{4}$/.test(raw)) {
+      // dd-MM-yyyy อยู่แล้ว
+      return raw;
+    } else {
+      return raw; // format แปลก ๆ ไม่แปลง
+    }
+
+    return `${d}-${m}-${y}`;
   }
 
-  // รองรับทั้ง "yyyy-MM-dd", "yyyy/MM/dd", "dd-MM-yyyy" เผื่อไว้
-  let y: string, m: string, d: string;
+  // ใช้ตอน editor (input type="date") ต้องการค่าแบบ yyyy-MM-dd
+  private toInputDateValue(raw: any): string {
+    if (!raw) return '';
 
-  if (/^\d{4}[-/]\d{2}[-/]\d{2}$/.test(raw)) {
-    // yyyy-MM-dd หรือ yyyy/MM/dd
-    const parts = raw.split(/[-/]/);
-    [y, m, d] = parts;
-  } else if (/^\d{2}-\d{2}-\d{4}$/.test(raw)) {
-    // dd-MM-yyyy อยู่แล้ว
-    return raw;
-  } else {
-    return raw; // format แปลก ๆ ไม่แปลง
+    if (typeof raw !== 'string') return '';
+
+    // ถ้าเป็น dd-MM-yyyy ให้สลับกลับเป็น yyyy-MM-dd
+    if (/^\d{2}-\d{2}-\d{4}$/.test(raw)) {
+      const [d, m, y] = raw.split('-');
+      return `${y}-${m}-${d}`;
+    }
+
+    // ถ้าเป็น yyyy/MM/dd ให้เปลี่ยน / → -
+    if (/^\d{4}\/\d{2}\/\d{2}$/.test(raw)) {
+      return raw.replace(/\//g, '-');
+    }
+
+    // ถ้าเป็น yyyy-MM-dd อยู่แล้ว
+    if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) {
+      return raw;
+    }
+
+    return '';
   }
-
-  return `${d}-${m}-${y}`;
-}
-
-// ใช้ตอน editor (input type="date") ต้องการค่าแบบ yyyy-MM-dd
-private toInputDateValue(raw: any): string {
-  if (!raw) return '';
-
-  if (typeof raw !== 'string') return '';
-
-  // ถ้าเป็น dd-MM-yyyy ให้สลับกลับเป็น yyyy-MM-dd
-  if (/^\d{2}-\d{2}-\d{4}$/.test(raw)) {
-    const [d, m, y] = raw.split('-');
-    return `${y}-${m}-${d}`;
-  }
-
-  // ถ้าเป็น yyyy/MM/dd ให้เปลี่ยน / → -
-  if (/^\d{4}\/\d{2}\/\d{2}$/.test(raw)) {
-    return raw.replace(/\//g, '-');
-  }
-
-  // ถ้าเป็น yyyy-MM-dd อยู่แล้ว
-  if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) {
-    return raw;
-  }
-
-  return '';
-}
-
 }

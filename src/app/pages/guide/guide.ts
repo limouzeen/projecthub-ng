@@ -8,7 +8,7 @@ import { FooterStateService } from '../../core/footer-state.service';
   templateUrl: './guide.html',
   styleUrl: './guide.css',
 })
-export class Guide {
+export class Guide implements OnInit, OnDestroy{
        //  constructor
   constructor(
     private footer: FooterStateService,private location: Location
