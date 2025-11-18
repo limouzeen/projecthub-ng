@@ -44,7 +44,7 @@ export class FieldDialog implements OnChanges {
   @Input() open = false;
   @Input({ required: true }) tableId!: number;
 
-  @Input({ required: true }) projectId!: number;  
+  @Input({ required: true }) projectId!: number;
 
   @Output() save = new EventEmitter<FieldDialogModel>();
   @Output() cancel = new EventEmitter<void>();
@@ -57,12 +57,20 @@ export class FieldDialog implements OnChanges {
 
   isNullable = true;
   isPrimary = false;
-  dataType: 'TEXT' | 'INTEGER' | 'REAL' | 'BOOLEAN' | 'STRING' | 'IMAGE' | 'LOOKUP' | 'FORMULA' | 'DATE' = 'TEXT';
+  dataType:
+    | 'TEXT'
+    | 'INTEGER'
+    | 'REAL'
+    | 'BOOLEAN'
+    | 'STRING'
+    | 'IMAGE'
+    | 'LOOKUP'
+    | 'FORMULA'
+    | 'DATE' = 'TEXT';
 
   // lookup
   targetTableId: number | null = null;
   targetColumnId: number | null = null;
- 
 
   // formula (จะเก็บ JSON string ตาม format ใหม่)
   formulaDefinition = '';
@@ -91,14 +99,14 @@ export class FieldDialog implements OnChanges {
 
       // mock: โหลด table list (ใช้สำหรับ Lookup)
       const tabs = (await firstValueFrom(this.api.listTables(this.projectId))) ?? [];
-this.tables.set(tabs);
+      this.tables.set(tabs);
 
       // โหลด numericCols สำหรับ Formula เดิม
-    await this.loadNumericColumns();
+      await this.loadNumericColumns();
 
-    // โหลดคอลัมน์ทั้งหมดของ table ปัจจุบัน สำหรับใช้เป็น sourceColumn
-    const current = (await firstValueFrom(this.api.listColumnsLite(this.tableId))) ?? [];
-    this.currentCols.set(current);
+      // โหลดคอลัมน์ทั้งหมดของ table ปัจจุบัน สำหรับใช้เป็น sourceColumn
+      const current = (await firstValueFrom(this.api.listColumnsLite(this.tableId))) ?? [];
+      this.currentCols.set(current);
 
       this.applyPreset();
     }
@@ -117,7 +125,6 @@ this.tables.set(tabs);
     this.targetTableId = null;
     this.targetColumnId = null;
     this.targetCols.set([]);
-
 
     this.formulaDefinition = '';
 
@@ -206,8 +213,27 @@ this.tables.set(tabs);
       this.targetCols.set([]);
       return;
     }
-    const cols = (await firstValueFrom(this.api.listColumnsLite(this.targetTableId))) ?? [];
-    this.targetCols.set(cols);
+    // ใช้ listColumns แบบเต็มเพื่อดู dataType ได้
+    const cols: ColumnDto[] =
+      (await firstValueFrom(this.api.listColumns(this.targetTableId))) ?? [];
+
+    // กรอง column ที่เป็น FORMULA ออกไป
+    const filtered = cols
+      .filter((c) => (c.dataType || '').toUpperCase() !== 'FORMULA')
+      .map(
+        (c) =>
+          ({
+            columnId: c.columnId,
+            name: c.name,
+          } as ColumnListItem)
+      );
+
+    this.targetCols.set(filtered);
+
+    // กันค่าค้าง ถ้า column ที่เคยเลือกถูกกรองทิ้ง ให้รีเซ็ตเป็น null
+    if (!filtered.some((c) => c.columnId === this.targetColumnId)) {
+      this.targetColumnId = null;
+    }
   }
 
   setFormulaOp(op: '+' | '-' | '*' | '/') {
@@ -248,7 +274,8 @@ this.tables.set(tabs);
         name: rightName,
       };
     } else {
-      if (this.formulaRightLiteral === '' || this.formulaRightLiteral === null as any) return null;
+      if (this.formulaRightLiteral === '' || this.formulaRightLiteral === (null as any))
+        return null;
       const lit = Number(this.formulaRightLiteral);
       if (Number.isNaN(lit)) return null;
       rightNode = {
@@ -277,20 +304,19 @@ this.tables.set(tabs);
   }
 
   canSubmit(): boolean {
-  if (!this.name.trim()) return false;
+    if (!this.name.trim()) return false;
 
-  if (this.preset === 'Formula') {
-    return this.buildFormulaDefinition() !== null;
+    if (this.preset === 'Formula') {
+      return this.buildFormulaDefinition() !== null;
+    }
+
+    if (this.preset === 'Lookup') {
+      // ต้องเลือก targetTable, targetColumn, sourceColumn ให้ครบ
+      return !!this.targetTableId && !!this.targetColumnId;
+    }
+
+    return true;
   }
-
-  if (this.preset === 'Lookup') {
-    // ต้องเลือก targetTable, targetColumn, sourceColumn ให้ครบ
-    return !!this.targetTableId && !!this.targetColumnId ;
-  }
-
-  return true;
-}
-
 
   // ========== actions ==========
   submit() {
@@ -306,7 +332,7 @@ this.tables.set(tabs);
       isPrimary: this.isPrimary,
       targetTableId: this.preset === 'Lookup' ? this.targetTableId : null,
       targetColumnId: this.preset === 'Lookup' ? this.targetColumnId : null,
-      
+
       formulaDefinition: null,
     };
 
@@ -317,9 +343,6 @@ this.tables.set(tabs);
         return;
       }
       model.formulaDefinition = def;
-      // TODO (API จริง):
-      // ส่ง model นี้ไปยัง endpoint เช่น POST /tables/{tableId}/columns
-      // โดย BE จะอ่าน field formulaDefinition เพื่อสร้างสูตร
     }
 
     this.save.emit(model);

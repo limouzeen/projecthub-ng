@@ -89,6 +89,12 @@ export class RowDialog implements OnChanges {
       const t = this.normalizeTypeStr(c.dataType);
       const v = src[key];
 
+      // ไม่ส่ง FORMULA กลับไป
+      if (t === 'FORMULA') {
+      continue;
+    }
+
+
       if (c.isPrimary) {
         if (this.isAutoTable) {
          if (!this.initData) {
