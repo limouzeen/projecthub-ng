@@ -851,84 +851,95 @@ export class TableView implements OnInit, OnDestroy, AfterViewInit {
         }
 
         case 'LOOKUP': {
-  const colName = c.name || '';
-
-  const nameLower = colName.toLowerCase();
+  const colName = (c.name || '').toLowerCase();
   const targetName = (c.lookupTargetColumnName || '').toLowerCase();
+
   const isImageLookup =
-    nameLower.includes('img') ||
-    nameLower.includes('image') ||
+    colName.includes('img') ||
+    colName.includes('image') ||
     targetName.includes('img') ||
     targetName.includes('image');
 
-  // 1) lookup ปกติ → แสดง text จาก __display, แต่เก็บ PK ใน field หลัก
-  if (!isImageLookup) {
+  // ---------- lookup รูป ----------
+  if (isImageLookup) {
     return {
       ...base,
-      editor: false, // read-only
+      cssClass: 'cell-image',
+      minWidth: 160,
+      editor: false,
       formatter: (cell: any) => {
-        const data = cell.getRow().getData();
-        const field = cell.getField();               // เช่น "PriceLkup"
-        const disp = data[`${field}__display`];      // เช่น 189, true/false, ชื่อ ฯลฯ
-        return disp ?? '';
+        const url = (cell.getValue() as string) || '';
+        const wrap = document.createElement('div');
+        wrap.style.cssText = `
+          position:relative;
+          width:100%; 
+          height:${this.THUMB_H}px;
+          display:flex;
+          align-items:center;
+          justify-content:center;
+          box-sizing:border-box;
+          overflow:hidden;
+        `;
+
+        if (url && (/^https?:\/\//i.test(url) || url.startsWith('data:'))) {
+          const img = document.createElement('img');
+          img.src = url;
+          img.style.cssText = `
+            max-height:${this.THUMB_H - 10}px;
+            max-width:100%;
+            object-fit:contain;
+            display:block;
+            margin:0 auto;
+            border-radius:10px;
+            box-shadow:0 4px 14px rgba(15,23,42,0.12);
+          `;
+          img.onload = () => {
+            try { cell.getRow().normalizeHeight(); } catch {}
+          };
+          wrap.appendChild(img);
+        }
+
+        return wrap;
       },
     };
   }
 
-  // 2) lookup รูป → ใช้ __display เป็น URL รูป
+  // ---------- lookup ปกติ ----------
   return {
     ...base,
-    cssClass: 'cell-image',
-    minWidth: 160,
-    editor: false, // read-only
-
+    editor: false,
     formatter: (cell: any) => {
-      const data = cell.getRow().getData();
-      const field = cell.getField();                   // เช่น "img"
-      const url = (data[`${field}__display`] as string) || '';  // ⭐ ใช้ __display แทน
+      const rowData = cell.getRow().getData();
+      const field = cell.getField();              // เช่น "s.tus"
+      const disp = rowData[`${field}__display`];  // true/false จาก backend
 
-      const wrap = document.createElement('div');
-      wrap.style.cssText = `
-        position:relative;
-        width:100%;
-        height:${this.THUMB_H}px;
-        display:flex;
-        align-items:center;
-        justify-content:center;
-        box-sizing:border-box;
-        overflow:hidden;
-      `;
+      // ถ้าเป็น boolean → แสดงแบบ tickCross style เดิม
+      const isBoolLike =
+        disp === true  || disp === false ||
+        disp === 'true' || disp === 'false' ||
+        disp === 1 || disp === 0 ||
+        disp === '1' || disp === '0';
 
-      if (url && (/^https?:\/\//i.test(url) || url.startsWith('data:'))) {
-        const img = document.createElement('img');
-        img.src = url;
-        img.style.cssText = `
-          max-height:${this.THUMB_H - 10}px;
-          max-width:100%;
-          object-fit:contain;
-          display:block;
-          margin:0 auto;
-          border-radius:10px;
-          box-shadow:0 4px 14px rgba(15,23,42,0.12);
-        `;
-        img.onload = () => {
-          try {
-            cell.getRow().normalizeHeight();
-          } catch {}
-        };
-        wrap.appendChild(img);
-      } else {
-        const span = document.createElement('span');
-        span.textContent = url ?? '';
-        span.style.cssText = `
-          font-size:11px;
-          color:rgba(71,85,105,0.9);
-          word-break:break-all;
-        `;
-        wrap.appendChild(span);
+      if (isBoolLike) {
+        const v =
+          disp === true || disp === 'true' ||
+          disp === 1    || disp === '1';
+
+        const symbol = v ? '✓' : '✗';
+        const color  = v ? '#22c55e' : '#ef4444'; // เขียว / แดง แบบ Tabulator
+
+        // ทำให้หน้าตาใกล้เคียง tickCross เดิมที่สุด
+        return `<span style="
+          font-size:16px;
+          font-weight:700;
+          color:${color};
+          line-height:1;
+          display:inline-block;
+        ">${symbol}</span>`;
       }
 
-      return wrap;
+      // กรณีอื่น ๆ → text ปกติ
+      return disp ?? '';
     },
   };
 }
@@ -987,18 +998,31 @@ export class TableView implements OnInit, OnDestroy, AfterViewInit {
       const t = (c.dataType || '').toUpperCase();
 
       if (t === 'LOOKUP') {
-        // PK ที่เก็บใน JSON (ใช้ส่งกลับ backend)
-        const fk = obj?.[name] ?? null;
+        const lower = (name || '').toLowerCase();
+        const target = (c.lookupTargetColumnName || '').toLowerCase();
+        const isImageLookup =
+          lower.includes('img') ||
+          lower.includes('image') ||
+          target.includes('img') ||
+          target.includes('image');
 
-        // display จาก backend join (เช่น ราคา 189, boolean true/false, URL รูป)
+        // FK ที่เก็บใน JSON
+        const fk = obj?.[name] ?? null;
+        // ค่า display จาก backend join (หรือ fallback เป็น fk)
         const display = anyRow[name] ?? fk;
 
-        rec[name] = fk;                         // ใช้เก็บ PK
-        rec[`${name}__display`] = display ?? null; // ใช้โชว์ใน grid
+        if (isImageLookup) {
+          // lookup รูป → ใช้ display (URL) เป็นค่าหลักของ cell
+          rec[name] = display ?? null;
+        } else {
+          // lookup ปกติ → เก็บ FK ไว้ใน field หลัก, display แยกไว้
+          rec[name] = fk;
+          rec[`${name}__display`] = display ?? null;
+        }
         continue;
       }
 
-      // field ปกติ
+      // คอลัมน์อื่น ๆ
       rec[name] = obj?.[name] ?? null;
     }
 
