@@ -851,89 +851,90 @@ export class TableView implements OnInit, OnDestroy, AfterViewInit {
         }
 
         case 'LOOKUP': {
-          // เดาว่าเป็น lookup รูป:
-          //  - ชื่อ column มีคำว่า img / image
-          //  - หรือ lookupTargetColumnName มีคำว่า img / image
-          const name = (c.name || '').toLowerCase();
-          const targetName = (c.lookupTargetColumnName || '').toLowerCase();
-          const isImageLookup =
-            name.includes('img') ||
-            name.includes('image') ||
-            targetName.includes('img') ||
-            targetName.includes('image');
+  const colName = c.name || '';
 
-          // 1) lookup ปกติ → แสดง text จาก __display, แต่เก็บ PK ใน field หลัก
-          if (!isImageLookup) {
-            return {
-              ...base,
-              editor: false, // read-only
-              formatter: (cell: any) => {
-                const data = cell.getRow().getData();
-                const field = cell.getField(); // เช่น "PriceLkup"
-                const disp = data[`${field}__display`];
-                return disp ?? '';
-              },
-            };
-          }
+  const nameLower = colName.toLowerCase();
+  const targetName = (c.lookupTargetColumnName || '').toLowerCase();
+  const isImageLookup =
+    nameLower.includes('img') ||
+    nameLower.includes('image') ||
+    targetName.includes('img') ||
+    targetName.includes('image');
 
-          //  lookup ที่เอาไว้โชว์รูป → แสดงเป็น cell รูป (read-only)
-          return {
-            ...base,
-            cssClass: 'cell-image',
-            minWidth: 160,
-            editor: false, // read-only
+  // 1) lookup ปกติ → แสดง text จาก __display, แต่เก็บ PK ใน field หลัก
+  if (!isImageLookup) {
+    return {
+      ...base,
+      editor: false, // read-only
+      formatter: (cell: any) => {
+        const data = cell.getRow().getData();
+        const field = cell.getField();               // เช่น "PriceLkup"
+        const disp = data[`${field}__display`];      // เช่น 189, true/false, ชื่อ ฯลฯ
+        return disp ?? '';
+      },
+    };
+  }
 
-            formatter: (cell: any) => {
-              const url = (cell.getValue() as string) || '';
+  // 2) lookup รูป → ใช้ __display เป็น URL รูป
+  return {
+    ...base,
+    cssClass: 'cell-image',
+    minWidth: 160,
+    editor: false, // read-only
 
-              const wrap = document.createElement('div');
-              wrap.style.cssText = `
-            position:relative;
-            width:100%; 
-            height:${this.THUMB_H}px;
-            display:flex;
-            align-items:center;
-            justify-content:center;
-            box-sizing:border-box;
-            overflow:hidden;
-          `;
+    formatter: (cell: any) => {
+      const data = cell.getRow().getData();
+      const field = cell.getField();                   // เช่น "img"
+      const url = (data[`${field}__display`] as string) || '';  // ⭐ ใช้ __display แทน
 
-              // ถ้า value ดูเหมือนเป็น URL รูป → แสดงรูป
-              if (url && (/^https?:\/\//i.test(url) || url.startsWith('data:'))) {
-                const img = document.createElement('img');
-                img.src = url;
-                img.style.cssText = `
-              max-height:${this.THUMB_H - 10}px;
-              max-width:100%;
-              height:88px
-              object-fit:contain;
-              display:block;
-              margin:0 auto;
-              border-radius:10px;
-              box-shadow:0 4px 14px rgba(15,23,42,0.12);
-            `;
-                img.onload = () => {
-                  try {
-                    cell.getRow().normalizeHeight();
-                  } catch {}
-                };
-                wrap.appendChild(img);
-              } else {
-                // ถ้าไม่ใช่ URL ก็แสดงเป็น text ปกติ
-                const span = document.createElement('span');
-                span.textContent = url;
-                span.style.cssText = `
-              font-size:11px;
-              color:rgba(71,85,105,0.9);
-              word-break:break-all;
-            `;
-                wrap.appendChild(span);
-              }
+      const wrap = document.createElement('div');
+      wrap.style.cssText = `
+        position:relative;
+        width:100%;
+        height:${this.THUMB_H}px;
+        display:flex;
+        align-items:center;
+        justify-content:center;
+        box-sizing:border-box;
+        overflow:hidden;
+      `;
 
-              return wrap;
-            },
-          };
-        }
+      if (url && (/^https?:\/\//i.test(url) || url.startsWith('data:'))) {
+        const img = document.createElement('img');
+        img.src = url;
+        img.style.cssText = `
+          max-height:${this.THUMB_H - 10}px;
+          max-width:100%;
+          object-fit:contain;
+          display:block;
+          margin:0 auto;
+          border-radius:10px;
+          box-shadow:0 4px 14px rgba(15,23,42,0.12);
+        `;
+        img.onload = () => {
+          try {
+            cell.getRow().normalizeHeight();
+          } catch {}
+        };
+        wrap.appendChild(img);
+      } else {
+        const span = document.createElement('span');
+        span.textContent = url ?? '';
+        span.style.cssText = `
+          font-size:11px;
+          color:rgba(71,85,105,0.9);
+          word-break:break-all;
+        `;
+        wrap.appendChild(span);
+      }
+
+      return wrap;
+    },
+  };
+}
+
+
+
 
         default:
           return { ...base, editor: lock ? false : 'input' };
@@ -970,44 +971,41 @@ export class TableView implements OnInit, OnDestroy, AfterViewInit {
   }
 
   private buildDataForGridFromRows(rows: RowDto[]): any[] {
-    const cols = this.columns();
+  const cols = this.columns();
 
-    return rows.map((r) => {
-      let obj: any = {};
-      try {
-        obj = JSON.parse(r.data ?? '{}');
-      } catch {}
+  return rows.map((r) => {
+    let obj: any = {};
+    try {
+      obj = JSON.parse(r.data ?? '{}');
+    } catch {}
 
-      const rec: any = { __rowId: r.rowId };
-      const anyRow = r as any;
+    const rec: any = { __rowId: r.rowId };
+    const anyRow = r as any;
 
-      for (const c of cols) {
-        const name = c.name;
-        const t = (c.dataType || '').toUpperCase();
+    for (const c of cols) {
+      const name = c.name;
+      const t = (c.dataType || '').toUpperCase();
 
-        if (t === 'LOOKUP') {
-          // PK จริงที่เก็บใน JSON (ใช้ส่งกลับ backend เสมอ)
-          const fk = obj?.[name] ?? null;
+      if (t === 'LOOKUP') {
+        // PK ที่เก็บใน JSON (ใช้ส่งกลับ backend)
+        const fk = obj?.[name] ?? null;
 
-          // display value จาก backend join หรือ fallback เป็น fk เฉย ๆ
-          const display = anyRow[name] ?? fk;
+        // display จาก backend join (เช่น ราคา 189, boolean true/false, URL รูป)
+        const display = anyRow[name] ?? fk;
 
-          rec[name] = fk; // ใช้เก็บ PK
-          rec[`${name}__display`] = display ?? null; // ใช้โชว์ใน grid
-          continue;
-        }
-
-        if (t === 'LOOKUP') {
-          // (กรณี image lookup ถ้าคุณอยากทำพิเศษค่อยแยกอีกชั้นได้)
-        }
-
-        // 2) กรณีธรรมดา หรือไม่มีค่า JOIN
-        rec[name] = obj?.[name] ?? null;
+        rec[name] = fk;                         // ใช้เก็บ PK
+        rec[`${name}__display`] = display ?? null; // ใช้โชว์ใน grid
+        continue;
       }
 
-      return rec;
-    });
-  }
+      // field ปกติ
+      rec[name] = obj?.[name] ?? null;
+    }
+
+    return rec;
+  });
+}
+
 
   // ---------- Local helpers ----------
   private async loadLocalData(goLast = false) {
