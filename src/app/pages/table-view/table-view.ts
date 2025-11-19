@@ -1024,29 +1024,114 @@ export class TableView implements OnInit, OnDestroy, AfterViewInit {
 
   // Actions column
   defs.push({
-    title: 'Actions',
-    field: '__actions',
-    width: 140,
-    headerHozAlign: 'center',
-    hozAlign: 'center',
-    vertAlign: 'middle',
-    widthGrow: 0,
-    formatter: () => `
-      <div class="ph-actions-cell">
-        <button data-action="save"   class="ph-link ph-link-save">Save</button>
-        <button data-action="delete" class="ph-link ph-link-del">Delete</button>
-      </div>
-    `,
-    cellClick: async (e: any, cell: any) => {
-      const btn = (e.target as HTMLElement).closest('button');
-      if (!btn) return;
-      const action = btn.getAttribute('data-action');
-      const record = cell.getRow().getData() as any;
-      if (action === 'save') await this.saveRowByRecord(record);
-      if (action === 'delete') await this.deleteRowByRecord(record);
-    },
-    resizable: false,
-  });
+  title: 'Actions',
+  field: '__actions',
+  width: 150,
+  headerHozAlign: 'center',
+  hozAlign: 'center',
+  vertAlign: 'middle',
+  widthGrow: 0,
+  formatter: () => `
+    <div
+      style="
+        display:flex;
+        align-items:center;
+        justify-content:center;
+        gap:6px;
+      "
+    >
+      <button
+        type="button"
+        data-action="save"
+        style="
+          padding:4px 12px;
+          border-radius:999px;
+          border:1px solid rgba(16,185,129,0.55);
+          background:linear-gradient(
+            135deg,
+            rgba(209,250,229,0.96),
+            rgba(224,242,254,0.95)
+          );
+          font-size:11px;
+          line-height:1;
+          color:#047857;
+          cursor:pointer;
+          box-shadow:
+            0 1px 2px rgba(15,23,42,0.15),
+            0 0 0 1px rgba(148,163,184,0.15);
+          backdrop-filter:blur(6px);
+          -webkit-backdrop-filter:blur(6px);
+          transition:
+            background-color 120ms ease,
+            box-shadow 120ms ease,
+            transform 80ms ease,
+            border-color 120ms ease,
+            color 120ms ease;
+        "
+        onmouseover="
+          this.style.boxShadow='0 4px 10px rgba(15,23,42,0.18),0 0 0 1px rgba(16,185,129,0.65)';
+          this.style.transform='translateY(-0.5px)';
+        "
+        onmouseout="
+          this.style.boxShadow='0 1px 2px rgba(15,23,42,0.15),0 0 0 1px rgba(148,163,184,0.15)';
+          this.style.transform='translateY(0)';
+        "
+      >
+        Save
+      </button>
+
+      <button
+        type="button"
+        data-action="delete"
+        style="
+          padding:4px 12px;
+          border-radius:999px;
+          border:1px solid rgba(248,113,113,0.6);
+          background:linear-gradient(
+            135deg,
+            rgba(254,242,242,0.96),
+            rgba(255,247,237,0.95)
+          );
+          font-size:11px;
+          line-height:1;
+          color:#b91c1c;
+          cursor:pointer;
+          box-shadow:
+            0 1px 2px rgba(15,23,42,0.15),
+            0 0 0 1px rgba(248,113,113,0.25);
+          backdrop-filter:blur(6px);
+          -webkit-backdrop-filter:blur(6px);
+          transition:
+            background-color 120ms ease,
+            box-shadow 120ms ease,
+            transform 80ms ease,
+            border-color 120ms ease,
+            color 120ms ease;
+        "
+        onmouseover="
+          this.style.boxShadow='0 4px 10px rgba(15,23,42,0.20),0 0 0 1px rgba(248,113,113,0.7)';
+          this.style.transform='translateY(-0.5px)';
+        "
+        onmouseout="
+          this.style.boxShadow='0 1px 2px rgba(15,23,42,0.15),0 0 0 1px rgba(248,113,113,0.25)';
+          this.style.transform='translateY(0)';
+        "
+      >
+        Delete
+      </button>
+    </div>
+  `,
+  cellClick: async (e: any, cell: any) => {
+    const btn = (e.target as HTMLElement).closest('button');
+    if (!btn) return;
+    const action = btn.getAttribute('data-action');
+    const record = cell.getRow().getData() as any;
+    if (action === 'save') await this.saveRowByRecord(record);
+    if (action === 'delete') await this.deleteRowByRecord(record);
+  },
+  resizable: false,
+});
+
 
    // ===== ใช้ field order ที่เคยเซฟไว้ (ไม่สน Actions) =====
   const savedOrder = this.loadSavedColumnLayout();
@@ -1531,7 +1616,7 @@ private saveColumnLayoutFromGrid() {
 
    
   } catch {
-    // เงียบไป
+    
   }
 }
 
