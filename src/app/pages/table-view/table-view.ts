@@ -47,7 +47,7 @@ export class TableView implements OnInit, OnDestroy, AfterViewInit {
   readonly me = signal<MeDto | null>(null);
 
   // เก็บ Data Formula ไว้สำหรับ search
-   private formulaFns = new Map<string, (rec: any) => any>();  
+  private formulaFns = new Map<string, (rec: any) => any>();
 
   tableId = 0;
   columns = signal<ColumnDto[]>([]);
@@ -93,90 +93,89 @@ export class TableView implements OnInit, OnDestroy, AfterViewInit {
   private _lastPageFromServer = 1;
 
   constructor(private footer: FooterStateService) {
-  effect(() => {
-    const q = this.keyword().trim().toLowerCase();
-    if (!this.grid) return;
+    effect(() => {
+      const q = this.keyword().trim().toLowerCase();
+      if (!this.grid) return;
 
-    if (!q) {
+      if (!q) {
+        try {
+          this.grid.clearFilter();
+        } catch {}
+        return;
+      }
+
       try {
-        this.grid.clearFilter();
-      } catch {}
-      return;
-    }
+        const cols = this.columns();
+        const colNames = cols.map((c) => c.name);
 
-    try {
-      const cols = this.columns();
-      const colNames = cols.map(c => c.name);
+        this.grid.setFilter((data: any) => {
+          if (!data) return false;
 
-      this.grid.setFilter((data: any) => {
-        if (!data) return false;
+          // ---------- วิ่งตาม schema column ก่อน ----------
+          for (const c of cols) {
+            const name = c.name;
+            const t = (c.dataType || '').toUpperCase();
 
-        // ---------- วิ่งตาม schema column ก่อน ----------
-        for (const c of cols) {
-          const name = c.name;
-          const t = (c.dataType || '').toUpperCase();
+            const valuesToCheck: any[] = [];
 
-          const valuesToCheck: any[] = [];
-
-          if (t === 'FORMULA') {
-            // ใช้ค่าเลขที่คำนวณแล้วจาก formulaFn
-            const fn = this.formulaFns.get(name);
-            if (fn) {
-              const v = fn(data);
-              valuesToCheck.push(v);
-            }
-          } else if (t === 'LOOKUP') {
-            const fk = data[name];
-            const disp = data[`${name}__display`];
-
-            // เอาทั้ง display + FK มาใช้ค้น
-            valuesToCheck.push(disp, fk);
-
-            // ถ้า display เป็นวันที่ → แปลงเป็น dd-MM-yyyy ด้วย
-            if (typeof disp === 'string') {
-              const raw10 = disp.substring(0, 10);
-              if (
-                /^\d{4}[-/]\d{2}[-/]\d{2}$/.test(raw10) || // yyyy-MM-dd / yyyy/MM/dd
-                /^\d{2}-\d{2}-\d{4}$/.test(raw10)         // dd-MM-yyyy
-              ) {
-                valuesToCheck.push(this.formatDateDdMmYyyy(raw10));
+            if (t === 'FORMULA') {
+              // ใช้ค่าเลขที่คำนวณแล้วจาก formulaFn
+              const fn = this.formulaFns.get(name);
+              if (fn) {
+                const v = fn(data);
+                valuesToCheck.push(v);
               }
+            } else if (t === 'LOOKUP') {
+              const fk = data[name];
+              const disp = data[`${name}__display`];
+
+              // เอาทั้ง display + FK มาใช้ค้น
+              valuesToCheck.push(disp, fk);
+
+              // ถ้า display เป็นวันที่ → แปลงเป็น dd-MM-yyyy ด้วย
+              if (typeof disp === 'string') {
+                const raw10 = disp.substring(0, 10);
+                if (
+                  /^\d{4}[-/]\d{2}[-/]\d{2}$/.test(raw10) || // yyyy-MM-dd / yyyy/MM/dd
+                  /^\d{2}-\d{2}-\d{4}$/.test(raw10) // dd-MM-yyyy
+                ) {
+                  valuesToCheck.push(this.formatDateDdMmYyyy(raw10));
+                }
+              }
+            } else if (t === 'DATE') {
+              const raw = data[name];
+              valuesToCheck.push(raw); // raw จาก backend
+              valuesToCheck.push(this.formatDateDdMmYyyy(raw)); // รูปแบบ dd-MM-yyyy ที่แสดง
+            } else {
+              // type ปกติ
+              valuesToCheck.push(data[name]);
             }
-          } else if (t === 'DATE') {
-            const raw = data[name];
-            valuesToCheck.push(raw); // raw จาก backend
-            valuesToCheck.push(this.formatDateDdMmYyyy(raw)); // รูปแบบ dd-MM-yyyy ที่แสดง
-          } else {
-            // type ปกติ
-            valuesToCheck.push(data[name]);
+
+            for (const v of valuesToCheck) {
+              if (v === null || v === undefined) continue;
+              const s = String(v).toLowerCase();
+              if (!s) continue;
+              if (s.includes(q)) return true;
+            }
           }
 
-          for (const v of valuesToCheck) {
-            if (v === null || v === undefined) continue;
-            const s = String(v).toLowerCase();
+          // ---------- กันเคส field อื่น ๆ ที่ไม่อยู่ใน schema เช่น xxx__display ----------
+          for (const key of Object.keys(data)) {
+            if (key === '__rowId' || key === '__actions') continue;
+            if (colNames.includes(key)) continue; // เช็คไปแล้วด้านบน
+
+            const value = data[key];
+            if (value === null || value === undefined) continue;
+            const s = String(value).toLowerCase();
             if (!s) continue;
             if (s.includes(q)) return true;
           }
-        }
 
-        // ---------- กันเคส field อื่น ๆ ที่ไม่อยู่ใน schema เช่น xxx__display ----------
-        for (const key of Object.keys(data)) {
-          if (key === '__rowId' || key === '__actions') continue;
-          if (colNames.includes(key)) continue; // เช็คไปแล้วด้านบน
-
-          const value = data[key];
-          if (value === null || value === undefined) continue;
-          const s = String(value).toLowerCase();
-          if (!s) continue;
-          if (s.includes(q)) return true;
-        }
-
-        return false;
-      });
-    } catch {}
-  });
-}
-
+          return false;
+        });
+      } catch {}
+    });
+  }
 
   async ngOnInit() {
     try {
@@ -201,8 +200,12 @@ export class TableView implements OnInit, OnDestroy, AfterViewInit {
   }
 
   ngOnDestroy(): void {
-    this.footer.resetAll();
-  }
+  try {
+    this.saveColumnLayoutFromGrid();
+  } catch {}
+  this.footer.resetAll();
+}
+
 
   ngAfterViewInit() {
     this.viewReady = true;
@@ -286,15 +289,25 @@ export class TableView implements OnInit, OnDestroy, AfterViewInit {
   // ================= data ops =================
 
   async refresh() {
+    if (!this.tableId || this.tableId <= 0) {
+    console.warn('refresh() called with invalid tableId:', this.tableId);
+    return;
+  }
     // 1) schema
-    const cols = await firstValueFrom(this.api.listColumns(this.tableId));
+    const colsFromApi = await firstValueFrom(this.api.listColumns(this.tableId));
+
+    // 🔹 บังคับเรียงคอลัมน์ตาม columnId จากน้อยไปมาก
+    const cols = [...colsFromApi].sort((a, b) => {
+      const aid = a.columnId ?? 0;
+      const bid = b.columnId ?? 0;
+      return aid - bid;
+    });
+
     this.columns.set(cols);
 
     // 2) หา primary column จาก listColumns แล้วเช็คแค่ primaryKeyType
-    const pk = cols.find((c) => c.isPrimary); // ใช้ flag จาก backend
-
+    const pk = cols.find((c) => c.isPrimary);
     const isAuto = !!pk && (pk.primaryKeyType ?? '').toUpperCase() === 'AUTO_INCREMENT';
-
     this.isAutoTable.set(isAuto);
 
     // 3) โหลด rows ลง grid
@@ -583,539 +596,533 @@ export class TableView implements OnInit, OnDestroy, AfterViewInit {
   }
 
   private buildColumnsForGrid(): any[] {
-    const cols = this.columns();
+  // ----- 1) เริ่มจาก schema ปกติ -----
+  const colsBase = this.columns();
+  let cols = [...colsBase];
 
-    this.formulaFns.clear(); //  เคลียร์ทุกครั้งที่สร้าง column ใหม่
+  // ----- 3) เคลียร์ formulaFns แล้วใช้กับ cols ที่เรียงแล้ว -----
+  this.formulaFns.clear(); // เคลียร์ทุกครั้งที่สร้าง column ใหม่
 
+  const defs: any[] = cols.map((c) => {
+    const field = c.name;
+    const base: any = {
+      title: c.name,
+      field,
+      headerHozAlign: 'center',
+      hozAlign: 'center',
+      vertAlign: 'middle',
+      resizable: true,
+      editor: false,
+    };
 
-    const defs: any[] = cols.map((c) => {
-      const field = c.name;
-      const base: any = {
-        title: c.name,
-        field,
-        headerHozAlign: 'center',
-        hozAlign: 'center',
-        vertAlign: 'middle',
-        resizable: true,
-        editor: false,
-      };
+    const lock = c.isPrimary && this.isAutoTable();
 
-      const lock = c.isPrimary && this.isAutoTable();
+    switch ((c.dataType || '').toUpperCase()) {
+      case 'INTEGER':
+        return { ...base, editor: lock ? false : 'number' };
 
-      switch ((c.dataType || '').toUpperCase()) {
-        case 'INTEGER':
-          return { ...base, editor: lock ? false : 'number' };
+      case 'BOOLEAN':
+        return {
+          ...base,
+          formatter: 'tickCross',
+          editor: lock ? false : 'tickCross',
+        };
 
-        case 'BOOLEAN':
-          return {
-            ...base,
-            formatter: 'tickCross',
-            editor: lock ? false : 'tickCross',
-          };
+      case 'IMAGE': {
+        return {
+          ...base,
+          cssClass: 'cell-image',
+          minWidth: 160,
+          formatter: (cell: any) => {
+            const current = (cell.getValue() as string) || null;
 
-        case 'IMAGE': {
+            const wrap = document.createElement('div');
+            wrap.style.cssText = `
+              position:relative;
+              width:100%;
+              height:${this.THUMB_H}px;
+              display:flex;
+              align-items:center;
+              justify-content:center;
+              box-sizing:border-box;
+              overflow:hidden;
+            `;
+
+            // ---------- content ----------
+            if (current) {
+              const img = document.createElement('img');
+              img.src = current;
+              img.style.cssText = `
+                max-height:${this.THUMB_H - 10}px;
+                max-width:100%;
+                object-fit:contain;
+                display:block;
+                margin:0 auto;
+                border-radius:10px;
+                box-shadow:0 4px 14px rgba(15,23,42,0.12);
+              `;
+              img.onload = () => {
+                try {
+                  cell.getRow().normalizeHeight();
+                } catch {}
+              };
+              wrap.appendChild(img);
+            } else {
+              const ph = document.createElement('div');
+              ph.textContent = 'Drop / Click to upload';
+              ph.style.cssText = `
+                padding:6px 12px;
+                border-radius:999px;
+                border:1px dashed rgba(129,140,248,0.9);
+                background:rgba(248,250,252,0.75);
+                font-size:9px;
+                line-height:1.2;
+                color:rgba(99,102,241,0.98);
+                display:flex;
+                align-items:center;
+                justify-content:center;
+                max-width:100%;
+                box-sizing:border-box;
+                white-space:nowrap;
+                overflow:hidden;
+                text-overflow:ellipsis;
+              `;
+              wrap.appendChild(ph);
+            }
+
+            // ---------- toolbar: link / delete (vertical) ----------
+            const tools = document.createElement('div');
+            tools.style.cssText = `
+              position:absolute;
+              top:50%;
+              right:4px;
+              transform:translateY(-50%);
+              display:flex;
+              flex-direction:column;
+              align-items:center;
+              gap:10px;
+              z-index:10;
+            `;
+
+            const mkBtn = (label: string) => {
+              const b = document.createElement('button');
+              b.type = 'button';
+              b.innerText = label;
+              b.style.cssText = `
+                width:20px;height:20px;
+                border:none;
+                border-radius:999px;
+                font-size:11px;
+                line-height:20px;
+                padding:0;
+                cursor:pointer;
+                background:rgba(255,255,255,0.98);
+                color:#6366f1;
+                box-shadow:0 1px 2px rgba(15,23,42,0.18);
+                display:flex;
+                align-items:center;
+                justify-content:center;
+              `;
+              return b;
+            };
+
+            const btnUrl = mkBtn('🔗');
+            btnUrl.title = 'Set image URL';
+            btnUrl.onclick = (ev) => {
+              ev.stopPropagation();
+              const rec = cell.getRow().getData() as any;
+              const f = cell.getField() as string;
+              const val = (cell.getValue() as string) || '';
+              const isDataUrl = val.startsWith('data:');
+              const clean = isDataUrl ? '' : val;
+              this.openImageUrlDialog(rec, f, clean);
+            };
+
+            const btnClear = mkBtn('🗑');
+            btnClear.title = 'Remove image';
+            btnClear.onclick = (ev) => {
+              ev.stopPropagation();
+              const rec = cell.getRow().getData() as any;
+              const f = cell.getField() as string;
+              const val = (cell.getValue() as string) || '';
+              if (!val) return;
+              this.openImageDeleteDialog(rec, f, val);
+            };
+
+            tools.appendChild(btnUrl);
+            tools.appendChild(btnClear);
+            wrap.appendChild(tools);
+
+            const setDragVisual = (on: boolean) => {
+              wrap.style.boxShadow = on
+                ? '0 0 0 1px rgba(129,140,248,0.85), 0 8px 24px rgba(79,70,229,0.25)'
+                : 'none';
+              wrap.style.background = on && !current
+                ? 'rgba(239,246,255,0.9)'
+                : 'transparent';
+            };
+
+            const handleFiles = (files: FileList | null) => {
+              const file = files?.[0];
+              if (!file) return;
+              const record = cell.getRow().getData() as any;
+              const fieldName = cell.getField() as string;
+              this.onImagePicked(record, fieldName, file);
+            };
+
+            wrap.addEventListener('dragover', (e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              setDragVisual(true);
+            });
+
+            wrap.addEventListener('dragenter', (e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              setDragVisual(true);
+            });
+
+            wrap.addEventListener('dragleave', (e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              setDragVisual(false);
+            });
+
+            wrap.addEventListener('drop', (e: DragEvent) => {
+              e.preventDefault();
+              e.stopPropagation();
+              setDragVisual(false);
+              const dt = e.dataTransfer;
+              if (!dt) return;
+              if (dt.files && dt.files.length) {
+                handleFiles(dt.files);
+              }
+            });
+
+            return wrap;
+          },
+          cellClick: (e: any, cell: any) => {
+            const target = e.target as HTMLElement;
+            if (target.closest('button')) return;
+
+            const fileInput = document.createElement('input');
+            fileInput.type = 'file';
+            fileInput.accept = 'image/*';
+            fileInput.onchange = () => {
+              const file = fileInput.files?.[0];
+              if (!file) return;
+              const record = cell.getRow().getData() as any;
+              const fieldName = cell.getField() as string;
+              this.onImagePicked(record, fieldName, file);
+            };
+            fileInput.click();
+          },
+        };
+      }
+
+      case 'FORMULA': {
+        let formulaFn: ((record: any) => any) | null = null;
+        try {
+          const raw: any = (c as any).formulaDefinition || '';
+          if (raw) {
+            const def = JSON.parse(raw);
+            if (def.type === 'operator' && def.value && def.left && def.right) {
+              const op = def.value;
+              const left = def.left;
+              const right = def.right;
+
+              formulaFn = (rec: any) => {
+                const leftVal =
+                  left.type === 'column'
+                    ? Number(rec[left.name] ?? 0)
+                    : Number(left.value ?? 0);
+                const rightVal =
+                  right.type === 'column'
+                    ? Number(rec[right.name] ?? 0)
+                    : Number(right.value ?? 0);
+
+                switch (op) {
+                  case '+': return leftVal + rightVal;
+                  case '-': return leftVal - rightVal;
+                  case '*': return leftVal * rightVal;
+                  case '/': return rightVal !== 0 ? leftVal / rightVal : null;
+                  default:  return null;
+                }
+              };
+
+              this.formulaFns.set(field, formulaFn);
+            }
+          }
+        } catch (err) {
+          console.warn('Formula parse error for column', c.name, err);
+        }
+
+        return {
+          ...base,
+          editor: false,
+          formatter: (cell: any) => {
+            const rec = cell.getRow().getData();
+            const v = formulaFn ? formulaFn(rec) : '';
+            return `<div>${v ?? ''}</div>`;
+          },
+          tooltip: (c as any).formulaDefinition
+            ? `Formula: ${(c as any).formulaDefinition}`
+            : '',
+        };
+      }
+
+      case 'DATE': {
+        return {
+          ...base,
+          editor: (cell: any, onRendered: any, success: (v: any) => void, cancel: () => void) => {
+            const input = document.createElement('input');
+            input.type = 'date';
+            input.className = 'ph-date-editor-input';
+
+            const raw = cell.getValue();
+            input.value = this.toInputDateValue(raw);
+
+            onRendered(() => {
+              input.focus();
+              input.select?.();
+            });
+
+            const commit = () => success(input.value);
+
+            input.addEventListener('change', commit);
+            input.addEventListener('blur', commit);
+            input.addEventListener('keydown', (e: KeyboardEvent) => {
+              if (e.key === 'Enter') {
+                e.preventDefault();
+                commit();
+              }
+              if (e.key === 'Escape') {
+                e.preventDefault();
+                cancel();
+              }
+            });
+
+            return input;
+          },
+          formatter: (cell: any) => {
+            const raw = cell.getValue();
+            const text = this.formatDateDdMmYyyy(raw);
+            return `<span>${text}</span>`;
+          },
+        };
+      }
+
+      case 'LOOKUP': {
+        const colName = (c.name || '').toLowerCase();
+        const targetName = (c.lookupTargetColumnName || '').toLowerCase();
+
+        const isImageLookup =
+          colName.includes('img') ||
+          colName.includes('image') ||
+          targetName.includes('img') ||
+          targetName.includes('image');
+
+        if (isImageLookup) {
           return {
             ...base,
             cssClass: 'cell-image',
             minWidth: 160,
+            editor: false,
             formatter: (cell: any) => {
-              const current = (cell.getValue() as string) || null;
+              const rowData = cell.getRow().getData();
+              const field = cell.getField();
+              const url = rowData[`${field}__display`] || '';
 
               const wrap = document.createElement('div');
               wrap.style.cssText = `
-        position:relative;
-        width:100%;
-        height:${this.THUMB_H}px;
-        display:flex;
-        align-items:center;
-        justify-content:center;
-        box-sizing:border-box;
-        overflow:hidden;
-      `;
+                position:relative;
+                width:100%;
+                height:${this.THUMB_H}px;
+                display:flex;
+                align-items:center;
+                justify-content:center;
+                box-sizing:border-box;
+                overflow:hidden;
+              `;
 
-              // ---------- content ----------
-              if (current) {
+              if (url && (/^https?:\/\//i.test(url) || url.startsWith('data:'))) {
                 const img = document.createElement('img');
-                img.src = current;
+                img.src = url;
                 img.style.cssText = `
-          max-height:${this.THUMB_H - 10}px;
-          max-width:100%;
-          object-fit:contain;
-          display:block;
-          margin:0 auto;
-          border-radius:10px;
-          box-shadow:0 4px 14px rgba(15,23,42,0.12);
-        `;
+                  max-height:${this.THUMB_H - 10}px;
+                  max-width:100%;
+                  object-fit:contain;
+                  display:block;
+                  margin:0 auto;
+                  border-radius:10px;
+                  box-shadow:0 4px 14px rgba(15,23,42,0.12);
+                `;
                 img.onload = () => {
                   try {
                     cell.getRow().normalizeHeight();
                   } catch {}
                 };
                 wrap.appendChild(img);
-              } else {
-                const ph = document.createElement('div');
-                ph.textContent = 'Drop / Click to upload';
-                ph.style.cssText = `
-          padding:6px 12px;
-          border-radius:999px;
-          border:1px dashed rgba(129,140,248,0.9);
-          background:rgba(248,250,252,0.75);
-          font-size:9px;
-          line-height:1.2;
-          color:rgba(99,102,241,0.98);
-          display:flex;
-          align-items:center;
-          justify-content:center;
-          max-width:100%;
-          box-sizing:border-box;
-          white-space:nowrap;
-          overflow:hidden;
-          text-overflow:ellipsis;
-        `;
-                wrap.appendChild(ph);
               }
-
-              // ---------- toolbar: link / delete (vertical) ----------
-              const tools = document.createElement('div');
-              tools.style.cssText = `
-        position:absolute;
-        top:50%;
-        right:4px;
-        transform:translateY(-50%);
-        display:flex;
-        flex-direction:column;
-        align-items:center;
-        gap:10px;
-        z-index:10;
-      `;
-
-              const mkBtn = (label: string) => {
-                const b = document.createElement('button');
-                b.type = 'button';
-                b.innerText = label;
-                b.style.cssText = `
-          width:20px;height:20px;
-          border:none;
-          border-radius:999px;
-          font-size:11px;
-          line-height:20px;
-          padding:0;
-          cursor:pointer;
-          background:rgba(255,255,255,0.98);
-          color:#6366f1;
-          box-shadow:0 1px 2px rgba(15,23,42,0.18);
-          display:flex;
-          align-items:center;
-          justify-content:center;
-        `;
-                return b;
-              };
-
-              const btnUrl = mkBtn('🔗');
-              btnUrl.title = 'Set image URL';
-              btnUrl.onclick = (ev) => {
-                ev.stopPropagation();
-                const rec = cell.getRow().getData() as any;
-                const f = cell.getField() as string;
-                const val = (cell.getValue() as string) || '';
-
-                // dialog ไว้ใส่ URL public เท่านั้น: ถ้าเป็น data: ให้เคลียร์
-                const isDataUrl = val.startsWith('data:');
-                const clean = isDataUrl ? '' : val;
-
-                this.openImageUrlDialog(rec, f, clean);
-              };
-
-              const btnClear = mkBtn('🗑');
-              btnClear.title = 'Remove image';
-              btnClear.onclick = (ev) => {
-                ev.stopPropagation();
-                const rec = cell.getRow().getData() as any;
-                const f = cell.getField() as string;
-                const val = (cell.getValue() as string) || '';
-                if (!val) return;
-                this.openImageDeleteDialog(rec, f, val);
-              };
-
-              tools.appendChild(btnUrl);
-              tools.appendChild(btnClear);
-              wrap.appendChild(tools);
-
-              // ---------- drag & drop upload ----------
-              const setDragVisual = (on: boolean) => {
-                wrap.style.boxShadow = on
-                  ? '0 0 0 1px rgba(129,140,248,0.85), 0 8px 24px rgba(79,70,229,0.25)'
-                  : 'none';
-                wrap.style.background = on && !current ? 'rgba(239,246,255,0.9)' : 'transparent';
-              };
-
-              const handleFiles = (files: FileList | null) => {
-                const file = files?.[0];
-                if (!file) return;
-                const record = cell.getRow().getData() as any;
-                const fieldName = cell.getField() as string;
-                this.onImagePicked(record, fieldName, file);
-              };
-
-              wrap.addEventListener('dragover', (e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                setDragVisual(true);
-              });
-
-              wrap.addEventListener('dragenter', (e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                setDragVisual(true);
-              });
-
-              wrap.addEventListener('dragleave', (e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                setDragVisual(false);
-              });
-
-              wrap.addEventListener('drop', (e: DragEvent) => {
-                e.preventDefault();
-                e.stopPropagation();
-                setDragVisual(false);
-
-                const dt = e.dataTransfer;
-                if (!dt) return;
-                if (dt.files && dt.files.length) {
-                  handleFiles(dt.files);
-                }
-              });
 
               return wrap;
             },
-
-            // click พื้นที่ cell (ไม่ใช่ปุ่ม) = เลือกไฟล์
-            cellClick: (e: any, cell: any) => {
-              // กันไม่ให้คลิกปุ่มแล้วเด้ง input
-              const target = e.target as HTMLElement;
-              if (target.closest('button')) return;
-
-              const fileInput = document.createElement('input');
-              fileInput.type = 'file';
-              fileInput.accept = 'image/*';
-              fileInput.onchange = () => {
-                const file = fileInput.files?.[0];
-                if (!file) return;
-                const record = cell.getRow().getData() as any;
-                const fieldName = cell.getField() as string;
-                this.onImagePicked(record, fieldName, file);
-              };
-              fileInput.click();
-            },
           };
         }
 
-        case 'FORMULA': {
-          let formulaFn: ((record: any) => any) | null = null;
-          try {
-            const raw: any = (c as any).formulaDefinition || '';
-            if (raw) {
-              const def = JSON.parse(raw);
-              if (def.type === 'operator' && def.value && def.left && def.right) {
-                const op = def.value;
-                const left = def.left;
-                const right = def.right;
+        return {
+          ...base,
+          editor: false,
+          formatter: (cell: any) => {
+            const rowData = cell.getRow().getData();
+            const field = cell.getField();
+            const disp = rowData[`${field}__display`];
 
-                formulaFn = (rec: any) => {
-                  const leftVal =
-                    left.type === 'column' ? Number(rec[left.name] ?? 0) : Number(left.value ?? 0);
-                  const rightVal =
-                    right.type === 'column'
-                      ? Number(rec[right.name] ?? 0)
-                      : Number(right.value ?? 0);
+            const isBoolLike =
+              disp === true ||
+              disp === false ||
+              disp === 'true' ||
+              disp === 'false' ||
+              disp === 1 ||
+              disp === 0 ||
+              disp === '1' ||
+              disp === '0';
 
-                  switch (op) {
-                    case '+':
-                      return leftVal + rightVal;
-                    case '-':
-                      return leftVal - rightVal;
-                    case '*':
-                      return leftVal * rightVal;
-                    case '/':
-                      return rightVal !== 0 ? leftVal / rightVal : null;
-                    default:
-                      return null;
-                  }
-                };
+            if (isBoolLike) {
+              const v = disp === true || disp === 'true' || disp === 1 || disp === '1';
+              const symbol = v ? '✓' : '✗';
+              const color = v ? '#22c55e' : '#ef4444';
+              return `<span style="
+                font-size:16px;
+                font-weight:700;
+                color:${color};
+                line-height:1;
+                display:inline-block;
+              ">${symbol}</span>`;
+            }
 
-                // เก็บ fn ไว้ใช้ตอน search
-              this.formulaFns.set(field, formulaFn);
+            if (typeof disp === 'string') {
+              const raw10 = disp.substring(0, 10);
+              if (
+                /^\d{4}[-/]\d{2}[-/]\d{2}$/.test(raw10) ||
+                /^\d{2}-\d{2}-\d{4}$/.test(raw10)
+              ) {
+                const text = this.formatDateDdMmYyyy(raw10);
+                return `<span>${text}</span>`;
               }
             }
-          } catch (err) {
-            console.warn('Formula parse error for column', c.name, err);
-          }
 
-          return {
-            ...base,
-            editor: false,
-            formatter: (cell: any) => {
-              const rec = cell.getRow().getData();
-              const v = formulaFn ? formulaFn(rec) : '';
-              return `<div>${v ?? ''}</div>`;
-            },
-            tooltip: (c as any).formulaDefinition ? `Formula: ${(c as any).formulaDefinition}` : '',
-          };
-        }
-
-        // DATE type
-        case 'DATE': {
-          return {
-            ...base,
-
-            // ใช้ custom editor เป็น <input type="date">
-            editor: (cell: any, onRendered: any, success: (v: any) => void, cancel: () => void) => {
-              const input = document.createElement('input');
-              input.type = 'date';
-              input.className = 'ph-date-editor-input'; // ใช้ class เดิม/ธีมเดิมได้ตามใจ
-
-              const raw = cell.getValue();
-              input.value = this.toInputDateValue(raw);
-
-              onRendered(() => {
-                input.focus();
-                input.select?.();
-              });
-
-              const commit = () => success(input.value);
-
-              input.addEventListener('change', commit);
-              input.addEventListener('blur', commit);
-              input.addEventListener('keydown', (e: KeyboardEvent) => {
-                if (e.key === 'Enter') {
-                  e.preventDefault();
-                  commit();
-                }
-                if (e.key === 'Escape') {
-                  e.preventDefault();
-                  cancel();
-                }
-              });
-
-              return input;
-            },
-
-            // formatter: แสดงเป็น dd-MM-yyyy เสมอ
-            formatter: (cell: any) => {
-              const raw = cell.getValue();
-              const text = this.formatDateDdMmYyyy(raw);
-              return `<span>${text}</span>`;
-            },
-          };
-        }
-
-        case 'LOOKUP': {
-  const colName = (c.name || '').toLowerCase();
-  const targetName = (c.lookupTargetColumnName || '').toLowerCase();
-
-  const isImageLookup =
-    colName.includes('img') ||
-    colName.includes('image') ||
-    targetName.includes('img') ||
-    targetName.includes('image');
-
-  // ---------- lookup รูป ----------
-  if (isImageLookup) {
-    return {
-      ...base,
-      cssClass: 'cell-image',
-      minWidth: 160,
-      editor: false,
-      formatter: (cell: any) => {
-        const rowData = cell.getRow().getData();
-        const field = cell.getField(); // "img"
-        // ⬇️ ใช้ค่าจาก __display (URL รูป) แทนค่า PK
-        const url = rowData[`${field}__display`] || '';
-
-        const wrap = document.createElement('div');
-        wrap.style.cssText = `
-          position:relative;
-          width:100%; 
-          height:${this.THUMB_H}px;
-          display:flex;
-          align-items:center;
-          justify-content:center;
-          box-sizing:border-box;
-          overflow:hidden;
-        `;
-
-        if (url && (/^https?:\/\//i.test(url) || url.startsWith('data:'))) {
-          const img = document.createElement('img');
-          img.src = url;
-          img.style.cssText = `
-            max-height:${this.THUMB_H - 10}px;
-            max-width:100%;
-            object-fit:contain;
-            display:block;
-            margin:0 auto;
-            border-radius:10px;
-            box-shadow:0 4px 14px rgba(15,23,42,0.12);
-          `;
-          img.onload = () => {
-            try { cell.getRow().normalizeHeight(); } catch {}
-          };
-          wrap.appendChild(img);
-        }
-
-        return wrap;
-      },
-    };
-  }
-
-  // ---------- lookup ปกติ ----------
-  return {
-    ...base,
-    editor: false,
-    formatter: (cell: any) => {
-      const rowData = cell.getRow().getData();
-      const field = cell.getField();              // เช่น "s.tus"
-      const disp = rowData[`${field}__display`];  // true/false จาก backend
-
-      // ถ้าเป็น boolean → แสดงแบบ tickCross style เดิม
-      const isBoolLike =
-        disp === true  || disp === false ||
-        disp === 'true' || disp === 'false' ||
-        disp === 1 || disp === 0 ||
-        disp === '1' || disp === '0';
-
-      if (isBoolLike) {
-        const v =
-          disp === true || disp === 'true' ||
-          disp === 1    || disp === '1';
-
-        const symbol = v ? '✓' : '✗';
-        const color  = v ? '#22c55e' : '#ef4444'; // เขียว / แดง แบบ Tabulator
-
-        // ทำให้หน้าตาใกล้เคียง tickCross เดิมที่สุด
-        return `<span style="
-          font-size:16px;
-          font-weight:700;
-          color:${color};
-          line-height:1;
-          display:inline-block;
-        ">${symbol}</span>`;
+            return disp ?? '';
+          },
+        };
       }
 
-      
-      // 2) ถ้าเป็นวันที่จาก lookup (ส่วนมากจะมาแบบ yyyy-MM-dd หรือ yyyy-MM-ddTHH:mm:ss)
-      if (typeof disp === 'string') {
-        const raw10 = disp.substring(0, 10); // ตัดเอา 10 ตัวแรกก่อน
-        if (
-          /^\d{4}[-/]\d{2}[-/]\d{2}$/.test(raw10) || // yyyy-MM-dd / yyyy/MM/dd
-          /^\d{2}-\d{2}-\d{4}$/.test(raw10)         // dd-MM-yyyy (กันเผื่อ)
-        ) {
-          const text = this.formatDateDdMmYyyy(raw10);
-          return `<span>${text}</span>`;
-        }
-      }
-
-      // กรณีอื่น ๆ → text ปกติ
-      return disp ?? '';
-    },
-  };
-}
-
-
-
-
-        default:
-          return { ...base, editor: lock ? false : 'input' };
-      }
-    });
-
-    // Actions column
-    defs.push({
-      title: 'Actions',
-      field: '__actions',
-      width: 140,
-      headerHozAlign: 'center',
-      hozAlign: 'center',
-      vertAlign: 'middle',
-      widthGrow: 0,
-      formatter: () => `
-        <div class="ph-actions-cell">
-          <button data-action="save"   class="ph-link ph-link-save">Save</button>
-          <button data-action="delete" class="ph-link ph-link-del">Delete</button>
-        </div>
-      `,
-      cellClick: async (e: any, cell: any) => {
-        const btn = (e.target as HTMLElement).closest('button');
-        if (!btn) return;
-        const action = btn.getAttribute('data-action');
-        const record = cell.getRow().getData() as any;
-        if (action === 'save') await this.saveRowByRecord(record);
-        if (action === 'delete') await this.deleteRowByRecord(record);
-      },
-      resizable: false,
-    });
-
-    return defs;
-  }
-
-private buildDataForGridFromRows(rows: RowDto[]): any[] {
-  const cols = this.columns();
-
-  // 1) map row จาก backend → rec ที่ใช้ใน Tabulator
-  const data = rows.map((r) => {
-    let obj: any = {};
-    try {
-      obj = JSON.parse(r.data ?? '{}');
-    } catch {}
-
-    const rec: any = { __rowId: r.rowId };
-    const anyRow = r as any;
-
-    for (const c of cols) {
-      const name = c.name;
-      const t = (c.dataType || '').toUpperCase();
-
-      if (t === 'LOOKUP') {
-        const fk = obj?.[name] ?? null;
-        const display = anyRow[name] ?? fk;
-
-        rec[name] = fk;
-        rec[`${name}__display`] = display ?? null;
-        continue;
-      }
-
-      rec[name] = obj?.[name] ?? null;
+      default:
+        return { ...base, editor: lock ? false : 'input' };
     }
-
-    return rec;
   });
 
-  // 2) หา primary key column (ถ้ามี) เช่น ID
-  const pkCol = cols.find(c => c.isPrimary) || null;
-  const pkName = pkCol?.name;
+  // Actions column
+  defs.push({
+    title: 'Actions',
+    field: '__actions',
+    width: 140,
+    headerHozAlign: 'center',
+    hozAlign: 'center',
+    vertAlign: 'middle',
+    widthGrow: 0,
+    formatter: () => `
+      <div class="ph-actions-cell">
+        <button data-action="save"   class="ph-link ph-link-save">Save</button>
+        <button data-action="delete" class="ph-link ph-link-del">Delete</button>
+      </div>
+    `,
+    cellClick: async (e: any, cell: any) => {
+      const btn = (e.target as HTMLElement).closest('button');
+      if (!btn) return;
+      const action = btn.getAttribute('data-action');
+      const record = cell.getRow().getData() as any;
+      if (action === 'save') await this.saveRowByRecord(record);
+      if (action === 'delete') await this.deleteRowByRecord(record);
+    },
+    resizable: false,
+  });
 
-  // 3) sort data ก่อนส่งเข้า Tabulator
-  if (pkName) {
-    // ถ้ามี PK → เรียงตามค่าในคอลัมน์ PK แบบเลข จากน้อยไปมาก
-    data.sort((a, b) => {
-      const av = Number(a[pkName] ?? 0);
-      const bv = Number(b[pkName] ?? 0);
+   // ===== ใช้ field order ที่เคยเซฟไว้ (ไม่สน Actions) =====
+  const savedOrder = this.loadSavedColumnLayout();
+  if (savedOrder && savedOrder.length) {
+    const indexOf = (field: string) => {
+      const i = savedOrder.indexOf(field);
+      // field ที่ไม่เคยอยู่ใน savedOrder ให้ไปอยู่ท้าย ๆ
+      return i === -1 ? Number.MAX_SAFE_INTEGER : i;
+    };
 
-      if (Number.isNaN(av) || Number.isNaN(bv)) {
-        // ถ้า PK ไม่ใช่เลข / แปลงไม่ได้ → fallback มาใช้ rowId
-        return (a.__rowId ?? 0) - (b.__rowId ?? 0);
-      }
-      return av - bv;
+    defs.sort((a, b) => {
+      const fa = a.field as string;
+      const fb = b.field as string;
+      return indexOf(fa) - indexOf(fb);
     });
-  } else {
-    // ถ้าโต๊ะนี้ไม่มี PK flag → เรียงตาม rowId แทน (ลำดับสร้างใน DB)
-    data.sort((a, b) => (a.__rowId ?? 0) - (b.__rowId ?? 0));
   }
-
-  return data;
+  
+  return defs;
 }
 
+  private buildDataForGridFromRows(rows: RowDto[]): any[] {
+    const cols = this.columns();
 
+    // 1) map row จาก backend → rec ที่ใช้ใน Tabulator
+    const data = rows.map((r) => {
+      let obj: any = {};
+      try {
+        obj = JSON.parse(r.data ?? '{}');
+      } catch {}
+
+      const rec: any = { __rowId: r.rowId };
+      const anyRow = r as any;
+
+      for (const c of cols) {
+        const name = c.name;
+        const t = (c.dataType || '').toUpperCase();
+
+        if (t === 'LOOKUP') {
+          const fk = obj?.[name] ?? null;
+          const display = anyRow[name] ?? fk;
+
+          rec[name] = fk;
+          rec[`${name}__display`] = display ?? null;
+          continue;
+        }
+
+        rec[name] = obj?.[name] ?? null;
+      }
+
+      return rec;
+    });
+
+    // 2) หา primary key column (ถ้ามี) เช่น ID
+    const pkCol = cols.find((c) => c.isPrimary) || null;
+    const pkName = pkCol?.name;
+
+    // 3) sort data ก่อนส่งเข้า Tabulator
+    if (pkName) {
+      // ถ้ามี PK → เรียงตามค่าในคอลัมน์ PK แบบเลข จากน้อยไปมาก
+      data.sort((a, b) => {
+        const av = Number(a[pkName] ?? 0);
+        const bv = Number(b[pkName] ?? 0);
+
+        if (Number.isNaN(av) || Number.isNaN(bv)) {
+          // ถ้า PK ไม่ใช่เลข / แปลงไม่ได้ → fallback มาใช้ rowId
+          return (a.__rowId ?? 0) - (b.__rowId ?? 0);
+        }
+        return av - bv;
+      });
+    } else {
+      // ถ้าโต๊ะนี้ไม่มี PK flag → เรียงตาม rowId แทน (ลำดับสร้างใน DB)
+      data.sort((a, b) => (a.__rowId ?? 0) - (b.__rowId ?? 0));
+    }
+
+    return data;
+  }
 
   // ---------- Local helpers ----------
   private async loadLocalData(goLast = false) {
@@ -1178,101 +1185,133 @@ private buildDataForGridFromRows(rows: RowDto[]): any[] {
   // =====================================================
   //                 BUILD TABULATOR
   // =====================================================
-  private buildTabulator() {
-    const hasImageCol = this.hasImageColumn();
-    this.lastHasImageCol = hasImageCol;
-    this.lastColSig = this.colSignature();
+ private buildTabulator() {
+  const hasImageCol = this.hasImageColumn();
+  this.lastHasImageCol = hasImageCol;
+  this.lastColSig = this.colSignature();
 
-    const baseRowHeight = hasImageCol ? 90 : 46;
+  const baseRowHeight = hasImageCol ? 90 : 46;
 
-    const baseOptions: any = {
-      columns: this.buildColumnsForGrid(),
-      layout: 'fitColumns',
-      rowHeight: baseRowHeight,
-      variableHeight: true,
-      resizableRows: true,
-      paginationSize: 10,
-      paginationSizeSelector: [10, 20, 50, 100],
-      paginationCounter: 'pages',
-      height: '100%',
-      reactiveData: false,
-      movableColumns: true,
+  const baseOptions: any = {
+    columns: this.buildColumnsForGrid(),
+    layout: 'fitColumns',
+    rowHeight: baseRowHeight,
+    variableHeight: true,
+    resizableRows: true,
+    paginationSize: 10,
+    persistence: false,
+    persistenceMode: false,
+    paginationSizeSelector: [10, 20, 50, 100],
+    paginationCounter: 'pages',
+    height: '100%',
+    reactiveData: false,
+    movableColumns: true,
+    index: '__rowId',
+    columnDefaults: {
+      hozAlign: 'center',
+      vertAlign: 'middle',
+      widthGrow: 1,
+      resizable: true,
+    },
+    placeholder: 'No rows yet.',
 
-      index: '__rowId',
+    
 
-      columnDefaults: {
-        hozAlign: 'center',
-        vertAlign: 'middle',
-        widthGrow: 1,
-        resizable: true,
+    columnResized: () => {
+      try {
+        this.grid.redraw(true);
+        this.saveColumnLayoutFromGrid();
+      } catch {}
+    },
+
+    tableBuilt: () => {
+      try {
+        this.grid.redraw(true);
+        this.saveColumnLayoutFromGrid();
+      } catch {}
+    },
+
+    layoutChanged: () => {
+      try {
+        this.grid.redraw(true);
+      } catch {}
+    },
+
+    columnMoved: () => {
+      try {
+        this.saveColumnLayoutFromGrid();
+      } catch {}
+    },
+
+    cellEdited: (cell: any) => {
+      const field = cell.getField();
+      const rec = cell.getRow().getData() as any;
+      rec[field] = cell.getValue();
+    },
+  };
+
+  if (TableView.USE_REMOTE) {
+    this.grid = new Tabulator(this.tabGridEl.nativeElement, {
+      ...baseOptions,
+      pagination: 'remote',
+      ajaxURL: 'about:blank',
+      paginationDataReceived: { last_page: 'last_page', data: 'data' },
+      paginationDataSent: { page: 'page', size: 'size', sorters: 'sorters', filters: 'filters' },
+      ajaxRequestFunc: (_url: string, _config: any, params: any) => {
+        const page = Number(params?.page ?? 1);
+        const size = Number(params?.size ?? 10);
+        return firstValueFrom(this.api.listRowsPaged(this.tableId, page, size)).then(
+          (res: { rows: RowDto[]; total: number }) => {
+            const total = Number(res.total ?? 0);
+            const last_page = Math.max(1, Math.ceil(total / size));
+            const data = this.buildDataForGridFromRows(res.rows as RowDto[]);
+            this._lastPageFromServer = last_page;
+            return { last_page, data };
+          }
+        );
       },
-      placeholder: 'No rows yet.',
-
-      columnResized: () => {
+      ajaxResponse: (_url: string, _params: any, response: any) => response?.data ?? [],
+      pageLoaded: () => {
         try {
+          const lp = Math.max(1, this._lastPageFromServer || 1);
+          if (this.grid?.modules?.page) {
+            this.grid.modules.page.max = lp;
+            const cur = Number(this.grid?.getPage?.() || 1);
+            try {
+              this.grid.setPage(cur);
+            } catch {}
+          }
           this.grid.redraw(true);
         } catch {}
       },
-      tableBuilt: () => {
-        try {
-          this.grid.redraw(true);
-        } catch {}
-      },
-      layoutChanged: () => {
-        try {
-          this.grid.redraw(true);
-        } catch {}
-      },
-
-      cellEdited: (cell: any) => {
-        const field = cell.getField();
-        const rec = cell.getRow().getData() as any;
-        rec[field] = cell.getValue();
-      },
-    };
-
-    if (TableView.USE_REMOTE) {
-      this.grid = new Tabulator(this.tabGridEl.nativeElement, {
-        ...baseOptions,
-        pagination: 'remote',
-        ajaxURL: 'about:blank',
-        paginationDataReceived: { last_page: 'last_page', data: 'data' },
-        paginationDataSent: { page: 'page', size: 'size', sorters: 'sorters', filters: 'filters' },
-        ajaxRequestFunc: (_url: string, _config: any, params: any) => {
-          const page = Number(params?.page ?? 1);
-          const size = Number(params?.size ?? 10);
-          return firstValueFrom(this.api.listRowsPaged(this.tableId, page, size)).then(
-            (res: { rows: RowDto[]; total: number }) => {
-              const total = Number(res.total ?? 0);
-              const last_page = Math.max(1, Math.ceil(total / size));
-              const data = this.buildDataForGridFromRows(res.rows as RowDto[]);
-              this._lastPageFromServer = last_page;
-              return { last_page, data };
-            }
-          );
-        },
-        ajaxResponse: (_url: string, _params: any, response: any) => response?.data ?? [],
-        pageLoaded: () => {
-          try {
-            const lp = Math.max(1, this._lastPageFromServer || 1);
-            if (this.grid?.modules?.page) {
-              this.grid.modules.page.max = lp;
-              const cur = Number(this.grid?.getPage?.() || 1);
-              try {
-                this.grid.setPage(cur);
-              } catch {}
-            }
-            this.grid.redraw(true);
-          } catch {}
-        },
-      });
-    } else {
-      this.grid = new Tabulator(this.tabGridEl.nativeElement, {
-        ...baseOptions,
-        pagination: 'local',
-      });
-    }
+    });
+  } else {
+    this.grid = new Tabulator(this.tabGridEl.nativeElement, {
+      ...baseOptions,
+      pagination: 'local',
+    });
+    
   }
+
+
+  try {
+    // ยิงทุกครั้งที่ "ลากย้ายคอลัมน์"
+    this.grid.on('columnMoved', (_col: any, _cols: any[]) => {
+      console.log('[event] columnMoved');
+      this.saveColumnLayoutFromGrid();
+    });
+
+    // ยิงตอน resize คอลัมน์ (เผื่ออยากจำลำดับ+layoutรวม ๆ)
+    this.grid.on('columnResized', () => {
+      console.log('[event] columnResized');
+      this.saveColumnLayoutFromGrid();
+    });
+  } catch (err) {
+    console.warn('bind tabulator events failed', err);
+  }
+
+}
+
 
   private ensureGridAndSync() {
     if (!this.viewReady) return;
@@ -1347,16 +1386,16 @@ private buildDataForGridFromRows(rows: RowDto[]): any[] {
       }
 
       // 2) LOOKUP = ใช้ PK จาก field หลัก (ไม่ใช้ display)
-    if (t === 'LOOKUP') {
-      // พยายามอ่านจาก hidden field ก่อน (เผื่อคุณอยากเก็บไว้)
-      const fkRaw = raw[key]; // ตอนนี้ raw[key] = PK แน่นอนแล้ว จากข้อ 1
-      if (fkRaw === '' || fkRaw === undefined) {
-        out[key] = null;
-      } else {
-        out[key] = Number.parseInt(fkRaw as any, 10);
+      if (t === 'LOOKUP') {
+        // พยายามอ่านจาก hidden field ก่อน (เผื่อคุณอยากเก็บไว้)
+        const fkRaw = raw[key]; // ตอนนี้ raw[key] = PK แน่นอนแล้ว จากข้อ 1
+        if (fkRaw === '' || fkRaw === undefined) {
+          out[key] = null;
+        } else {
+          out[key] = Number.parseInt(fkRaw as any, 10);
+        }
+        continue;
       }
-      continue;
-    }
 
       // 3) ถ้าเป็น create + auto-table + เป็น PK → ไม่ต้องส่ง
       if (skipAutoPkForCreate && this.isAutoTable() && c.isPrimary) {
@@ -1441,4 +1480,62 @@ private buildDataForGridFromRows(rows: RowDto[]): any[] {
 
     return '';
   }
+
+ // ================ Helper For Column Layout =========================
+
+private getColLayoutStorageKey(): string {
+  // แยกต่อ table
+  return `ph_col_layout_t${this.tableId}`;
+}
+
+/** อ่านลำดับ field ของคอลัมน์ที่เคยเซฟไว้ */
+private loadSavedColumnLayout(): string[] | null {
+  try {
+    const key = this.getColLayoutStorageKey();
+    const raw = localStorage.getItem(key);
+    if (!raw) return null;
+
+    const arr = JSON.parse(raw);
+
+    // รูปแบบใหม่: ['ID','Name','Price']
+    if (Array.isArray(arr) && arr.every((x) => typeof x === 'string')) {
+      return arr;
+    }
+
+    // กันเคสถ้าเคยเซฟเป็น layout object แบบเดิม
+    if (Array.isArray(arr) && arr.length && typeof arr[0] === 'object') {
+      const fields = arr
+        .map((x: any) => x.field)
+        .filter((f: any) => typeof f === 'string');
+      return fields.length ? fields : null;
+    }
+
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+/** เซฟ “ลำดับ field ปัจจุบัน” ลง localStorage */
+private saveColumnLayoutFromGrid() {
+  try {
+    if (!this.grid) return;
+
+    const cols = this.grid.getColumns(); // Tabulator ColumnComponent[]
+    const fields: string[] = cols
+      .map((col: any) => col.getField && col.getField())
+      .filter((f: any) => typeof f === 'string' && f !== '__actions');
+
+    const key = this.getColLayoutStorageKey();
+    localStorage.setItem(key, JSON.stringify(fields));
+
+   
+  } catch {
+    // เงียบไป
+  }
+}
+
+
+
+  // ==================================================================================
 }
