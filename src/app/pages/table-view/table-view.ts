@@ -1061,7 +1061,8 @@ export class TableView implements OnInit, OnDestroy, AfterViewInit {
 private buildDataForGridFromRows(rows: RowDto[]): any[] {
   const cols = this.columns();
 
-  return rows.map((r) => {
+  // 1) map row จาก backend → rec ที่ใช้ใน Tabulator
+  const data = rows.map((r) => {
     let obj: any = {};
     try {
       obj = JSON.parse(r.data ?? '{}');
@@ -1075,25 +1076,45 @@ private buildDataForGridFromRows(rows: RowDto[]): any[] {
       const t = (c.dataType || '').toUpperCase();
 
       if (t === 'LOOKUP') {
-        // FK ที่เก็บใน JSON
         const fk = obj?.[name] ?? null;
-        // display จาก backend join (ถ้าไม่มีก็ fallback FK)
         const display = anyRow[name] ?? fk;
 
-        // 🔹 เก็บ FK ไว้ใน field หลักเสมอ (ใช้สำหรับ save)
         rec[name] = fk;
-        // 🔹 เก็บค่าที่จะโชว์ไว้ใน __display (ทั้ง text / boolean / image)
         rec[`${name}__display`] = display ?? null;
         continue;
       }
 
-      // คอลัมน์อื่น ๆ
       rec[name] = obj?.[name] ?? null;
     }
 
     return rec;
   });
+
+  // 2) หา primary key column (ถ้ามี) เช่น ID
+  const pkCol = cols.find(c => c.isPrimary) || null;
+  const pkName = pkCol?.name;
+
+  // 3) sort data ก่อนส่งเข้า Tabulator
+  if (pkName) {
+    // ถ้ามี PK → เรียงตามค่าในคอลัมน์ PK แบบเลข จากน้อยไปมาก
+    data.sort((a, b) => {
+      const av = Number(a[pkName] ?? 0);
+      const bv = Number(b[pkName] ?? 0);
+
+      if (Number.isNaN(av) || Number.isNaN(bv)) {
+        // ถ้า PK ไม่ใช่เลข / แปลงไม่ได้ → fallback มาใช้ rowId
+        return (a.__rowId ?? 0) - (b.__rowId ?? 0);
+      }
+      return av - bv;
+    });
+  } else {
+    // ถ้าโต๊ะนี้ไม่มี PK flag → เรียงตาม rowId แทน (ลำดับสร้างใน DB)
+    data.sort((a, b) => (a.__rowId ?? 0) - (b.__rowId ?? 0));
+  }
+
+  return data;
 }
+
 
 
   // ---------- Local helpers ----------
@@ -1175,6 +1196,7 @@ private buildDataForGridFromRows(rows: RowDto[]): any[] {
       paginationCounter: 'pages',
       height: '100%',
       reactiveData: false,
+      movableColumns: true,
 
       index: '__rowId',
 
