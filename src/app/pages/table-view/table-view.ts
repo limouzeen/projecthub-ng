@@ -868,7 +868,11 @@ export class TableView implements OnInit, OnDestroy, AfterViewInit {
       minWidth: 160,
       editor: false,
       formatter: (cell: any) => {
-        const url = (cell.getValue() as string) || '';
+        const rowData = cell.getRow().getData();
+        const field = cell.getField(); // "img"
+        // ⬇️ ใช้ค่าจาก __display (URL รูป) แทนค่า PK
+        const url = rowData[`${field}__display`] || '';
+
         const wrap = document.createElement('div');
         wrap.style.cssText = `
           position:relative;
@@ -981,7 +985,7 @@ export class TableView implements OnInit, OnDestroy, AfterViewInit {
     return defs;
   }
 
-  private buildDataForGridFromRows(rows: RowDto[]): any[] {
+private buildDataForGridFromRows(rows: RowDto[]): any[] {
   const cols = this.columns();
 
   return rows.map((r) => {
@@ -998,27 +1002,15 @@ export class TableView implements OnInit, OnDestroy, AfterViewInit {
       const t = (c.dataType || '').toUpperCase();
 
       if (t === 'LOOKUP') {
-        const lower = (name || '').toLowerCase();
-        const target = (c.lookupTargetColumnName || '').toLowerCase();
-        const isImageLookup =
-          lower.includes('img') ||
-          lower.includes('image') ||
-          target.includes('img') ||
-          target.includes('image');
-
         // FK ที่เก็บใน JSON
         const fk = obj?.[name] ?? null;
-        // ค่า display จาก backend join (หรือ fallback เป็น fk)
+        // display จาก backend join (ถ้าไม่มีก็ fallback FK)
         const display = anyRow[name] ?? fk;
 
-        if (isImageLookup) {
-          // lookup รูป → ใช้ display (URL) เป็นค่าหลักของ cell
-          rec[name] = display ?? null;
-        } else {
-          // lookup ปกติ → เก็บ FK ไว้ใน field หลัก, display แยกไว้
-          rec[name] = fk;
-          rec[`${name}__display`] = display ?? null;
-        }
+        // 🔹 เก็บ FK ไว้ใน field หลักเสมอ (ใช้สำหรับ save)
+        rec[name] = fk;
+        // 🔹 เก็บค่าที่จะโชว์ไว้ใน __display (ทั้ง text / boolean / image)
+        rec[`${name}__display`] = display ?? null;
         continue;
       }
 
