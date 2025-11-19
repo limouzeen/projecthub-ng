@@ -46,6 +46,9 @@ export class TableView implements OnInit, OnDestroy, AfterViewInit {
   // profile (แสดงขวาบน)
   readonly me = signal<MeDto | null>(null);
 
+  // เก็บ Data Formula ไว้สำหรับ search
+   private formulaFns = new Map<string, (rec: any) => any>();  
+
   tableId = 0;
   columns = signal<ColumnDto[]>([]);
   rows = signal<RowDto[]>([]);
@@ -90,39 +93,90 @@ export class TableView implements OnInit, OnDestroy, AfterViewInit {
   private _lastPageFromServer = 1;
 
   constructor(private footer: FooterStateService) {
-    effect(() => {
-      const q = this.keyword().trim().toLowerCase();
-      if (!this.grid) return;
+  effect(() => {
+    const q = this.keyword().trim().toLowerCase();
+    if (!this.grid) return;
 
-      // ล้าง filter ถ้าไม่มีคำค้น
-      if (!q) {
-        try {
-          this.grid.clearFilter();
-        } catch {}
-        return;
-      }
-
+    if (!q) {
       try {
-        // ใช้ custom filter ให้เข้ากับ Tabulator:
-        // param = row data object ไม่ใช่ RowComponent
-        this.grid.setFilter((data: any) => {
-          if (!data) return false;
-
-          return Object.keys(data).some((key) => {
-            // ไม่ต้องค้นใน meta fields
-            if (key === '__rowId' || key === '__actions') return false;
-
-            const value = data[key];
-
-            // ข้าม null/undefined
-            if (value === null || value === undefined) return false;
-
-            return String(value).toLowerCase().includes(q);
-          });
-        });
+        this.grid.clearFilter();
       } catch {}
-    });
-  }
+      return;
+    }
+
+    try {
+      const cols = this.columns();
+      const colNames = cols.map(c => c.name);
+
+      this.grid.setFilter((data: any) => {
+        if (!data) return false;
+
+        // ---------- วิ่งตาม schema column ก่อน ----------
+        for (const c of cols) {
+          const name = c.name;
+          const t = (c.dataType || '').toUpperCase();
+
+          const valuesToCheck: any[] = [];
+
+          if (t === 'FORMULA') {
+            // ใช้ค่าเลขที่คำนวณแล้วจาก formulaFn
+            const fn = this.formulaFns.get(name);
+            if (fn) {
+              const v = fn(data);
+              valuesToCheck.push(v);
+            }
+          } else if (t === 'LOOKUP') {
+            const fk = data[name];
+            const disp = data[`${name}__display`];
+
+            // เอาทั้ง display + FK มาใช้ค้น
+            valuesToCheck.push(disp, fk);
+
+            // ถ้า display เป็นวันที่ → แปลงเป็น dd-MM-yyyy ด้วย
+            if (typeof disp === 'string') {
+              const raw10 = disp.substring(0, 10);
+              if (
+                /^\d{4}[-/]\d{2}[-/]\d{2}$/.test(raw10) || // yyyy-MM-dd / yyyy/MM/dd
+                /^\d{2}-\d{2}-\d{4}$/.test(raw10)         // dd-MM-yyyy
+              ) {
+                valuesToCheck.push(this.formatDateDdMmYyyy(raw10));
+              }
+            }
+          } else if (t === 'DATE') {
+            const raw = data[name];
+            valuesToCheck.push(raw); // raw จาก backend
+            valuesToCheck.push(this.formatDateDdMmYyyy(raw)); // รูปแบบ dd-MM-yyyy ที่แสดง
+          } else {
+            // type ปกติ
+            valuesToCheck.push(data[name]);
+          }
+
+          for (const v of valuesToCheck) {
+            if (v === null || v === undefined) continue;
+            const s = String(v).toLowerCase();
+            if (!s) continue;
+            if (s.includes(q)) return true;
+          }
+        }
+
+        // ---------- กันเคส field อื่น ๆ ที่ไม่อยู่ใน schema เช่น xxx__display ----------
+        for (const key of Object.keys(data)) {
+          if (key === '__rowId' || key === '__actions') continue;
+          if (colNames.includes(key)) continue; // เช็คไปแล้วด้านบน
+
+          const value = data[key];
+          if (value === null || value === undefined) continue;
+          const s = String(value).toLowerCase();
+          if (!s) continue;
+          if (s.includes(q)) return true;
+        }
+
+        return false;
+      });
+    } catch {}
+  });
+}
+
 
   async ngOnInit() {
     try {
@@ -531,6 +585,9 @@ export class TableView implements OnInit, OnDestroy, AfterViewInit {
   private buildColumnsForGrid(): any[] {
     const cols = this.columns();
 
+    this.formulaFns.clear(); //  เคลียร์ทุกครั้งที่สร้าง column ใหม่
+
+
     const defs: any[] = cols.map((c) => {
       const field = c.name;
       const base: any = {
@@ -786,6 +843,9 @@ export class TableView implements OnInit, OnDestroy, AfterViewInit {
                       return null;
                   }
                 };
+
+                // เก็บ fn ไว้ใช้ตอน search
+              this.formulaFns.set(field, formulaFn);
               }
             }
           } catch (err) {
@@ -940,6 +1000,19 @@ export class TableView implements OnInit, OnDestroy, AfterViewInit {
           line-height:1;
           display:inline-block;
         ">${symbol}</span>`;
+      }
+
+      
+      // 2) ถ้าเป็นวันที่จาก lookup (ส่วนมากจะมาแบบ yyyy-MM-dd หรือ yyyy-MM-ddTHH:mm:ss)
+      if (typeof disp === 'string') {
+        const raw10 = disp.substring(0, 10); // ตัดเอา 10 ตัวแรกก่อน
+        if (
+          /^\d{4}[-/]\d{2}[-/]\d{2}$/.test(raw10) || // yyyy-MM-dd / yyyy/MM/dd
+          /^\d{2}-\d{2}-\d{4}$/.test(raw10)         // dd-MM-yyyy (กันเผื่อ)
+        ) {
+          const text = this.formatDateDdMmYyyy(raw10);
+          return `<span>${text}</span>`;
+        }
       }
 
       // กรณีอื่น ๆ → text ปกติ
