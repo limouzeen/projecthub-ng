@@ -79,6 +79,11 @@ export class TableView implements OnInit, OnDestroy, AfterViewInit {
   deleteFieldOpen = signal(false);
   deleteFieldTarget = signal<ColumnDto | null>(null);
 
+  // --- row confirm (Actions: Save / Delete) ---
+  rowConfirmOpen = signal(false);
+  rowConfirmMode = signal<'save' | 'delete'>('save');
+  rowConfirmRecord = signal<any | null>(null);
+
   // image dialog state
   imageDlgOpen = signal(false);
   imageDlgMode: 'url' | 'delete' = 'url';
@@ -563,7 +568,7 @@ async onConfirmDeleteField() {
 
   private async deleteRowByRecord(record: any) {
     const rowId = record.__rowId as number;
-    if (!confirm('Delete this row?')) return;
+    
     await firstValueFrom(this.api.deleteRow(rowId));
     if (TableView.USE_REMOTE) this.reloadRemoteCurrentPage(true);
     else this.reloadLocalCurrentPage(true);
@@ -1232,8 +1237,12 @@ async onConfirmDeleteField() {
         if (!btn) return;
         const action = btn.getAttribute('data-action');
         const record = cell.getRow().getData() as any;
-        if (action === 'save') await this.saveRowByRecord(record);
-        if (action === 'delete') await this.deleteRowByRecord(record);
+        if (action === 'save') {
+          this.openRowConfirm('save', record);
+        }
+        if (action === 'delete') {
+          this.openRowConfirm('delete', record);
+        }
       },
       resizable: false,
     });
@@ -1714,4 +1723,38 @@ async onConfirmDeleteField() {
   }
 
   // ==================================================================================
+
+
+    // ===== Row confirm dialog (for Actions column) =====
+  openRowConfirm(mode: 'save' | 'delete', record: any) {
+    this.rowConfirmMode.set(mode);
+    this.rowConfirmRecord.set(record);
+    this.rowConfirmOpen.set(true);
+  }
+
+  onCancelRowConfirm() {
+    this.rowConfirmOpen.set(false);
+    this.rowConfirmRecord.set(null);
+  }
+
+  async onConfirmRowAction() {
+    const mode = this.rowConfirmMode();
+    const rec = this.rowConfirmRecord();
+
+    if (!rec) {
+      this.onCancelRowConfirm();
+      return;
+    }
+
+    try {
+      if (mode === 'save') {
+        await this.saveRowByRecord(rec);
+      } else {
+        await this.deleteRowByRecord(rec);
+      }
+    } finally {
+      this.onCancelRowConfirm();
+    }
+  }
+
 }

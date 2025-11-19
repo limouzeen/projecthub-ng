@@ -443,4 +443,64 @@
   </div>
   }
 
+
+    <!-- Row Actions Confirm Dialog (for Tabulator Actions column) -->
+  @if (rowConfirmOpen()) {
+  <div class="ph-editcol-backdrop" (click)="onCancelRowConfirm()">
+    <div class="ph-editcol-wrap" (click)="$event.stopPropagation()">
+      <div class="ph-delrow-card">
+        <h2 class="ph-editcol-title">
+          {{ rowConfirmMode() === 'save' ? 'Save changes' : 'Delete row' }}
+        </h2>
+
+        @if (rowConfirmMode() === 'save') {
+          <p class="ph-delrow-sub">
+            ระบบจะบันทึกค่าปัจจุบันของทุกคอลัมน์ในแถวนี้
+            <span class="text-slate-500">
+              (Row ID: {{ rowConfirmRecord()?.__rowId ?? '–' }})
+            </span>
+          </p>
+
+          <div class="ph-rowinfo-box">
+            Changes will overwrite the existing data in this row.
+          </div>
+        } @else {
+          <p class="ph-delrow-sub">
+            คุณแน่ใจหรือไม่ว่าต้องการลบแถวนี้
+            <span class="text-slate-500">
+              (Row ID: {{ rowConfirmRecord()?.__rowId ?? '–' }})
+            </span>
+            ? ข้อมูลในทุกฟิลด์จะถูกลบและ
+            <b>ไม่สามารถกู้คืนได้</b>
+          </p>
+
+          <div class="ph-delcol-warning">
+            This action cannot be undone.
+          </div>
+        }
+
+        <div class="ph-editcol-actions">
+          <button
+            type="button"
+            class="ph-btn ph-btn-ghost"
+            (click)="onCancelRowConfirm()"
+          >
+            Cancel
+          </button>
+
+          <button
+            type="button"
+            class="ph-btn"
+            [ngClass]="rowConfirmMode() === 'delete' ? 'ph-btn-danger' : 'ph-btn-primary'"
+            (click)="onConfirmRowAction()"
+          >
+            {{ rowConfirmMode() === 'delete' ? 'Delete row' : 'Save' }}
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+  }
+
+
 </section>
