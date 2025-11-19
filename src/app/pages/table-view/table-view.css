@@ -102,7 +102,8 @@ aside.glass-subtle { box-shadow: 0 20px 50px rgba(30,41,59,.12); }
   width: min(480px, 92vw);
 }
 
-.ph-editcol-card {
+.ph-editcol-card,
+.ph-delcol-card {
   position: relative;
   padding: 22px 24px 18px;
   border-radius: 22px;
@@ -116,7 +117,8 @@ aside.glass-subtle { box-shadow: 0 20px 50px rgba(30,41,59,.12); }
   color: #0f172a;
 }
 
-.ph-editcol-card::before {
+.ph-editcol-card::before,
+.ph-delcol-card::before {
   content: '';
   position: absolute;
   inset: -6px;
@@ -128,6 +130,53 @@ aside.glass-subtle { box-shadow: 0 20px 50px rgba(30,41,59,.12); }
   pointer-events: none;
   z-index: -1;
 }
+
+
+.ph-delcol-sub {
+  margin: 0 0 12px;
+  font-size: 12px;
+  color: #4b5563;
+}
+
+.ph-delcol-sub b {
+  font-weight: 600;
+}
+
+.ph-delcol-warning {
+  margin-bottom: 16px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  font-size: 12px;
+  color: #b91c1c;
+  background: linear-gradient(
+    135deg,
+    rgba(254, 242, 242, 0.96),
+    rgba(255, 247, 237, 0.96)
+  );
+  border: 1px solid rgba(248, 113, 113, 0.5);
+}
+
+.ph-btn-danger {
+  background: linear-gradient(135deg, #ef4444, #f97316);
+  color: #ffffff;
+  box-shadow: 0 8px 22px rgba(239, 68, 68, 0.45);
+}
+
+.ph-btn-danger:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 10px 26px rgba(248, 113, 113, 0.55);
+}
+
+.ph-btn-danger:disabled {
+  opacity: 0.4;
+  box-shadow: none;
+  cursor: default;
+}
+
+
+
+
+
 
 .ph-editcol-title {
   font-size: 18px;

@@ -1,19 +1,22 @@
 <section class="min-h-[100svh] flex flex-col gap-4">
-
   <!-- Top Toolbar -->
   <div class="sticky top-0 z-30 bg-white/70 border-b border-white/40">
     <div class="max-w-6xl mx-auto px-4 py-3 flex items-center gap-3">
-
       <!-- menu button -->
       <button
         class="p-2 rounded-lg hover:bg-slate-100"
         (click)="toggleAside()"
         aria-label="Open sidebar"
         aria-controls="app-aside"
-        [attr.aria-expanded]="asideOpen()">
+        [attr.aria-expanded]="asideOpen()"
+      >
         <svg class="w-5 h-5 text-slate-700" viewBox="0 0 24 24" fill="none">
-          <path d="M3 6h18M3 12h18M3 18h18"
-                stroke="currentColor" stroke-width="2" stroke-linecap="round" />
+          <path
+            d="M3 6h18M3 12h18M3 18h18"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+          />
         </svg>
       </button>
 
@@ -25,10 +28,17 @@
         <label for="tbl-search" class="sr-only">Search in table</label>
         <svg
           class="absolute left-2.5 sm:left-3 top-1/2 -translate-y-1/2 w-4 h-4 sm:w-5 sm:h-5 text-slate-400 pointer-events-none"
-          xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"
-          stroke-width="2" stroke="currentColor">
-          <path stroke-linecap="round" stroke-linejoin="round"
-                d="M21 21l-4.35-4.35m0 0A7.5 7.5 0 104.5 4.5a7.5 7.5 0 0012.15 12.15z" />
+          xmlns="http://www.w3.org/2000/svg"
+          fill="none"
+          viewBox="0 0 24 24"
+          stroke-width="2"
+          stroke="currentColor"
+        >
+          <path
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            d="M21 21l-4.35-4.35m0 0A7.5 7.5 0 104.5 4.5a7.5 7.5 0 0012.15 12.15z"
+          />
         </svg>
         <input
           id="tbl-search"
@@ -45,63 +55,77 @@
           class="flex items-center gap-2 pl-2 pr-2 py-1 rounded-xl hover:bg-white/60 transition"
           (click)="toggleProfileMenu()"
           aria-haspopup="menu"
-          [attr.aria-expanded]="profileOpen()">
+          [attr.aria-expanded]="profileOpen()"
+        >
           <img
             [src]="me()?.profilePictureUrl || '/assets/ph_profile.png'"
             alt="Profile"
-            class="w-8 h-8 rounded-full ring-1 ring-white/60" />
+            class="w-8 h-8 rounded-full ring-1 ring-white/60"
+          />
         </button>
 
         @if (profileOpen()) {
-          <div
-            class="absolute right-0 top-full mt-2 w-72 rounded-2xl
-                   bg-white  border border-white/40
-                   shadow-md z-[70] overflow-hidden"
-            role="menu">
-            <div class="p-4 flex items-center gap-3">
-              <img 
-                   [src]="me()?.profilePictureUrl || '/assets/ph_profile.png'"
-                   alt=""
-                   class="w-12 h-12 rounded-full ring-1 ring-white/70" />
-              <div class="min-w-0">
-                <div class="font-semibold text-slate-900 truncate">
-                   {{ me()?.username || me()?.name || 'User' }}
-                </div>
-                <div class="text-xs text-slate-500 truncate">
-                  {{ me()?.email }}
-                </div>
+        <div
+          class="absolute right-0 top-full mt-2 w-72 rounded-2xl bg-white border border-white/40 shadow-md z-[70] overflow-hidden"
+          role="menu"
+        >
+          <div class="p-4 flex items-center gap-3">
+            <img
+              [src]="me()?.profilePictureUrl || '/assets/ph_profile.png'"
+              alt=""
+              class="w-12 h-12 rounded-full ring-1 ring-white/70"
+            />
+            <div class="min-w-0">
+              <div class="font-semibold text-slate-900 truncate">
+                {{ me()?.username || me()?.name || 'User' }}
+              </div>
+              <div class="text-xs text-slate-500 truncate">
+                {{ me()?.email }}
               </div>
             </div>
-            <div class="h-px bg-gradient-to-r from-transparent via-slate-200 to-transparent"></div>
-            <div class="p-2">
-              <button
-                class="w-full flex items-center gap-3 px-3 py-2 rounded-xl
-                       hover:bg-slate-100/70 text-slate-700 transition"
-                (click)="onEditProfile()">
-                <svg class="w-5 h-5 text-indigo-500" viewBox="0 0 24 24" fill="none"
-                     stroke="currentColor" stroke-width="2"
-                     stroke-linecap="round" stroke-linejoin="round">
-                  <path d="M12 20h9"></path>
-                  <path d="M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4 12.5-12.5z"></path>
-                </svg>
-                <span class="text-sm font-medium">Edit Profile</span>
-              </button>
-
-              <button
-                class="w-full flex items-center gap-3 px-3 py-2 rounded-xl
-                       hover:bg-rose-50 text-rose-600 transition"
-                (click)="onLogout()">
-                <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none"
-                     stroke="currentColor" stroke-width="2"
-                     stroke-linecap="round" stroke-linejoin="round">
-                  <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
-                  <path d="M16 17l5-5-5-5"></path>
-                  <path d="M21 12H9"></path>
-                </svg>
-                <span class="text-sm font-medium">Logout</span>
-              </button>
-            </div>
           </div>
+          <div class="h-px bg-gradient-to-r from-transparent via-slate-200 to-transparent"></div>
+          <div class="p-2">
+            <button
+              class="w-full flex items-center gap-3 px-3 py-2 rounded-xl hover:bg-slate-100/70 text-slate-700 transition"
+              (click)="onEditProfile()"
+            >
+              <svg
+                class="w-5 h-5 text-indigo-500"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
+                <path d="M12 20h9"></path>
+                <path d="M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4 12.5-12.5z"></path>
+              </svg>
+              <span class="text-sm font-medium">Edit Profile</span>
+            </button>
+
+            <button
+              class="w-full flex items-center gap-3 px-3 py-2 rounded-xl hover:bg-rose-50 text-rose-600 transition"
+              (click)="onLogout()"
+            >
+              <svg
+                class="w-5 h-5"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
+                <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
+                <path d="M16 17l5-5-5-5"></path>
+                <path d="M21 12H9"></path>
+              </svg>
+              <span class="text-sm font-medium">Logout</span>
+            </button>
+          </div>
+        </div>
         }
       </div>
     </div>
@@ -112,18 +136,17 @@
     class="fixed inset-0 z-40 bg-black/40 transition-opacity duration-300"
     [class.opacity-0]="!asideOpen()"
     [class.pointer-events-none]="!asideOpen()"
-    (click)="asideOpen.set(false)">
-  </div>
+    (click)="asideOpen.set(false)"
+  ></div>
 
   <!-- Drawer / Aside -->
   <aside
     id="app-aside"
-    class="fixed left-0 top-0 bottom-0 z-50 w-80 max-w-[85vw] glass-subtle
-           border border-white/40 backdrop-blur-lg transition-transform duration-300
-           ease-out flex flex-col -translate-x-full"
+    class="fixed left-0 top-0 bottom-0 z-50 w-80 max-w-[85vw] glass-subtle border border-white/40 backdrop-blur-lg transition-transform duration-300 ease-out flex flex-col -translate-x-full"
     [class.translate-x-0]="asideOpen()"
     role="dialog"
-    aria-label="Sidebar">
+    aria-label="Sidebar"
+  >
     <span class="aside-accent" aria-hidden="true"></span>
 
     <div class="px-4 py-3 flex items-center gap-2 border-b border-white/40">
@@ -132,40 +155,64 @@
       <button
         class="ml-auto p-2 rounded-lg hover:bg-slate-100"
         (click)="asideOpen.set(false)"
-        aria-label="Close sidebar">
+        aria-label="Close sidebar"
+      >
         <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none">
-          <path d="M6 6l12 12M18 6l-12 12"
-                stroke="currentColor" stroke-width="2" stroke-linecap="round" />
+          <path
+            d="M6 6l12 12M18 6l-12 12"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+          />
         </svg>
       </button>
     </div>
 
     <nav class="p-3 space-y-1 text-sm font-medium">
       <a routerLink="/dashboard" class="menu-item">
-        <svg class="w-5 h-5 text-indigo-500" fill="none" stroke="currentColor"
-             stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
-             viewBox="0 0 24 24">
+        <svg
+          class="w-5 h-5 text-indigo-500"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          viewBox="0 0 24 24"
+        >
           <path d="M3 12l9-9 9 9M4 10v10a1 1 0 001 1h14a1 1 0 001-1V10" />
         </svg>
         Dashboard
       </a>
 
       <a routerLink="/recently-used" class="menu-item">
-        <svg class="w-5 h-5 text-cyan-500" fill="none" stroke="currentColor"
-             stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
-             viewBox="0 0 24 24">
+        <svg
+          class="w-5 h-5 text-cyan-500"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          viewBox="0 0 24 24"
+        >
           <path d="M9 12h6M9 16h6M4 6h16M4 6v12a2 2 0 002 2h12a2 2 0 002-2V6" />
         </svg>
         Recently Used
       </a>
 
       <a routerLink="/favorites" class="menu-item">
-        <svg class="w-5 h-5 text-indigo-400" fill="none" stroke="currentColor"
-             stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
-             viewBox="0 0 24 24">
+        <svg
+          class="w-5 h-5 text-indigo-400"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          viewBox="0 0 24 24"
+        >
           <path d="M12 8a4 4 0 100 8 4 4 0 000-8z" />
           <path
-            d="M2.458 12C3.732 7.943 7.523 5 12 5c4.477 0 8.268 2.943 9.542 7-.002.02-.002.04 0 .06C20.268 16.057 16.477 19 12 19c-4.477 0-8.268-2.943-9.542-7-.002-.02-.002-.04 0-.06z" />
+            d="M2.458 12C3.732 7.943 7.523 5 12 5c4.477 0 8.268 2.943 9.542 7-.002.02-.002.04 0 .06C20.268 16.057 16.477 19 12 19c-4.477 0-8.268-2.943-9.542-7-.002-.02-.002-.04 0-.06z"
+          />
         </svg>
         Favorite Project
       </a>
@@ -193,10 +240,9 @@
         <a
           routerLink="/about"
           (click)="asideOpen.set(false)"
-          class="text-slate-500 hover:text-slate-700 rounded-lg px-2 py-1
-                 hover:bg-white/50 border border-transparent hover:border-white/40
-                 transition underline-offset-2 hover:underline"
-          aria-label="About us">
+          class="text-slate-500 hover:text-slate-700 rounded-lg px-2 py-1 hover:bg-white/50 border border-transparent hover:border-white/40 transition underline-offset-2 hover:underline"
+          aria-label="About us"
+        >
           About us
         </a>
       </div>
@@ -205,41 +251,31 @@
 
   <!-- Main content -->
   <div class="max-w-6xl mx-auto px-4 w-full space-y-4">
-
     <!-- header + actions -->
     <div class="flex flex-wrap items-center justify-between gap-3 mt-3">
-      
       <!-- Back 2 Project -->
-        <div class="space-y-1 mt-3">
-      @if (projectId) {
-  <button
-    class="ph-back-pill"
-    type="button"
-    (click)="onBackToProject()">
+      <div class="space-y-1 mt-3">
+        @if (projectId) {
+        <button class="ph-back-pill" type="button" (click)="onBackToProject()">
+          <span class="ph-back-pill-icon">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path
+                d="M14.5 5.5L8 12l6.5 6.5"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              />
+            </svg>
+          </span>
 
-    <span class="ph-back-pill-icon">
-      <svg viewBox="0 0 24 24" aria-hidden="true">
-        <path
-          d="M14.5 5.5L8 12l6.5 6.5"
-          fill="none"
-          stroke="currentColor"
-          stroke-width="2"
-          stroke-linecap="round"
-          stroke-linejoin="round" />
-      </svg>
-    </span>
+          <span class="ph-back-pill-label"> Back </span>
+        </button>
+        }
 
-    <span class="ph-back-pill-label">
-      Back
-    </span>
-  </button>
-}
-
-
-       <!-- ======================================================================================= -->
-        <h1 class="text-xl font-semibold text-slate-900 pt-2">
-          Table #{{ tableId }}
-        </h1>
+        <!-- ======================================================================================= -->
+        <h1 class="text-xl font-semibold text-slate-900 pt-2">Table #{{ tableId }}</h1>
         <p class="text-xs text-slate-500 mt-1">
           Manage rows, images, and formula fields in this dataset.
         </p>
@@ -253,7 +289,8 @@
             'btn-primary-enhance': columns().length > 0,
             'btn-disabled': columns().length === 0
           }"
-          [title]="columns().length === 0 ? 'Add at least one field first' : ''">
+          [title]="columns().length === 0 ? 'Add at least one field first' : ''"
+        >
           Add Row
         </button>
       </div>
@@ -261,31 +298,29 @@
 
     <!-- grid wrapper -->
     <div class="mt-4">
-  <div
-    #tabGrid
-    class="tab-root w-full h-[calc(100vh-260px)]"
-  ></div>
-</div>
-
+      <div #tabGrid class="tab-root w-full h-[calc(100vh-260px)]"></div>
+    </div>
 
     <!-- field list -->
     <div class="pt-10 px-40">
       <div class="text-slate-600 text-sm font-semibold mb-1">Fields</div>
       <ul class="space-y-1">
         @for (c of columns(); track c) {
-          <li class="flex justify-between text-sm">
-            <span>
-              {{ c.name }}
-              <small class="text-slate-400">({{ c.dataType }})</small>
-              @if (c.isPrimary) {
-                <small class="text-slate-400"> — PK</small>
-              }
-            </span>
-            <span class="flex gap-3">
-              <button class="link" (click)="onEditField(c)">Edit</button>
-              <button class="link link-danger" (click)="onDeleteField(c)">Delete</button>
-            </span>
-          </li>
+        <li class="flex justify-between text-sm">
+          <span>
+            {{ c.name }}
+            <small class="text-slate-400">({{ c.dataType }})</small>
+            @if (c.isPrimary) {
+            <small class="text-slate-400"> — PK</small>
+            }
+          </span>
+          <span class="flex gap-3">
+            @if (!c.isPrimary) {
+            <button class="link" (click)="onEditField(c)">Edit</button>
+            <button class="link link-danger" (click)="onDeleteField(c)">Delete</button>
+            }
+          </span>
+        </li>
         }
       </ul>
     </div>
@@ -293,12 +328,13 @@
 
   <!-- dialogs -->
   <ph-field-dialog
-  [open]="fieldOpen()"
-  [tableId]="tableId"
-  [projectId]="projectId!"         
-  (save)="onSaveField($event)"
-  (cancel)="fieldOpen.set(false)">
-</ph-field-dialog>
+    [open]="fieldOpen()"
+    [tableId]="tableId"
+    [projectId]="projectId!"
+    (save)="onSaveField($event)"
+    (cancel)="fieldOpen.set(false)"
+  >
+  </ph-field-dialog>
 
   <ph-row-dialog
     [open]="rowOpen()"
@@ -307,7 +343,8 @@
     [initData]="rowInitData"
     [isAutoTable]="isAutoTable()"
     (save)="onSaveRow($event)"
-    (cancel)="rowOpen.set(false)">
+    (cancel)="rowOpen.set(false)"
+  >
   </ph-row-dialog>
 
   <ph-image-dialog
@@ -316,54 +353,94 @@
     [url]="imageDlgUrl"
     (saveUrl)="onImageDialogSave($event)"
     (confirmDelete)="onImageDialogDelete()"
-    (cancel)="onImageDialogCancel()">
+    (cancel)="onImageDialogCancel()"
+  >
   </ph-image-dialog>
-
-
 
   <!-- ===================Edit Field ======================= -->
 
-    <!-- Edit Field Dialog (rename only) -->
+  <!-- Edit Field Dialog (rename only) -->
   @if (editFieldOpen()) {
-    <div class="ph-editcol-backdrop" (click)="onCancelEditField()">
-      <div class="ph-editcol-wrap" (click)="$event.stopPropagation()">
-        <div class="ph-editcol-card">
-          <h2 class="ph-editcol-title">Rename field</h2>
-          <p class="ph-editcol-sub">
-            เปลี่ยนชื่อฟิลด์เพื่อให้สอดคล้องกับข้อมูลของคุณ
-            (ชนิดข้อมูลและการตั้งค่าอื่นจะยังเหมือนเดิม)
-          </p>
+  <div class="ph-editcol-backdrop" (click)="onCancelEditField()">
+    <div class="ph-editcol-wrap" (click)="$event.stopPropagation()">
+      <div class="ph-editcol-card">
+        <h2 class="ph-editcol-title">Rename field</h2>
+        <p class="ph-editcol-sub">
+          เปลี่ยนชื่อฟิลด์เพื่อให้สอดคล้องกับข้อมูลของคุณ
+          (ชนิดข้อมูลและการตั้งค่าอื่นจะยังเหมือนเดิม)
+        </p>
 
-          <div class="ph-editcol-input-wrap">
-            <label class="ph-editcol-label">Field name</label>
-            <input
-              class="ph-editcol-input"
-              [value]="editFieldName()"
-              (input)="editFieldName.set($any($event.target).value)"
-              maxlength="100"
-              autofocus
-            />
-          </div>
+        <div class="ph-editcol-input-wrap">
+          <label class="ph-editcol-label">Field name</label>
+          <input
+            class="ph-editcol-input"
+            [value]="editFieldName()"
+            (input)="editFieldName.set($any($event.target).value)"
+            maxlength="100"
+            autofocus
+          />
+        </div>
 
-          <div class="ph-editcol-actions">
-            <button
-              type="button"
-              class="ph-btn ph-btn-ghost"
-              (click)="onCancelEditField()">
-              Cancel
-            </button>
-            <button
-              type="button"
-              class="ph-btn ph-btn-primary"
-              [disabled]="!editFieldName().trim()"
-              (click)="onSaveEditField()">
-              Save
-            </button>
-          </div>
+        <div class="ph-editcol-actions">
+          <button type="button" class="ph-btn ph-btn-ghost" (click)="onCancelEditField()">
+            Cancel
+          </button>
+          <button
+            type="button"
+            class="ph-btn ph-btn-primary"
+            [disabled]="!editFieldName().trim()"
+            (click)="onSaveEditField()"
+          >
+            Save
+          </button>
         </div>
       </div>
     </div>
+  </div>
   }
 
+
+    <!-- Delete Field Confirm Dialog -->
+  @if (deleteFieldOpen()) {
+  <div class="ph-editcol-backdrop" (click)="onCancelDeleteField()">
+    <div class="ph-editcol-wrap" (click)="$event.stopPropagation()">
+      <div class="ph-delcol-card">
+        <h2 class="ph-editcol-title">Delete field</h2>
+
+        <p class="ph-delcol-sub">
+          คุณแน่ใจหรือไม่ว่าต้องการลบฟิลด์
+          <strong>{{ deleteFieldTarget()?.name }}</strong>
+          <span class="text-slate-400">
+            ({{ deleteFieldTarget()?.dataType }})
+          </span>
+          ?
+          ข้อมูลในคอลัมน์นี้ของทุกแถวจะถูกลบออกและ <b>ไม่สามารถกู้คืนได้</b>
+        </p>
+
+        <div class="ph-delcol-warning">
+          This action cannot be undone.
+        </div>
+
+        <div class="ph-editcol-actions">
+          <button
+            type="button"
+            class="ph-btn ph-btn-ghost"
+            (click)="onCancelDeleteField()"
+          >
+            Cancel
+          </button>
+
+          <button
+            type="button"
+            class="ph-btn ph-btn-danger"
+            (click)="onConfirmDeleteField()"
+          >
+            Delete field
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+  }
 
 </section>

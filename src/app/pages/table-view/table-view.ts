@@ -75,6 +75,10 @@ export class TableView implements OnInit, OnDestroy, AfterViewInit {
   editFieldName = signal('');
   editingColumn: ColumnDto | null = null;
 
+  // --- delete field confirm ---
+  deleteFieldOpen = signal(false);
+  deleteFieldTarget = signal<ColumnDto | null>(null);
+
   // image dialog state
   imageDlgOpen = signal(false);
   imageDlgMode: 'url' | 'delete' = 'url';
@@ -200,12 +204,11 @@ export class TableView implements OnInit, OnDestroy, AfterViewInit {
   }
 
   ngOnDestroy(): void {
-  try {
-    this.saveColumnLayoutFromGrid();
-  } catch {}
-  this.footer.resetAll();
-}
-
+    try {
+      this.saveColumnLayoutFromGrid();
+    } catch {}
+    this.footer.resetAll();
+  }
 
   ngAfterViewInit() {
     this.viewReady = true;
@@ -290,9 +293,9 @@ export class TableView implements OnInit, OnDestroy, AfterViewInit {
 
   async refresh() {
     if (!this.tableId || this.tableId <= 0) {
-    console.warn('refresh() called with invalid tableId:', this.tableId);
-    return;
-  }
+      console.warn('refresh() called with invalid tableId:', this.tableId);
+      return;
+    }
     // 1) schema
     const colsFromApi = await firstValueFrom(this.api.listColumns(this.tableId));
 
@@ -338,15 +341,49 @@ export class TableView implements OnInit, OnDestroy, AfterViewInit {
     } catch {}
   }
 
+
+  // ==== Delete Field ========
   async onDeleteField(c: ColumnDto) {
-    if (!confirm(`Delete field "${c.name}"?`)) return;
-    await firstValueFrom(this.api.deleteColumn(c.columnId));
-    await this.refresh();
+  if (c.isPrimary) {
+    return; // กัน PK เหมือนเดิม
   }
 
-  // ===== Edit Field========
+  this.deleteFieldTarget.set(c);
+  this.deleteFieldOpen.set(true);
+}
+
+// ====== Handler for Delete Field ========
+
+onCancelDeleteField() {
+  this.deleteFieldOpen.set(false);
+  this.deleteFieldTarget.set(null);
+}
+
+async onConfirmDeleteField() {
+  const target = this.deleteFieldTarget();
+  if (!target) {
+    this.onCancelDeleteField();
+    return;
+  }
+
+  try {
+    await firstValueFrom(this.api.deleteColumn(target.columnId));
+    await this.refresh();
+  } catch (e) {
+    this.showHttpError(e, 'ไม่สามารถลบฟิลด์ได้');
+  } finally {
+    this.onCancelDeleteField();
+  }
+}
+
+
+  // ===== Edit Field ========
 
   onEditField(c: ColumnDto) {
+    if (c.isPrimary) {
+      return; // เผื่อไว้จะทำแจ้งเตือนก็ได้ เช่น this.toast.info('Cannot edit primary key field');
+    }
+
     this.editingColumn = c;
     this.editFieldName.set(c.name);
     this.editFieldOpen.set(true);
@@ -358,110 +395,107 @@ export class TableView implements OnInit, OnDestroy, AfterViewInit {
     this.editingColumn = null;
   }
 
-
   // ============ Save Edit Field========
 
   async onSaveEditField() {
-  const col = this.editingColumn;
-  const newName = this.editFieldName().trim();
+    const col = this.editingColumn;
+    const newName = this.editFieldName().trim();
 
-  if (!col) {
-    this.onCancelEditField();
-    return;
-  }
-
-  const oldName = col.name; // << ชื่อเดิมที่ยังมีอยู่ใน JSON ของ rows
-
-  // ถ้าไม่ได้เปลี่ยนชื่อก็ไม่ต้องทำอะไร
-  if (!newName || newName === oldName) {
-    this.onCancelEditField();
-    return;
-  }
-
-  try {
-    // 1) เรียก API เปลี่ยนชื่อ column (schema)
-    await firstValueFrom(this.api.updateColumn(col, newName));
-
-    // 2) refresh schema + grid ให้ this.columns() มีชื่อใหม่แล้ว
-    await this.refresh();
-
-    // 3) migrate ข้อมูลใน rows: oldName -> newName
-    await this.migrateColumnDataAfterRename(oldName, newName);
-
-    // 4) โหลดหน้า grid ปัจจุบันใหม่ (จะได้เห็นค่าที่ migrate แล้ว)
-    if (TableView.USE_REMOTE) {
-      this.reloadRemoteCurrentPage();
-    } else {
-      this.reloadLocalCurrentPage();
+    if (!col) {
+      this.onCancelEditField();
+      return;
     }
-  } catch (err) {
-    console.error('update column failed', err);
-    alert('Cannot rename field right now.');
-  } finally {
-    this.onCancelEditField();
-  }
-}
 
+    const oldName = col.name; // << ชื่อเดิมที่ยังมีอยู่ใน JSON ของ rows
 
-//=============  Helper for Edit Field ===========
+    // ถ้าไม่ได้เปลี่ยนชื่อก็ไม่ต้องทำอะไร
+    if (!newName || newName === oldName) {
+      this.onCancelEditField();
+      return;
+    }
 
-/** 
- * เวลา rename column แล้ว อยากให้ข้อมูลเก่าไม่หาย:
- * ย้ายค่าใน JSON ของแต่ละ row จาก oldName -> newName แล้วยิง updateRow
- */
-private async migrateColumnDataAfterRename(oldName: string, newName: string) {
-  try {
-    const rows = await firstValueFrom(this.api.listRows(this.tableId));
-    if (!rows || !rows.length) return;
+    try {
+      // 1) เรียก API เปลี่ยนชื่อ column (schema)
+      await firstValueFrom(this.api.updateColumn(col, newName));
 
-    // เตรียม payload สำหรับ update แต่ละ row
-    const updates: { rowId: number; raw: Record<string, any> }[] = [];
+      // 2) refresh schema + grid ให้ this.columns() มีชื่อใหม่แล้ว
+      await this.refresh();
 
-    for (const r of rows) {
-      let obj: any;
-      try {
-        obj = JSON.parse(r.data ?? '{}');
-      } catch {
-        obj = {};
+      // 3) migrate ข้อมูลใน rows: oldName -> newName
+      await this.migrateColumnDataAfterRename(oldName, newName);
+
+      // 4) โหลดหน้า grid ปัจจุบันใหม่ (จะได้เห็นค่าที่ migrate แล้ว)
+      if (TableView.USE_REMOTE) {
+        this.reloadRemoteCurrentPage();
+      } else {
+        this.reloadLocalCurrentPage();
       }
+    } catch (err) {
+      console.error('update column failed', err);
+      alert('Cannot rename field right now.');
+    } finally {
+      this.onCancelEditField();
+    }
+  }
 
-      const hasOld = Object.prototype.hasOwnProperty.call(obj, oldName);
-      const hasNew = Object.prototype.hasOwnProperty.call(obj, newName);
+  //=============  Helper for Edit Field ===========
 
-      // ถ้า row นี้ไม่มี field ชื่อเก่า ก็ข้าม
-      if (!hasOld) continue;
+  /**
+   * เวลา rename column แล้ว อยากให้ข้อมูลเก่าไม่หาย:
+   * ย้ายค่าใน JSON ของแต่ละ row จาก oldName -> newName แล้วยิง updateRow
+   */
+  private async migrateColumnDataAfterRename(oldName: string, newName: string) {
+    try {
+      const rows = await firstValueFrom(this.api.listRows(this.tableId));
+      if (!rows || !rows.length) return;
 
-      // ถ้า field ใหม่มีอยู่แล้ว (เช่น เคย migrate ไปแล้ว) ก็ไม่ไปยุ่ง
-      if (hasNew) continue;
+      // เตรียม payload สำหรับ update แต่ละ row
+      const updates: { rowId: number; raw: Record<string, any> }[] = [];
 
-      const raw: Record<string, any> = {};
-
-      // ใช้ schema ปัจจุบัน (this.columns()) ซึ่งตอนนี้ชื่อ field เป็น newName แล้ว
-      for (const c of this.columns()) {
-        const key = c.name;
-
-        if (key === newName) {
-          // ถ้าชื่อใหม่ → ใช้ค่าจากชื่อเก่า
-          raw[key] = obj[oldName];
-        } else {
-          // ฟิลด์อื่น ๆ ใช้ค่าตามชื่อเดิมใน JSON
-          raw[key] = obj[key];
+      for (const r of rows) {
+        let obj: any;
+        try {
+          obj = JSON.parse(r.data ?? '{}');
+        } catch {
+          obj = {};
         }
+
+        const hasOld = Object.prototype.hasOwnProperty.call(obj, oldName);
+        const hasNew = Object.prototype.hasOwnProperty.call(obj, newName);
+
+        // ถ้า row นี้ไม่มี field ชื่อเก่า ก็ข้าม
+        if (!hasOld) continue;
+
+        // ถ้า field ใหม่มีอยู่แล้ว (เช่น เคย migrate ไปแล้ว) ก็ไม่ไปยุ่ง
+        if (hasNew) continue;
+
+        const raw: Record<string, any> = {};
+
+        // ใช้ schema ปัจจุบัน (this.columns()) ซึ่งตอนนี้ชื่อ field เป็น newName แล้ว
+        for (const c of this.columns()) {
+          const key = c.name;
+
+          if (key === newName) {
+            // ถ้าชื่อใหม่ → ใช้ค่าจากชื่อเก่า
+            raw[key] = obj[oldName];
+          } else {
+            // ฟิลด์อื่น ๆ ใช้ค่าตามชื่อเดิมใน JSON
+            raw[key] = obj[key];
+          }
+        }
+
+        updates.push({ rowId: r.rowId, raw });
       }
 
-      updates.push({ rowId: r.rowId, raw });
+      // ยิง updateRow ตามลำดับ
+      for (const { rowId, raw } of updates) {
+        const normalized = this.normalizeRowForSave(raw, false, false);
+        await firstValueFrom(this.api.updateRow(rowId, normalized));
+      }
+    } catch (err) {
+      console.error('migrateColumnDataAfterRename failed', err);
     }
-
-    // ยิง updateRow ตามลำดับ
-    for (const { rowId, raw } of updates) {
-      const normalized = this.normalizeRowForSave(raw, false, false);
-      await firstValueFrom(this.api.updateRow(rowId, normalized));
-    }
-  } catch (err) {
-    console.error('migrateColumnDataAfterRename failed', err);
   }
-}
-
 
   // ---------- Row ----------
   async onAddRow() {
@@ -672,48 +706,48 @@ private async migrateColumnDataAfterRename(oldName: string, newName: string) {
   }
 
   private buildColumnsForGrid(): any[] {
-  // ----- 1) เริ่มจาก schema ปกติ -----
-  const colsBase = this.columns();
-  let cols = [...colsBase];
+    // ----- 1) เริ่มจาก schema ปกติ -----
+    const colsBase = this.columns();
+    let cols = [...colsBase];
 
-  // ----- 3) เคลียร์ formulaFns แล้วใช้กับ cols ที่เรียงแล้ว -----
-  this.formulaFns.clear(); // เคลียร์ทุกครั้งที่สร้าง column ใหม่
+    // ----- 3) เคลียร์ formulaFns แล้วใช้กับ cols ที่เรียงแล้ว -----
+    this.formulaFns.clear(); // เคลียร์ทุกครั้งที่สร้าง column ใหม่
 
-  const defs: any[] = cols.map((c) => {
-    const field = c.name;
-    const base: any = {
-      title: c.name,
-      field,
-      headerHozAlign: 'center',
-      hozAlign: 'center',
-      vertAlign: 'middle',
-      resizable: true,
-      editor: false,
-    };
+    const defs: any[] = cols.map((c) => {
+      const field = c.name;
+      const base: any = {
+        title: c.name,
+        field,
+        headerHozAlign: 'center',
+        hozAlign: 'center',
+        vertAlign: 'middle',
+        resizable: true,
+        editor: false,
+      };
 
-    const lock = c.isPrimary && this.isAutoTable();
+      const lock = c.isPrimary && this.isAutoTable();
 
-    switch ((c.dataType || '').toUpperCase()) {
-      case 'INTEGER':
-        return { ...base, editor: lock ? false : 'number' };
+      switch ((c.dataType || '').toUpperCase()) {
+        case 'INTEGER':
+          return { ...base, editor: lock ? false : 'number' };
 
-      case 'BOOLEAN':
-        return {
-          ...base,
-          formatter: 'tickCross',
-          editor: lock ? false : 'tickCross',
-        };
+        case 'BOOLEAN':
+          return {
+            ...base,
+            formatter: 'tickCross',
+            editor: lock ? false : 'tickCross',
+          };
 
-      case 'IMAGE': {
-        return {
-          ...base,
-          cssClass: 'cell-image',
-          minWidth: 160,
-          formatter: (cell: any) => {
-            const current = (cell.getValue() as string) || null;
+        case 'IMAGE': {
+          return {
+            ...base,
+            cssClass: 'cell-image',
+            minWidth: 160,
+            formatter: (cell: any) => {
+              const current = (cell.getValue() as string) || null;
 
-            const wrap = document.createElement('div');
-            wrap.style.cssText = `
+              const wrap = document.createElement('div');
+              wrap.style.cssText = `
               position:relative;
               width:100%;
               height:${this.THUMB_H}px;
@@ -724,11 +758,11 @@ private async migrateColumnDataAfterRename(oldName: string, newName: string) {
               overflow:hidden;
             `;
 
-            // ---------- content ----------
-            if (current) {
-              const img = document.createElement('img');
-              img.src = current;
-              img.style.cssText = `
+              // ---------- content ----------
+              if (current) {
+                const img = document.createElement('img');
+                img.src = current;
+                img.style.cssText = `
                 max-height:${this.THUMB_H - 10}px;
                 max-width:100%;
                 object-fit:contain;
@@ -737,16 +771,16 @@ private async migrateColumnDataAfterRename(oldName: string, newName: string) {
                 border-radius:10px;
                 box-shadow:0 4px 14px rgba(15,23,42,0.12);
               `;
-              img.onload = () => {
-                try {
-                  cell.getRow().normalizeHeight();
-                } catch {}
-              };
-              wrap.appendChild(img);
-            } else {
-              const ph = document.createElement('div');
-              ph.textContent = 'Drop / Click to upload';
-              ph.style.cssText = `
+                img.onload = () => {
+                  try {
+                    cell.getRow().normalizeHeight();
+                  } catch {}
+                };
+                wrap.appendChild(img);
+              } else {
+                const ph = document.createElement('div');
+                ph.textContent = 'Drop / Click to upload';
+                ph.style.cssText = `
                 padding:6px 12px;
                 border-radius:999px;
                 border:1px dashed rgba(129,140,248,0.9);
@@ -763,12 +797,12 @@ private async migrateColumnDataAfterRename(oldName: string, newName: string) {
                 overflow:hidden;
                 text-overflow:ellipsis;
               `;
-              wrap.appendChild(ph);
-            }
+                wrap.appendChild(ph);
+              }
 
-            // ---------- toolbar: link / delete (vertical) ----------
-            const tools = document.createElement('div');
-            tools.style.cssText = `
+              // ---------- toolbar: link / delete (vertical) ----------
+              const tools = document.createElement('div');
+              tools.style.cssText = `
               position:absolute;
               top:50%;
               right:4px;
@@ -780,11 +814,11 @@ private async migrateColumnDataAfterRename(oldName: string, newName: string) {
               z-index:10;
             `;
 
-            const mkBtn = (label: string) => {
-              const b = document.createElement('button');
-              b.type = 'button';
-              b.innerText = label;
-              b.style.cssText = `
+              const mkBtn = (label: string) => {
+                const b = document.createElement('button');
+                b.type = 'button';
+                b.innerText = label;
+                b.style.cssText = `
                 width:20px;height:20px;
                 border:none;
                 border-radius:999px;
@@ -799,218 +833,217 @@ private async migrateColumnDataAfterRename(oldName: string, newName: string) {
                 align-items:center;
                 justify-content:center;
               `;
-              return b;
-            };
-
-            const btnUrl = mkBtn('🔗');
-            btnUrl.title = 'Set image URL';
-            btnUrl.onclick = (ev) => {
-              ev.stopPropagation();
-              const rec = cell.getRow().getData() as any;
-              const f = cell.getField() as string;
-              const val = (cell.getValue() as string) || '';
-              const isDataUrl = val.startsWith('data:');
-              const clean = isDataUrl ? '' : val;
-              this.openImageUrlDialog(rec, f, clean);
-            };
-
-            const btnClear = mkBtn('🗑');
-            btnClear.title = 'Remove image';
-            btnClear.onclick = (ev) => {
-              ev.stopPropagation();
-              const rec = cell.getRow().getData() as any;
-              const f = cell.getField() as string;
-              const val = (cell.getValue() as string) || '';
-              if (!val) return;
-              this.openImageDeleteDialog(rec, f, val);
-            };
-
-            tools.appendChild(btnUrl);
-            tools.appendChild(btnClear);
-            wrap.appendChild(tools);
-
-            const setDragVisual = (on: boolean) => {
-              wrap.style.boxShadow = on
-                ? '0 0 0 1px rgba(129,140,248,0.85), 0 8px 24px rgba(79,70,229,0.25)'
-                : 'none';
-              wrap.style.background = on && !current
-                ? 'rgba(239,246,255,0.9)'
-                : 'transparent';
-            };
-
-            const handleFiles = (files: FileList | null) => {
-              const file = files?.[0];
-              if (!file) return;
-              const record = cell.getRow().getData() as any;
-              const fieldName = cell.getField() as string;
-              this.onImagePicked(record, fieldName, file);
-            };
-
-            wrap.addEventListener('dragover', (e) => {
-              e.preventDefault();
-              e.stopPropagation();
-              setDragVisual(true);
-            });
-
-            wrap.addEventListener('dragenter', (e) => {
-              e.preventDefault();
-              e.stopPropagation();
-              setDragVisual(true);
-            });
-
-            wrap.addEventListener('dragleave', (e) => {
-              e.preventDefault();
-              e.stopPropagation();
-              setDragVisual(false);
-            });
-
-            wrap.addEventListener('drop', (e: DragEvent) => {
-              e.preventDefault();
-              e.stopPropagation();
-              setDragVisual(false);
-              const dt = e.dataTransfer;
-              if (!dt) return;
-              if (dt.files && dt.files.length) {
-                handleFiles(dt.files);
-              }
-            });
-
-            return wrap;
-          },
-          cellClick: (e: any, cell: any) => {
-            const target = e.target as HTMLElement;
-            if (target.closest('button')) return;
-
-            const fileInput = document.createElement('input');
-            fileInput.type = 'file';
-            fileInput.accept = 'image/*';
-            fileInput.onchange = () => {
-              const file = fileInput.files?.[0];
-              if (!file) return;
-              const record = cell.getRow().getData() as any;
-              const fieldName = cell.getField() as string;
-              this.onImagePicked(record, fieldName, file);
-            };
-            fileInput.click();
-          },
-        };
-      }
-
-      case 'FORMULA': {
-        let formulaFn: ((record: any) => any) | null = null;
-        try {
-          const raw: any = (c as any).formulaDefinition || '';
-          if (raw) {
-            const def = JSON.parse(raw);
-            if (def.type === 'operator' && def.value && def.left && def.right) {
-              const op = def.value;
-              const left = def.left;
-              const right = def.right;
-
-              formulaFn = (rec: any) => {
-                const leftVal =
-                  left.type === 'column'
-                    ? Number(rec[left.name] ?? 0)
-                    : Number(left.value ?? 0);
-                const rightVal =
-                  right.type === 'column'
-                    ? Number(rec[right.name] ?? 0)
-                    : Number(right.value ?? 0);
-
-                switch (op) {
-                  case '+': return leftVal + rightVal;
-                  case '-': return leftVal - rightVal;
-                  case '*': return leftVal * rightVal;
-                  case '/': return rightVal !== 0 ? leftVal / rightVal : null;
-                  default:  return null;
-                }
+                return b;
               };
 
-              this.formulaFns.set(field, formulaFn);
-            }
-          }
-        } catch (err) {
-          console.warn('Formula parse error for column', c.name, err);
+              const btnUrl = mkBtn('🔗');
+              btnUrl.title = 'Set image URL';
+              btnUrl.onclick = (ev) => {
+                ev.stopPropagation();
+                const rec = cell.getRow().getData() as any;
+                const f = cell.getField() as string;
+                const val = (cell.getValue() as string) || '';
+                const isDataUrl = val.startsWith('data:');
+                const clean = isDataUrl ? '' : val;
+                this.openImageUrlDialog(rec, f, clean);
+              };
+
+              const btnClear = mkBtn('🗑');
+              btnClear.title = 'Remove image';
+              btnClear.onclick = (ev) => {
+                ev.stopPropagation();
+                const rec = cell.getRow().getData() as any;
+                const f = cell.getField() as string;
+                const val = (cell.getValue() as string) || '';
+                if (!val) return;
+                this.openImageDeleteDialog(rec, f, val);
+              };
+
+              tools.appendChild(btnUrl);
+              tools.appendChild(btnClear);
+              wrap.appendChild(tools);
+
+              const setDragVisual = (on: boolean) => {
+                wrap.style.boxShadow = on
+                  ? '0 0 0 1px rgba(129,140,248,0.85), 0 8px 24px rgba(79,70,229,0.25)'
+                  : 'none';
+                wrap.style.background = on && !current ? 'rgba(239,246,255,0.9)' : 'transparent';
+              };
+
+              const handleFiles = (files: FileList | null) => {
+                const file = files?.[0];
+                if (!file) return;
+                const record = cell.getRow().getData() as any;
+                const fieldName = cell.getField() as string;
+                this.onImagePicked(record, fieldName, file);
+              };
+
+              wrap.addEventListener('dragover', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                setDragVisual(true);
+              });
+
+              wrap.addEventListener('dragenter', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                setDragVisual(true);
+              });
+
+              wrap.addEventListener('dragleave', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                setDragVisual(false);
+              });
+
+              wrap.addEventListener('drop', (e: DragEvent) => {
+                e.preventDefault();
+                e.stopPropagation();
+                setDragVisual(false);
+                const dt = e.dataTransfer;
+                if (!dt) return;
+                if (dt.files && dt.files.length) {
+                  handleFiles(dt.files);
+                }
+              });
+
+              return wrap;
+            },
+            cellClick: (e: any, cell: any) => {
+              const target = e.target as HTMLElement;
+              if (target.closest('button')) return;
+
+              const fileInput = document.createElement('input');
+              fileInput.type = 'file';
+              fileInput.accept = 'image/*';
+              fileInput.onchange = () => {
+                const file = fileInput.files?.[0];
+                if (!file) return;
+                const record = cell.getRow().getData() as any;
+                const fieldName = cell.getField() as string;
+                this.onImagePicked(record, fieldName, file);
+              };
+              fileInput.click();
+            },
+          };
         }
 
-        return {
-          ...base,
-          editor: false,
-          formatter: (cell: any) => {
-            const rec = cell.getRow().getData();
-            const v = formulaFn ? formulaFn(rec) : '';
-            return `<div>${v ?? ''}</div>`;
-          },
-          tooltip: (c as any).formulaDefinition
-            ? `Formula: ${(c as any).formulaDefinition}`
-            : '',
-        };
-      }
+        case 'FORMULA': {
+          let formulaFn: ((record: any) => any) | null = null;
+          try {
+            const raw: any = (c as any).formulaDefinition || '';
+            if (raw) {
+              const def = JSON.parse(raw);
+              if (def.type === 'operator' && def.value && def.left && def.right) {
+                const op = def.value;
+                const left = def.left;
+                const right = def.right;
 
-      case 'DATE': {
-        return {
-          ...base,
-          editor: (cell: any, onRendered: any, success: (v: any) => void, cancel: () => void) => {
-            const input = document.createElement('input');
-            input.type = 'date';
-            input.className = 'ph-date-editor-input';
+                formulaFn = (rec: any) => {
+                  const leftVal =
+                    left.type === 'column' ? Number(rec[left.name] ?? 0) : Number(left.value ?? 0);
+                  const rightVal =
+                    right.type === 'column'
+                      ? Number(rec[right.name] ?? 0)
+                      : Number(right.value ?? 0);
 
-            const raw = cell.getValue();
-            input.value = this.toInputDateValue(raw);
+                  switch (op) {
+                    case '+':
+                      return leftVal + rightVal;
+                    case '-':
+                      return leftVal - rightVal;
+                    case '*':
+                      return leftVal * rightVal;
+                    case '/':
+                      return rightVal !== 0 ? leftVal / rightVal : null;
+                    default:
+                      return null;
+                  }
+                };
 
-            onRendered(() => {
-              input.focus();
-              input.select?.();
-            });
-
-            const commit = () => success(input.value);
-
-            input.addEventListener('change', commit);
-            input.addEventListener('blur', commit);
-            input.addEventListener('keydown', (e: KeyboardEvent) => {
-              if (e.key === 'Enter') {
-                e.preventDefault();
-                commit();
+                this.formulaFns.set(field, formulaFn);
               }
-              if (e.key === 'Escape') {
-                e.preventDefault();
-                cancel();
-              }
-            });
+            }
+          } catch (err) {
+            console.warn('Formula parse error for column', c.name, err);
+          }
 
-            return input;
-          },
-          formatter: (cell: any) => {
-            const raw = cell.getValue();
-            const text = this.formatDateDdMmYyyy(raw);
-            return `<span>${text}</span>`;
-          },
-        };
-      }
-
-      case 'LOOKUP': {
-        const colName = (c.name || '').toLowerCase();
-        const targetName = (c.lookupTargetColumnName || '').toLowerCase();
-
-        const isImageLookup =
-          colName.includes('img') ||
-          colName.includes('image') ||
-          targetName.includes('img') ||
-          targetName.includes('image');
-
-        if (isImageLookup) {
           return {
             ...base,
-            cssClass: 'cell-image',
-            minWidth: 160,
             editor: false,
             formatter: (cell: any) => {
-              const rowData = cell.getRow().getData();
-              const field = cell.getField();
-              const url = rowData[`${field}__display`] || '';
+              const rec = cell.getRow().getData();
+              const v = formulaFn ? formulaFn(rec) : '';
+              return `<div>${v ?? ''}</div>`;
+            },
+            tooltip: (c as any).formulaDefinition ? `Formula: ${(c as any).formulaDefinition}` : '',
+          };
+        }
 
-              const wrap = document.createElement('div');
-              wrap.style.cssText = `
+        case 'DATE': {
+          return {
+            ...base,
+            editor: (cell: any, onRendered: any, success: (v: any) => void, cancel: () => void) => {
+              const input = document.createElement('input');
+              input.type = 'date';
+              input.className = 'ph-date-editor-input';
+
+              const raw = cell.getValue();
+              input.value = this.toInputDateValue(raw);
+
+              onRendered(() => {
+                input.focus();
+                input.select?.();
+              });
+
+              const commit = () => success(input.value);
+
+              input.addEventListener('change', commit);
+              input.addEventListener('blur', commit);
+              input.addEventListener('keydown', (e: KeyboardEvent) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault();
+                  commit();
+                }
+                if (e.key === 'Escape') {
+                  e.preventDefault();
+                  cancel();
+                }
+              });
+
+              return input;
+            },
+            formatter: (cell: any) => {
+              const raw = cell.getValue();
+              const text = this.formatDateDdMmYyyy(raw);
+              return `<span>${text}</span>`;
+            },
+          };
+        }
+
+        case 'LOOKUP': {
+          const colName = (c.name || '').toLowerCase();
+          const targetName = (c.lookupTargetColumnName || '').toLowerCase();
+
+          const isImageLookup =
+            colName.includes('img') ||
+            colName.includes('image') ||
+            targetName.includes('img') ||
+            targetName.includes('image');
+
+          if (isImageLookup) {
+            return {
+              ...base,
+              cssClass: 'cell-image',
+              minWidth: 160,
+              editor: false,
+              formatter: (cell: any) => {
+                const rowData = cell.getRow().getData();
+                const field = cell.getField();
+                const url = rowData[`${field}__display`] || '';
+
+                const wrap = document.createElement('div');
+                wrap.style.cssText = `
                 position:relative;
                 width:100%;
                 height:${this.THUMB_H}px;
@@ -1021,10 +1054,10 @@ private async migrateColumnDataAfterRename(oldName: string, newName: string) {
                 overflow:hidden;
               `;
 
-              if (url && (/^https?:\/\//i.test(url) || url.startsWith('data:'))) {
-                const img = document.createElement('img');
-                img.src = url;
-                img.style.cssText = `
+                if (url && (/^https?:\/\//i.test(url) || url.startsWith('data:'))) {
+                  const img = document.createElement('img');
+                  img.src = url;
+                  img.style.cssText = `
                   max-height:${this.THUMB_H - 10}px;
                   max-width:100%;
                   object-fit:contain;
@@ -1033,81 +1066,78 @@ private async migrateColumnDataAfterRename(oldName: string, newName: string) {
                   border-radius:10px;
                   box-shadow:0 4px 14px rgba(15,23,42,0.12);
                 `;
-                img.onload = () => {
-                  try {
-                    cell.getRow().normalizeHeight();
-                  } catch {}
-                };
-                wrap.appendChild(img);
-              }
+                  img.onload = () => {
+                    try {
+                      cell.getRow().normalizeHeight();
+                    } catch {}
+                  };
+                  wrap.appendChild(img);
+                }
 
-              return wrap;
-            },
-          };
-        }
+                return wrap;
+              },
+            };
+          }
 
-        return {
-          ...base,
-          editor: false,
-          formatter: (cell: any) => {
-            const rowData = cell.getRow().getData();
-            const field = cell.getField();
-            const disp = rowData[`${field}__display`];
+          return {
+            ...base,
+            editor: false,
+            formatter: (cell: any) => {
+              const rowData = cell.getRow().getData();
+              const field = cell.getField();
+              const disp = rowData[`${field}__display`];
 
-            const isBoolLike =
-              disp === true ||
-              disp === false ||
-              disp === 'true' ||
-              disp === 'false' ||
-              disp === 1 ||
-              disp === 0 ||
-              disp === '1' ||
-              disp === '0';
+              const isBoolLike =
+                disp === true ||
+                disp === false ||
+                disp === 'true' ||
+                disp === 'false' ||
+                disp === 1 ||
+                disp === 0 ||
+                disp === '1' ||
+                disp === '0';
 
-            if (isBoolLike) {
-              const v = disp === true || disp === 'true' || disp === 1 || disp === '1';
-              const symbol = v ? '✓' : '✗';
-              const color = v ? '#22c55e' : '#ef4444';
-              return `<span style="
+              if (isBoolLike) {
+                const v = disp === true || disp === 'true' || disp === 1 || disp === '1';
+                const symbol = v ? '✓' : '✗';
+                const color = v ? '#22c55e' : '#ef4444';
+                return `<span style="
                 font-size:16px;
                 font-weight:700;
                 color:${color};
                 line-height:1;
                 display:inline-block;
               ">${symbol}</span>`;
-            }
-
-            if (typeof disp === 'string') {
-              const raw10 = disp.substring(0, 10);
-              if (
-                /^\d{4}[-/]\d{2}[-/]\d{2}$/.test(raw10) ||
-                /^\d{2}-\d{2}-\d{4}$/.test(raw10)
-              ) {
-                const text = this.formatDateDdMmYyyy(raw10);
-                return `<span>${text}</span>`;
               }
-            }
 
-            return disp ?? '';
-          },
-        };
+              if (typeof disp === 'string') {
+                const raw10 = disp.substring(0, 10);
+                if (/^\d{4}[-/]\d{2}[-/]\d{2}$/.test(raw10) || /^\d{2}-\d{2}-\d{4}$/.test(raw10)) {
+                  const text = this.formatDateDdMmYyyy(raw10);
+                  return `<span>${text}</span>`;
+                }
+              }
+
+              return disp ?? '';
+            },
+          };
+        }
+
+        default:
+          return { ...base, editor: lock ? false : 'input' };
       }
+    });
 
-      default:
-        return { ...base, editor: lock ? false : 'input' };
-    }
-  });
-
-  // Actions column
-  defs.push({
-  title: 'Actions',
-  field: '__actions',
-  width: 150,
-  headerHozAlign: 'center',
-  hozAlign: 'center',
-  vertAlign: 'middle',
-  widthGrow: 0,
-  formatter: () => `
+    // Actions column
+    defs.push({
+      title: 'Actions',
+      field: '__actions',
+      width: 150,
+      headerHozAlign: 'center',
+      hozAlign: 'center',
+      vertAlign: 'middle',
+      widthGrow: 0,
+      formatter: () => `
     <div
       style="
         display:flex;
@@ -1197,36 +1227,35 @@ private async migrateColumnDataAfterRename(oldName: string, newName: string) {
       </button>
     </div>
   `,
-  cellClick: async (e: any, cell: any) => {
-    const btn = (e.target as HTMLElement).closest('button');
-    if (!btn) return;
-    const action = btn.getAttribute('data-action');
-    const record = cell.getRow().getData() as any;
-    if (action === 'save') await this.saveRowByRecord(record);
-    if (action === 'delete') await this.deleteRowByRecord(record);
-  },
-  resizable: false,
-});
-
-
-   // ===== ใช้ field order ที่เคยเซฟไว้ (ไม่สน Actions) =====
-  const savedOrder = this.loadSavedColumnLayout();
-  if (savedOrder && savedOrder.length) {
-    const indexOf = (field: string) => {
-      const i = savedOrder.indexOf(field);
-      // field ที่ไม่เคยอยู่ใน savedOrder ให้ไปอยู่ท้าย ๆ
-      return i === -1 ? Number.MAX_SAFE_INTEGER : i;
-    };
-
-    defs.sort((a, b) => {
-      const fa = a.field as string;
-      const fb = b.field as string;
-      return indexOf(fa) - indexOf(fb);
+      cellClick: async (e: any, cell: any) => {
+        const btn = (e.target as HTMLElement).closest('button');
+        if (!btn) return;
+        const action = btn.getAttribute('data-action');
+        const record = cell.getRow().getData() as any;
+        if (action === 'save') await this.saveRowByRecord(record);
+        if (action === 'delete') await this.deleteRowByRecord(record);
+      },
+      resizable: false,
     });
+
+    // ===== ใช้ field order ที่เคยเซฟไว้ (ไม่สน Actions) =====
+    const savedOrder = this.loadSavedColumnLayout();
+    if (savedOrder && savedOrder.length) {
+      const indexOf = (field: string) => {
+        const i = savedOrder.indexOf(field);
+        // field ที่ไม่เคยอยู่ใน savedOrder ให้ไปอยู่ท้าย ๆ
+        return i === -1 ? Number.MAX_SAFE_INTEGER : i;
+      };
+
+      defs.sort((a, b) => {
+        const fa = a.field as string;
+        const fb = b.field as string;
+        return indexOf(fa) - indexOf(fb);
+      });
+    }
+
+    return defs;
   }
-  
-  return defs;
-}
 
   private buildDataForGridFromRows(rows: RowDto[]): any[] {
     const cols = this.columns();
@@ -1346,133 +1375,127 @@ private async migrateColumnDataAfterRename(oldName: string, newName: string) {
   // =====================================================
   //                 BUILD TABULATOR
   // =====================================================
- private buildTabulator() {
-  const hasImageCol = this.hasImageColumn();
-  this.lastHasImageCol = hasImageCol;
-  this.lastColSig = this.colSignature();
+  private buildTabulator() {
+    const hasImageCol = this.hasImageColumn();
+    this.lastHasImageCol = hasImageCol;
+    this.lastColSig = this.colSignature();
 
-  const baseRowHeight = hasImageCol ? 90 : 46;
+    const baseRowHeight = hasImageCol ? 90 : 46;
 
-  const baseOptions: any = {
-    columns: this.buildColumnsForGrid(),
-    layout: 'fitColumns',
-    rowHeight: baseRowHeight,
-    variableHeight: true,
-    resizableRows: true,
-    paginationSize: 10,
-    persistence: false,
-    persistenceMode: false,
-    paginationSizeSelector: [10, 20, 50, 100],
-    paginationCounter: 'pages',
-    height: '100%',
-    reactiveData: false,
-    movableColumns: true,
-    index: '__rowId',
-    columnDefaults: {
-      hozAlign: 'center',
-      vertAlign: 'middle',
-      widthGrow: 1,
-      resizable: true,
-    },
-    placeholder: 'No rows yet.',
-
-    
-
-    columnResized: () => {
-      try {
-        this.grid.redraw(true);
-        this.saveColumnLayoutFromGrid();
-      } catch {}
-    },
-
-    tableBuilt: () => {
-      try {
-        this.grid.redraw(true);
-        this.saveColumnLayoutFromGrid();
-      } catch {}
-    },
-
-    layoutChanged: () => {
-      try {
-        this.grid.redraw(true);
-      } catch {}
-    },
-
-    columnMoved: () => {
-      try {
-        this.saveColumnLayoutFromGrid();
-      } catch {}
-    },
-
-    cellEdited: (cell: any) => {
-      const field = cell.getField();
-      const rec = cell.getRow().getData() as any;
-      rec[field] = cell.getValue();
-    },
-  };
-
-  if (TableView.USE_REMOTE) {
-    this.grid = new Tabulator(this.tabGridEl.nativeElement, {
-      ...baseOptions,
-      pagination: 'remote',
-      ajaxURL: 'about:blank',
-      paginationDataReceived: { last_page: 'last_page', data: 'data' },
-      paginationDataSent: { page: 'page', size: 'size', sorters: 'sorters', filters: 'filters' },
-      ajaxRequestFunc: (_url: string, _config: any, params: any) => {
-        const page = Number(params?.page ?? 1);
-        const size = Number(params?.size ?? 10);
-        return firstValueFrom(this.api.listRowsPaged(this.tableId, page, size)).then(
-          (res: { rows: RowDto[]; total: number }) => {
-            const total = Number(res.total ?? 0);
-            const last_page = Math.max(1, Math.ceil(total / size));
-            const data = this.buildDataForGridFromRows(res.rows as RowDto[]);
-            this._lastPageFromServer = last_page;
-            return { last_page, data };
-          }
-        );
+    const baseOptions: any = {
+      columns: this.buildColumnsForGrid(),
+      layout: 'fitColumns',
+      rowHeight: baseRowHeight,
+      variableHeight: true,
+      resizableRows: true,
+      paginationSize: 10,
+      persistence: false,
+      persistenceMode: false,
+      paginationSizeSelector: [10, 20, 50, 100],
+      paginationCounter: 'pages',
+      height: '100%',
+      reactiveData: false,
+      movableColumns: true,
+      index: '__rowId',
+      columnDefaults: {
+        hozAlign: 'center',
+        vertAlign: 'middle',
+        widthGrow: 1,
+        resizable: true,
       },
-      ajaxResponse: (_url: string, _params: any, response: any) => response?.data ?? [],
-      pageLoaded: () => {
+      placeholder: 'No rows yet.',
+
+      columnResized: () => {
         try {
-          const lp = Math.max(1, this._lastPageFromServer || 1);
-          if (this.grid?.modules?.page) {
-            this.grid.modules.page.max = lp;
-            const cur = Number(this.grid?.getPage?.() || 1);
-            try {
-              this.grid.setPage(cur);
-            } catch {}
-          }
+          this.grid.redraw(true);
+          this.saveColumnLayoutFromGrid();
+        } catch {}
+      },
+
+      tableBuilt: () => {
+        try {
+          this.grid.redraw(true);
+          this.saveColumnLayoutFromGrid();
+        } catch {}
+      },
+
+      layoutChanged: () => {
+        try {
           this.grid.redraw(true);
         } catch {}
       },
-    });
-  } else {
-    this.grid = new Tabulator(this.tabGridEl.nativeElement, {
-      ...baseOptions,
-      pagination: 'local',
-    });
-    
+
+      columnMoved: () => {
+        try {
+          this.saveColumnLayoutFromGrid();
+        } catch {}
+      },
+
+      cellEdited: (cell: any) => {
+        const field = cell.getField();
+        const rec = cell.getRow().getData() as any;
+        rec[field] = cell.getValue();
+      },
+    };
+
+    if (TableView.USE_REMOTE) {
+      this.grid = new Tabulator(this.tabGridEl.nativeElement, {
+        ...baseOptions,
+        pagination: 'remote',
+        ajaxURL: 'about:blank',
+        paginationDataReceived: { last_page: 'last_page', data: 'data' },
+        paginationDataSent: { page: 'page', size: 'size', sorters: 'sorters', filters: 'filters' },
+        ajaxRequestFunc: (_url: string, _config: any, params: any) => {
+          const page = Number(params?.page ?? 1);
+          const size = Number(params?.size ?? 10);
+          return firstValueFrom(this.api.listRowsPaged(this.tableId, page, size)).then(
+            (res: { rows: RowDto[]; total: number }) => {
+              const total = Number(res.total ?? 0);
+              const last_page = Math.max(1, Math.ceil(total / size));
+              const data = this.buildDataForGridFromRows(res.rows as RowDto[]);
+              this._lastPageFromServer = last_page;
+              return { last_page, data };
+            }
+          );
+        },
+        ajaxResponse: (_url: string, _params: any, response: any) => response?.data ?? [],
+        pageLoaded: () => {
+          try {
+            const lp = Math.max(1, this._lastPageFromServer || 1);
+            if (this.grid?.modules?.page) {
+              this.grid.modules.page.max = lp;
+              const cur = Number(this.grid?.getPage?.() || 1);
+              try {
+                this.grid.setPage(cur);
+              } catch {}
+            }
+            this.grid.redraw(true);
+          } catch {}
+        },
+      });
+    } else {
+      this.grid = new Tabulator(this.tabGridEl.nativeElement, {
+        ...baseOptions,
+        pagination: 'local',
+      });
+    }
+
+    try {
+      // ยิงทุกครั้งที่ "ลากย้ายคอลัมน์"
+      this.grid.on('columnMoved', (_col: any, _cols: any[]) => {
+        console.log('[event] columnMoved');
+        this.saveColumnLayoutFromGrid();
+      });
+
+      // ยิงตอน resize คอลัมน์ (เผื่ออยากจำลำดับ+layoutรวม ๆ)
+      this.grid.on('columnResized', () => {
+        console.log('[event] columnResized');
+        this.saveColumnLayoutFromGrid();
+      });
+    } catch (err) {
+      console.warn('bind tabulator events failed', err);
+    }
   }
-
-
-  try {
-    // ยิงทุกครั้งที่ "ลากย้ายคอลัมน์"
-    this.grid.on('columnMoved', (_col: any, _cols: any[]) => {
-      console.log('[event] columnMoved');
-      this.saveColumnLayoutFromGrid();
-    });
-
-    // ยิงตอน resize คอลัมน์ (เผื่ออยากจำลำดับ+layoutรวม ๆ)
-    this.grid.on('columnResized', () => {
-      console.log('[event] columnResized');
-      this.saveColumnLayoutFromGrid();
-    });
-  } catch (err) {
-    console.warn('bind tabulator events failed', err);
-  }
-
-}
-
 
   private ensureGridAndSync() {
     if (!this.viewReady) return;
@@ -1642,61 +1665,53 @@ private async migrateColumnDataAfterRename(oldName: string, newName: string) {
     return '';
   }
 
- // ================ Helper For Column Layout =========================
+  // ================ Helper For Column Layout =========================
 
-private getColLayoutStorageKey(): string {
-  // แยกต่อ table
-  return `ph_col_layout_t${this.tableId}`;
-}
-
-/** อ่านลำดับ field ของคอลัมน์ที่เคยเซฟไว้ */
-private loadSavedColumnLayout(): string[] | null {
-  try {
-    const key = this.getColLayoutStorageKey();
-    const raw = localStorage.getItem(key);
-    if (!raw) return null;
-
-    const arr = JSON.parse(raw);
-
-    // รูปแบบใหม่: ['ID','Name','Price']
-    if (Array.isArray(arr) && arr.every((x) => typeof x === 'string')) {
-      return arr;
-    }
-
-    // กันเคสถ้าเคยเซฟเป็น layout object แบบเดิม
-    if (Array.isArray(arr) && arr.length && typeof arr[0] === 'object') {
-      const fields = arr
-        .map((x: any) => x.field)
-        .filter((f: any) => typeof f === 'string');
-      return fields.length ? fields : null;
-    }
-
-    return null;
-  } catch {
-    return null;
+  private getColLayoutStorageKey(): string {
+    // แยกต่อ table
+    return `ph_col_layout_t${this.tableId}`;
   }
-}
 
-/** เซฟ “ลำดับ field ปัจจุบัน” ลง localStorage */
-private saveColumnLayoutFromGrid() {
-  try {
-    if (!this.grid) return;
+  /** อ่านลำดับ field ของคอลัมน์ที่เคยเซฟไว้ */
+  private loadSavedColumnLayout(): string[] | null {
+    try {
+      const key = this.getColLayoutStorageKey();
+      const raw = localStorage.getItem(key);
+      if (!raw) return null;
 
-    const cols = this.grid.getColumns(); // Tabulator ColumnComponent[]
-    const fields: string[] = cols
-      .map((col: any) => col.getField && col.getField())
-      .filter((f: any) => typeof f === 'string' && f !== '__actions');
+      const arr = JSON.parse(raw);
 
-    const key = this.getColLayoutStorageKey();
-    localStorage.setItem(key, JSON.stringify(fields));
+      // รูปแบบใหม่: ['ID','Name','Price']
+      if (Array.isArray(arr) && arr.every((x) => typeof x === 'string')) {
+        return arr;
+      }
 
-   
-  } catch {
-    
+      // กันเคสถ้าเคยเซฟเป็น layout object แบบเดิม
+      if (Array.isArray(arr) && arr.length && typeof arr[0] === 'object') {
+        const fields = arr.map((x: any) => x.field).filter((f: any) => typeof f === 'string');
+        return fields.length ? fields : null;
+      }
+
+      return null;
+    } catch {
+      return null;
+    }
   }
-}
 
+  /** เซฟ “ลำดับ field ปัจจุบัน” ลง localStorage */
+  private saveColumnLayoutFromGrid() {
+    try {
+      if (!this.grid) return;
 
+      const cols = this.grid.getColumns(); // Tabulator ColumnComponent[]
+      const fields: string[] = cols
+        .map((col: any) => col.getField && col.getField())
+        .filter((f: any) => typeof f === 'string' && f !== '__actions');
+
+      const key = this.getColLayoutStorageKey();
+      localStorage.setItem(key, JSON.stringify(fields));
+    } catch {}
+  }
 
   // ==================================================================================
 }
