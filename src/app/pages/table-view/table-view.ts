@@ -358,34 +358,110 @@ export class TableView implements OnInit, OnDestroy, AfterViewInit {
     this.editingColumn = null;
   }
 
+
+  // ============ Save Edit Field========
+
   async onSaveEditField() {
-    const col = this.editingColumn;
-    const newName = this.editFieldName().trim();
+  const col = this.editingColumn;
+  const newName = this.editFieldName().trim();
 
-    if (!col) {
-      this.onCancelEditField();
-      return;
-    }
-
-    // ถ้าไม่ได้เปลี่ยนชื่อ ไม่ต้องยิงอะไร
-    if (!newName || newName === col.name) {
-      this.onCancelEditField();
-      return;
-    }
-
-    try {
-      // ---------- call API from service ----------
-      await firstValueFrom(this.api.updateColumn(col, newName));
-
-      // โหลด schema + grid ใหม่ให้ชื่อ field อัปเดตทุกที่
-      await this.refresh();
-    } catch (err) {
-      console.error('update column failed', err);
-      alert('Cannot rename field right now.');
-    } finally {
-      this.onCancelEditField();
-    }
+  if (!col) {
+    this.onCancelEditField();
+    return;
   }
+
+  const oldName = col.name; // << ชื่อเดิมที่ยังมีอยู่ใน JSON ของ rows
+
+  // ถ้าไม่ได้เปลี่ยนชื่อก็ไม่ต้องทำอะไร
+  if (!newName || newName === oldName) {
+    this.onCancelEditField();
+    return;
+  }
+
+  try {
+    // 1) เรียก API เปลี่ยนชื่อ column (schema)
+    await firstValueFrom(this.api.updateColumn(col, newName));
+
+    // 2) refresh schema + grid ให้ this.columns() มีชื่อใหม่แล้ว
+    await this.refresh();
+
+    // 3) migrate ข้อมูลใน rows: oldName -> newName
+    await this.migrateColumnDataAfterRename(oldName, newName);
+
+    // 4) โหลดหน้า grid ปัจจุบันใหม่ (จะได้เห็นค่าที่ migrate แล้ว)
+    if (TableView.USE_REMOTE) {
+      this.reloadRemoteCurrentPage();
+    } else {
+      this.reloadLocalCurrentPage();
+    }
+  } catch (err) {
+    console.error('update column failed', err);
+    alert('Cannot rename field right now.');
+  } finally {
+    this.onCancelEditField();
+  }
+}
+
+
+//=============  Helper for Edit Field ===========
+
+/** 
+ * เวลา rename column แล้ว อยากให้ข้อมูลเก่าไม่หาย:
+ * ย้ายค่าใน JSON ของแต่ละ row จาก oldName -> newName แล้วยิง updateRow
+ */
+private async migrateColumnDataAfterRename(oldName: string, newName: string) {
+  try {
+    const rows = await firstValueFrom(this.api.listRows(this.tableId));
+    if (!rows || !rows.length) return;
+
+    // เตรียม payload สำหรับ update แต่ละ row
+    const updates: { rowId: number; raw: Record<string, any> }[] = [];
+
+    for (const r of rows) {
+      let obj: any;
+      try {
+        obj = JSON.parse(r.data ?? '{}');
+      } catch {
+        obj = {};
+      }
+
+      const hasOld = Object.prototype.hasOwnProperty.call(obj, oldName);
+      const hasNew = Object.prototype.hasOwnProperty.call(obj, newName);
+
+      // ถ้า row นี้ไม่มี field ชื่อเก่า ก็ข้าม
+      if (!hasOld) continue;
+
+      // ถ้า field ใหม่มีอยู่แล้ว (เช่น เคย migrate ไปแล้ว) ก็ไม่ไปยุ่ง
+      if (hasNew) continue;
+
+      const raw: Record<string, any> = {};
+
+      // ใช้ schema ปัจจุบัน (this.columns()) ซึ่งตอนนี้ชื่อ field เป็น newName แล้ว
+      for (const c of this.columns()) {
+        const key = c.name;
+
+        if (key === newName) {
+          // ถ้าชื่อใหม่ → ใช้ค่าจากชื่อเก่า
+          raw[key] = obj[oldName];
+        } else {
+          // ฟิลด์อื่น ๆ ใช้ค่าตามชื่อเดิมใน JSON
+          raw[key] = obj[key];
+        }
+      }
+
+      updates.push({ rowId: r.rowId, raw });
+    }
+
+    // ยิง updateRow ตามลำดับ
+    for (const { rowId, raw } of updates) {
+      const normalized = this.normalizeRowForSave(raw, false, false);
+      await firstValueFrom(this.api.updateRow(rowId, normalized));
+    }
+  } catch (err) {
+    console.error('migrateColumnDataAfterRename failed', err);
+  }
+}
+
 
   // ---------- Row ----------
   async onAddRow() {
