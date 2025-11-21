@@ -265,7 +265,7 @@ export class FieldDialog implements OnChanges {
     }
   }
 
-  async onSelectTargetTable() {
+    async onSelectTargetTable() {
     if (!this.targetTableId) {
       this.targetCols.set([]);
       return;
@@ -275,7 +275,11 @@ export class FieldDialog implements OnChanges {
       (await firstValueFrom(this.api.listColumns(this.targetTableId))) ?? [];
 
     const filtered = cols
-      .filter((c) => (c.dataType || '').toUpperCase() !== 'FORMULA')
+      .filter((c) => {
+        const t = (c.dataType || '').toUpperCase();
+        // ห้ามเลือก column ที่เป็น FORMULA หรือ LOOKUP มาเป็น target column
+        return t !== 'FORMULA' && t !== 'LOOKUP';
+      })
       .map(
         (c) =>
           ({
@@ -286,6 +290,7 @@ export class FieldDialog implements OnChanges {
 
     this.targetCols.set(filtered);
 
+    // ถ้า column ที่เคยเลือกไว้ไม่อยู่ใน filtered แล้ว → reset เป็น null
     if (!filtered.some((c) => c.columnId === this.targetColumnId)) {
       this.targetColumnId = null;
     }
