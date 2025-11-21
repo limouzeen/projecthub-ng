@@ -47,6 +47,22 @@ export const routes: Routes = [
       import('./pages/admin-users/admin-users').then((m) => m.AdminUsers),
   },
 
+  {
+    path: 'forgot-password',
+    loadComponent: () =>
+      import('./pages/auth/forgot-password/forgot-password').then(
+        (m) => m.ForgotPassword
+      ),
+  },
+  {
+    path: 'reset-password',
+    loadComponent: () =>
+      import('./pages/auth/reset-password/reset-password').then(
+        (m) => m.ResetPassword
+      ),
+  },
+
+
   { path: '', pathMatch: 'full', redirectTo: 'dashboard' },
   { path: '**', redirectTo: 'dashboard' },
 
