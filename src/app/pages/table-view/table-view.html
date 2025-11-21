@@ -293,7 +293,20 @@
         >
           Add Row
         </button>
+
+        <!-- Quick Calc toggle -->
+  <button
+    type="button"
+    class="btn-ghost-enhance"
+    [ngClass]="{ 'btn-primary-enhance': quickCalcActive() }"
+    (click)="toggleQuickCalc()"
+    title="ทดลองคำนวณค่าจากเซลล์ตัวเลข (ไม่กระทบข้อมูลจริง)"
+  >
+    Quick calc
+  </button>
       </div>
+
+      
     </div>
 
     <!-- grid wrapper -->
@@ -501,6 +514,49 @@
     </div>
   </div>
   }
+
+
+  <!-- Quick Calc Panel -->
+@if (quickCalcActive()) {
+  <div class="ph-qcalc-panel">
+    <div class="ph-qcalc-card">
+      <div class="ph-qcalc-header">
+        <span>Quick calc</span>
+        <span class="ph-qcalc-pill">
+          {{ quickCalcCount() }} cell{{ quickCalcCount() === 1 ? '' : 's' }}
+        </span>
+      </div>
+
+      <div class="ph-qcalc-body">
+        <div class="ph-qcalc-row">
+          <span>Sum</span>
+          <span>{{ quickCalcSum() | number: '1.0-4' }}</span>
+        </div>
+        <div class="ph-qcalc-row">
+          <span>Average</span>
+          <span>{{ quickCalcAvg() | number: '1.0-4' }}</span>
+        </div>
+        <div class="ph-qcalc-row">
+          <span>Min</span>
+          <span>{{ quickCalcMin() | number: '1.0-4' }}</span>
+        </div>
+        <div class="ph-qcalc-row">
+          <span>Max</span>
+          <span>{{ quickCalcMax() | number: '1.0-4' }}</span>
+        </div>
+      </div>
+
+      <div class="ph-qcalc-actions">
+        <button type="button" class="ph-btn ph-btn-ghost" (click)="clearQuickCalc()">
+          Clear
+        </button>
+        <button type="button" class="ph-btn ph-btn-primary" (click)="toggleQuickCalc()">
+          Close
+        </button>
+      </div>
+    </div>
+  </div>
+}
 
 
 </section>

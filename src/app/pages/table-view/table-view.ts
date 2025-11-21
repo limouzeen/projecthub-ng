@@ -9,6 +9,7 @@ import {
   ElementRef,
   HostListener,
   effect,
+  computed,
 } from '@angular/core';
 import { CommonModule, Location } from '@angular/common';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
@@ -100,6 +101,55 @@ export class TableView implements OnInit, OnDestroy, AfterViewInit {
   private lastHasImageCol = false;
   private lastColSig = '';
   private _lastPageFromServer = 1;
+
+  // --- Quick calc (ทดลองคำนวณเลขหน้าตารางเฉย ๆ) ---
+  
+  quickCalcActive = signal(false);
+  quickCalcValues = signal<number[]>([]);
+
+  // จำว่า cell ไหนถูกเลือกเข้ามาคิด quick calc แล้วบ้าง (rowId::field)
+  private quickCalcCellKeys = new Set<string>();
+
+  quickCalcCount = computed(() => this.quickCalcValues().length);
+
+  quickCalcSum = computed(() => {
+    return this.quickCalcValues().reduce((acc, v) => acc + v, 0);
+  });
+
+  quickCalcAvg = computed(() => {
+    const n = this.quickCalcCount();
+    return n > 0 ? this.quickCalcSum() / n : 0;
+  });
+
+  quickCalcMin = computed(() => {
+    const arr = this.quickCalcValues();
+    return arr.length ? Math.min(...arr) : 0;
+  });
+
+  quickCalcMax = computed(() => {
+    const arr = this.quickCalcValues();
+    return arr.length ? Math.max(...arr) : 0;
+  });
+
+    toggleQuickCalc() {
+    const next = !this.quickCalcActive();
+    this.quickCalcActive.set(next);
+
+    // ปิดโหมดเมื่อไหร่ เคลียร์ค่าทิ้งหมด
+    if (!next) {
+      this.quickCalcValues.set([]);
+      this.quickCalcCellKeys.clear();
+    }
+  }
+
+  clearQuickCalc() {
+    this.quickCalcValues.set([]);
+    this.quickCalcCellKeys.clear();
+  }
+
+
+
+  //===================================================================
 
   constructor(private footer: FooterStateService) {
     effect(() => {
@@ -731,8 +781,41 @@ export class TableView implements OnInit, OnDestroy, AfterViewInit {
       const lock = c.isPrimary && this.isAutoTable();
 
       switch ((c.dataType || '').toUpperCase()) {
-        case 'INTEGER':
-          return { ...base, editor: lock ? false : 'number' };
+              case 'INTEGER':
+      case 'REAL':
+      case 'NUMBER':
+      case 'FLOAT': {
+        const numericEditor = lock ? false : 'number';
+
+        return {
+          ...base,
+          editor: numericEditor,
+
+          cellClick: (_e: any, cell: any) => {
+            // ยังไม่ได้เปิดโหมด Quick Calc ก็ไม่ต้องทำอะไร
+            if (!this.quickCalcActive()) return;
+
+            const raw = cell.getValue();
+            const num = Number(raw);
+            if (!Number.isFinite(num)) return;
+
+            // สร้าง key ของ cell นี้จาก rowId + field
+            const rec = cell.getRow().getData() as any;
+            const fieldName = cell.getField() as string;
+            const key = `${rec.__rowId ?? ''}::${fieldName}`;
+
+            // ถ้าเคยเก็บ cell นี้แล้ว → ไม่ต้องเก็บซ้ำ (กันเบิ้ล)
+            if (this.quickCalcCellKeys.has(key)) return;
+
+            this.quickCalcCellKeys.add(key);
+
+            // เพิ่มค่าเข้า array ตามปกติ
+            const current = this.quickCalcValues();
+            this.quickCalcValues.set([...current, num]);
+          },
+        };
+      }
+
 
         case 'BOOLEAN': {
           return {
