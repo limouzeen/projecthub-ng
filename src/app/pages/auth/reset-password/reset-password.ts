@@ -1,4 +1,3 @@
-// src/app/pages/auth/reset-password.ts
 import {
   Component,
   signal,
