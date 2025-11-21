@@ -44,7 +44,6 @@ type FormulaRightMode = 'column' | 'literal';
 export class FieldDialog implements OnChanges {
   @Input() open = false;
   @Input({ required: true }) tableId!: number;
-
   @Input({ required: true }) projectId!: number;
 
   @Output() save = new EventEmitter<FieldDialogModel>();
@@ -52,7 +51,6 @@ export class FieldDialog implements OnChanges {
 
   private readonly api = inject(TableViewService);
   private readonly toast = inject(ToastService);
-
 
   // ===== base form =====
   name = '';
@@ -84,9 +82,12 @@ export class FieldDialog implements OnChanges {
   // ใหม่: list คอลัมน์ของ table ปัจจุบัน สำหรับ dropdown Source column
   readonly currentCols = signal<ColumnListItem[]>([]);
 
-
-   // มี PK อยู่แล้วใน table นี้ไหม
+  // มี PK อยู่แล้วใน table นี้ไหม
   readonly hasPrimary = signal(false);
+
+  // เก็บ schema เต็ม และจำนวนคอลัมน์ที่ไม่ใช่ PK
+  readonly allCols = signal<ColumnDto[]>([]);
+  readonly nonPkCount = signal(0);
 
   formulaOp: '+' | '-' | '*' | '/' = '+';
   formulaLeftColumnId: number | null = null;
@@ -104,11 +105,11 @@ export class FieldDialog implements OnChanges {
     if (changes['open'] && this.open) {
       this.resetForm();
 
-      // mock: โหลด table list (ใช้สำหรับ Lookup)
+      // table list สำหรับ Lookup
       const tabs = (await firstValueFrom(this.api.listTables(this.projectId))) ?? [];
       this.tables.set(tabs);
 
-      // โหลด numericCols สำหรับ Formula เดิม
+      // โหลด numericCols + hasPrimary + nonPkCount
       await this.loadNumericColumns();
 
       // โหลดคอลัมน์ทั้งหมดของ table ปัจจุบัน สำหรับใช้เป็น sourceColumn
@@ -146,24 +147,40 @@ export class FieldDialog implements OnChanges {
 
   async loadNumericColumns() {
     try {
-      // listColumns จาก service 
-      const cols: ColumnDto[] = await firstValueFrom(this.api.listColumns(this.tableId));
+      const cols: ColumnDto[] = (await firstValueFrom(this.api.listColumns(this.tableId))) ?? [];
 
-      // เซ็ต flag ว่าตารางนี้มี PK อยู่แล้วไหม
-    const hasPk = (cols || []).some((c) => c.isPrimary);
-    this.hasPrimary.set(hasPk);
+      this.allCols.set(cols);
 
-      const numeric = (cols || [])
+      // มี PK หรือยัง
+      const hasPk = cols.some((c) => c.isPrimary);
+      this.hasPrimary.set(hasPk);
+
+      // จำนวนคอลัมน์ที่ไม่ใช่ PK
+      const nonPk = cols.filter((c) => !c.isPrimary).length;
+      this.nonPkCount.set(nonPk);
+
+      const numeric = cols
         .filter((c) => {
           const t = (c.dataType || '').toUpperCase();
           return t === 'INTEGER' || t === 'REAL' || t === 'NUMBER';
         })
         .map((c) => ({ columnId: c.columnId, name: c.name }));
+
       this.numericCols.set(numeric);
     } catch {
+      this.allCols.set([]);
       this.numericCols.set([]);
-       this.hasPrimary.set(false);
+      this.hasPrimary.set(false);
+      this.nonPkCount.set(0);
     }
+  }
+
+  // ตรวจสอบชื่อ column ซ้ำ
+  private isDuplicateName(name: string): boolean {
+    const trimmed = name.trim().toLowerCase();
+    if (!trimmed) return false;
+
+    return this.currentCols().some((c) => c.name.trim().toLowerCase() === trimmed);
   }
 
   onPresetChange() {
@@ -171,79 +188,78 @@ export class FieldDialog implements OnChanges {
   }
 
   private applyPreset() {
-  // reset พื้นฐาน
-  this.isPrimary = false;
-  this.isNullable = true;
+    // reset พื้นฐาน
+    this.isPrimary = false;
+    this.isNullable = true;
 
-  switch (this.preset) {
-    case 'Identifier':
-      // 🔹 ถ้าตารางนี้มี PK อยู่แล้ว ห้ามสร้างซ้ำ
-      if (this.hasPrimary()) {
-        // แจ้งเตือนด้วย toast
-        this.toast.error('ตารางนี้มี Primary key อยู่แล้ว ไม่สามารถสร้าง PK ซ้ำได้');
+    switch (this.preset) {
+      case 'Identifier':
+        // มี PK แล้ว → ไม่อนุญาต
+        if (this.hasPrimary()) {
+          this.toast.warning(
+            'This table already has a primary key. You cannot create another one.'
+          );
 
-        // รีเซ็ต preset กลับเป็น Text
-        this.preset = 'Text';
+          // รีเซ็ตกลับเป็น Text
+          this.preset = 'Text';
+          this.dataType = 'TEXT';
+          this.isPrimary = false;
+          this.isNullable = true;
+          return;
+        }
+
+        this.dataType = 'INTEGER';
+        this.isPrimary = true;
+        this.isNullable = false;
+        break;
+
+      case 'Text':
         this.dataType = 'TEXT';
+        break;
+
+      case 'Number':
+        this.dataType = 'REAL';
+        break;
+
+      case 'Price':
+        this.dataType = 'REAL';
+        break;
+
+      case 'Date':
+        this.dataType = 'DATE';
+        break;
+
+      case 'YesNo':
+        this.dataType = 'BOOLEAN';
+        break;
+
+      case 'Image':
+        this.dataType = 'IMAGE';
+        break;
+
+      case 'Lookup':
+        this.dataType = 'LOOKUP';
+        break;
+
+      case 'Formula':
+        this.dataType = 'FORMULA';
         this.isPrimary = false;
-        this.isNullable = true;
-        return;
-      }
-
-      this.dataType = 'INTEGER';
-      this.isPrimary = true;
-      this.isNullable = false;
-      break;
-
-    case 'Text':
-      this.dataType = 'TEXT';
-      break;
-
-    case 'Number':
-      this.dataType = 'REAL';
-      break;
-
-    case 'Price':
-      this.dataType = 'REAL';
-      break;
-
-    case 'Date':
-      this.dataType = 'DATE';
-      break;
-
-    case 'YesNo':
-      this.dataType = 'BOOLEAN';
-      break;
-
-    case 'Image':
-      this.dataType = 'IMAGE';
-      break;
-
-    case 'Lookup':
-      this.dataType = 'LOOKUP';
-      break;
-
-    case 'Formula':
-      this.dataType = 'FORMULA';
-      this.isPrimary = false;
-      if (this.numericCols().length === 0) {
-        this.loadNumericColumns();
-      }
-      break;
+        if (this.numericCols().length === 0) {
+          this.loadNumericColumns();
+        }
+        break;
+    }
   }
-}
-
 
   async onSelectTargetTable() {
     if (!this.targetTableId) {
       this.targetCols.set([]);
       return;
     }
-    // ใช้ listColumns แบบเต็มเพื่อดู dataType ได้
+
     const cols: ColumnDto[] =
       (await firstValueFrom(this.api.listColumns(this.targetTableId))) ?? [];
 
-    // กรอง column ที่เป็น FORMULA ออกไป
     const filtered = cols
       .filter((c) => (c.dataType || '').toUpperCase() !== 'FORMULA')
       .map(
@@ -256,7 +272,6 @@ export class FieldDialog implements OnChanges {
 
     this.targetCols.set(filtered);
 
-    // กันค่าค้าง ถ้า column ที่เคยเลือกถูกกรองทิ้ง ให้รีเซ็ตเป็น null
     if (!filtered.some((c) => c.columnId === this.targetColumnId)) {
       this.targetColumnId = null;
     }
@@ -320,7 +335,6 @@ export class FieldDialog implements OnChanges {
       right: rightNode,
     };
 
-    // NOTE: ตอนผูก API จริง BE จะอ่าน string นี้ไป parse ใช้งานต่อ
     return JSON.stringify(formula);
   }
 
@@ -330,69 +344,101 @@ export class FieldDialog implements OnChanges {
   }
 
   canSubmit(): boolean {
-  if (!this.name.trim()) return false;
+    const trimmedName = this.name.trim();
+    if (!trimmedName) return false;
 
-  // ถ้ามี PK อยู่แล้ว แต่ฟอร์มดันคิดว่า field นี้เป็น PK → ไม่ให้ส่ง
-  if (this.isPrimary && this.hasPrimary()) {
-    return false;
+    // ห้ามชื่อซ้ำ
+    if (this.isDuplicateName(trimmedName)) return false;
+
+    // ห้ามมี PK ซ้ำ
+    if (this.isPrimary && this.hasPrimary()) return false;
+
+    // จำกัดจำนวน column (ไม่รวม PK) ไม่เกิน 10
+    if (!this.isPrimary && this.nonPkCount() >= 10) return false;
+
+    if (this.preset === 'Formula') {
+      return this.buildFormulaDefinition() !== null;
+    }
+
+    if (this.preset === 'Lookup') {
+      return !!this.targetTableId && !!this.targetColumnId;
+    }
+
+    return true;
   }
-
-  if (this.preset === 'Formula') {
-    return this.buildFormulaDefinition() !== null;
-  }
-
-  if (this.preset === 'Lookup') {
-    return !!this.targetTableId && !!this.targetColumnId;
-  }
-
-  return true;
-}
-
 
   // ========== actions ==========
   submit() {
-    if (!this.canSubmit()) {
-      alert('กรุณากรอกข้อมูลให้ครบก่อนสร้างฟิลด์');
+  const trimmedName = this.name.trim();
+
+  if (!trimmedName) {
+    this.toast.warning('Please enter a field name.');
+    return;
+  }
+
+  if (this.isDuplicateName(trimmedName)) {
+    this.toast.warning(`A column named "${trimmedName}" already exists.`);
+    return;
+  }
+
+  if (this.isPrimary && this.hasPrimary()) {
+    this.toast.warning('This table already has a primary key. You cannot create another one.');
+    return;
+  }
+
+  if (!this.isPrimary && this.nonPkCount() >= 10) {
+    this.toast.warning('You cannot add more than 10 non-primary-key fields to this table.');
+    return;
+  }
+
+  if (this.preset === 'Formula') {
+    const def = this.buildFormulaDefinition();
+    if (!def) {
+      this.toast.warning('Please select Left / Operator / Right before creating a formula field.');
       return;
     }
-
-    const model: FieldDialogModel = {
-      name: this.name.trim(),
-      dataType: this.dataType,
-      isNullable: this.isNullable,
-      isPrimary: this.isPrimary,
-      targetTableId: this.preset === 'Lookup' ? this.targetTableId : null,
-      targetColumnId: this.preset === 'Lookup' ? this.targetColumnId : null,
-
-      formulaDefinition: null,
-    };
-
-    if (this.preset === 'Formula') {
-      const def = this.buildFormulaDefinition();
-      if (!def) {
-        alert('กรุณาเลือก Left / Operator / Right ให้ครบ');
-        return;
-      }
-      model.formulaDefinition = def;
-    }
-
-    this.save.emit(model);
-    this.resetForm();
+    this.formulaDefinition = def;
   }
+
+  if (this.preset === 'Lookup') {
+    if (!this.targetTableId || !this.targetColumnId) {
+      this.toast.warning(
+        'Please select both a target table and a target column for the lookup field.'
+      );
+      return;
+    }
+  }
+
+  const model: FieldDialogModel = {
+    name: trimmedName,
+    dataType: this.dataType,
+    isNullable: this.isNullable,
+    isPrimary: this.isPrimary,
+    targetTableId: this.preset === 'Lookup' ? this.targetTableId : null,
+    targetColumnId: this.preset === 'Lookup' ? this.targetColumnId : null,
+    formulaDefinition: this.preset === 'Formula' ? this.formulaDefinition : null,
+  };
+
+  this.save.emit(model);
+  this.resetForm();
+
+  this.toast.info('Field created successfully.');
+}
+
 
   close() {
     this.resetForm();
     this.cancel.emit();
   }
 
-
   onPrimaryCheckboxChange(event: Event) {
-  // ถ้ามี PK อยู่แล้ว -> ไม่ยอมให้ติ๊ก PK เพิ่ม
-  if (this.hasPrimary()) {
-    (event.target as HTMLInputElement).checked = false;
-    this.isPrimary = false;
-    this.toast.error('ตารางนี้มี Primary key อยู่แล้ว ไม่สามารถตั้ง PK ซ้ำได้');
+    if (this.hasPrimary()) {
+      // ถ้ามี PK อยู่แล้ว → ยกเลิกการติ๊ก และแจ้งเตือน
+      (event.target as HTMLInputElement).checked = false;
+      this.isPrimary = false;
+      this.toast.warning(
+        'This table already has a primary key. You cannot create another one.'
+      );
+    }
   }
-}
-
 }

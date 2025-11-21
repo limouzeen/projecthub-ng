@@ -179,7 +179,7 @@
               type="checkbox"
               [(ngModel)]="isPrimary"
               name="isPrimary"
-              [disabled]="preset === 'Identifier' || preset === 'Formula' || hasPrimary()"
+              [disabled]="preset === 'Identifier' || preset === 'Formula'"
               (change)="onPrimaryCheckboxChange($event)"
             />
             Use as identifier (PK)
@@ -205,7 +205,7 @@
         <button
           class="btn-primary-enhance"
           type="button"
-          [disabled]="!canSubmit()"
+          [disabled]="!name.trim()"
           (click)="submit()"
         >
           Create field
