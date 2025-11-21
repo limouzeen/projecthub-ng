@@ -103,7 +103,7 @@ export class TableView implements OnInit, OnDestroy, AfterViewInit {
   private _lastPageFromServer = 1;
 
   // --- Quick calc (ทดลองคำนวณเลขหน้าตารางเฉย ๆ) ---
-  
+
   quickCalcActive = signal(false);
   quickCalcValues = signal<number[]>([]);
 
@@ -131,7 +131,7 @@ export class TableView implements OnInit, OnDestroy, AfterViewInit {
     return arr.length ? Math.max(...arr) : 0;
   });
 
-    toggleQuickCalc() {
+  toggleQuickCalc() {
     const next = !this.quickCalcActive();
     this.quickCalcActive.set(next);
 
@@ -146,8 +146,6 @@ export class TableView implements OnInit, OnDestroy, AfterViewInit {
     this.quickCalcValues.set([]);
     this.quickCalcCellKeys.clear();
   }
-
-
 
   //===================================================================
 
@@ -781,41 +779,40 @@ export class TableView implements OnInit, OnDestroy, AfterViewInit {
       const lock = c.isPrimary && this.isAutoTable();
 
       switch ((c.dataType || '').toUpperCase()) {
-              case 'INTEGER':
-      case 'REAL':
-      case 'NUMBER':
-      case 'FLOAT': {
-        const numericEditor = lock ? false : 'number';
+        case 'INTEGER':
+        case 'REAL':
+        case 'NUMBER':
+        case 'FLOAT': {
+          const numericEditor = lock ? false : 'number';
 
-        return {
-          ...base,
-          editor: numericEditor,
+          return {
+            ...base,
+            editor: numericEditor,
 
-          cellClick: (_e: any, cell: any) => {
-            // ยังไม่ได้เปิดโหมด Quick Calc ก็ไม่ต้องทำอะไร
-            if (!this.quickCalcActive()) return;
+            cellClick: (_e: any, cell: any) => {
+              // ยังไม่ได้เปิดโหมด Quick Calc ก็ไม่ต้องทำอะไร
+              if (!this.quickCalcActive()) return;
 
-            const raw = cell.getValue();
-            const num = Number(raw);
-            if (!Number.isFinite(num)) return;
+              const raw = cell.getValue();
+              const num = Number(raw);
+              if (!Number.isFinite(num)) return;
 
-            // สร้าง key ของ cell นี้จาก rowId + field
-            const rec = cell.getRow().getData() as any;
-            const fieldName = cell.getField() as string;
-            const key = `${rec.__rowId ?? ''}::${fieldName}`;
+              // สร้าง key ของ cell นี้จาก rowId + field
+              const rec = cell.getRow().getData() as any;
+              const fieldName = cell.getField() as string;
+              const key = `${rec.__rowId ?? ''}::${fieldName}`;
 
-            // ถ้าเคยเก็บ cell นี้แล้ว → ไม่ต้องเก็บซ้ำ (กันเบิ้ล)
-            if (this.quickCalcCellKeys.has(key)) return;
+              // ถ้าเคยเก็บ cell นี้แล้ว → ไม่ต้องเก็บซ้ำ (กันเบิ้ล)
+              if (this.quickCalcCellKeys.has(key)) return;
 
-            this.quickCalcCellKeys.add(key);
+              this.quickCalcCellKeys.add(key);
 
-            // เพิ่มค่าเข้า array ตามปกติ
-            const current = this.quickCalcValues();
-            this.quickCalcValues.set([...current, num]);
-          },
-        };
-      }
-
+              // เพิ่มค่าเข้า array ตามปกติ
+              const current = this.quickCalcValues();
+              this.quickCalcValues.set([...current, num]);
+            },
+          };
+        }
 
         case 'BOOLEAN': {
           return {
@@ -1095,6 +1092,27 @@ export class TableView implements OnInit, OnDestroy, AfterViewInit {
               return `<div>${v ?? ''}</div>`;
             },
             tooltip: (c as any).formulaDefinition ? `Formula: ${(c as any).formulaDefinition}` : '',
+
+            // >>> ตรงนี้ <<<  ใช้ค่า formula มาคิด quick calc ได้
+            cellClick: (_e: any, cell: any) => {
+              if (!this.quickCalcActive()) return;
+              if (!formulaFn) return;
+
+              const rec = cell.getRow().getData();
+              const v = formulaFn(rec);
+
+              const num = Number(v);
+              if (!Number.isFinite(num)) return;
+
+              const fieldName = cell.getField() as string;
+              const key = `${rec.__rowId ?? ''}::${fieldName}::formula`;
+              if (this.quickCalcCellKeys.has(key)) return;
+
+              this.quickCalcCellKeys.add(key);
+
+              const current = this.quickCalcValues();
+              this.quickCalcValues.set([...current, num]);
+            },
           };
         }
 
@@ -1237,6 +1255,44 @@ export class TableView implements OnInit, OnDestroy, AfterViewInit {
               }
 
               return disp ?? '';
+            },
+
+            // >>> ตรงนี้ <<<  กด lookup ที่เป็นตัวเลขเพื่อเอาไปคิด quick calc ได้
+            cellClick: (_e: any, cell: any) => {
+              if (!this.quickCalcActive()) return;
+
+              const rowData = cell.getRow().getData();
+              const field = cell.getField();
+
+              const disp = rowData[`${field}__display`];
+              const fk = rowData[field];
+
+              const isBoolLike =
+                disp === true ||
+                disp === false ||
+                disp === 'true' ||
+                disp === 'false' ||
+                disp === 1 ||
+                disp === 0 ||
+                disp === '1' ||
+                disp === '0';
+
+              // ไม่เอา bool-like มาใช้คำนวณ
+              if (isBoolLike) return;
+
+              // เลือก source ที่จะเอาไปแปลงเป็นเลข: ถ้า display มีใช้ display, ไม่งั้นใช้ fk
+              const source = disp ?? fk;
+              const num = Number(source);
+
+              if (!Number.isFinite(num)) return; // ไม่ใช่เลขก็ไม่เก็บ
+
+              const key = `${rowData.__rowId ?? ''}::${field}::lookup`;
+              if (this.quickCalcCellKeys.has(key)) return;
+
+              this.quickCalcCellKeys.add(key);
+
+              const current = this.quickCalcValues();
+              this.quickCalcValues.set([...current, num]);
             },
           };
         }
