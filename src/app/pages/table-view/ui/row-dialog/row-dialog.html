@@ -11,58 +11,76 @@
       @switch (typeOf(c)) { @case ('INTEGER') {
       <input
         class="input"
+        [class.input-error]="validationErrors[c.name]"
         type="number"
         [(ngModel)]="model[c.name]"
         [name]="c.name"
         [disabled]="!!c.isPrimary && isAutoTable"
       />
-      } @case ('REAL') {
+      @if (validationErrors[c.name]) {
+      <div class="err-msg">{{ validationErrors[c.name] }}</div>
+      } }@case ('REAL') {
       <input
         class="input"
+        [class.input-error]="validationErrors[c.name]"
         type="number"
         step="any"
         [(ngModel)]="model[c.name]"
         [name]="c.name"
         [disabled]="!!c.isPrimary && isAutoTable"
       />
-      } @case ('NUMBER') {
+      @if (validationErrors[c.name]) {
+      <div class="err-msg">{{ validationErrors[c.name] }}</div>
+      } } @case ('NUMBER') {
       <input
         class="input"
+        [class.input-error]="validationErrors[c.name]"
         type="number"
         step="any"
         [(ngModel)]="model[c.name]"
         [name]="c.name"
         [disabled]="!!c.isPrimary && isAutoTable"
       />
-      } @case ('BOOLEAN') {
-      <div class="flex items-center gap-6">
-        <label class="inline-flex items-center gap-2">
-          <input
-            type="radio"
-            [name]="c.name + '_bool'"
-            [value]="true"
-            [(ngModel)]="model[c.name]"
-            [disabled]="!!c.isPrimary && isAutoTable"
-          />
-          <span class="text-xs text-slate-500">Yes</span>
-        </label>
+      @if (validationErrors[c.name]) {
+      <div class="err-msg">{{ validationErrors[c.name] }}</div>
+      } } @case ('BOOLEAN') {
+      <div class="flex flex-col gap-1">
+        <div class="flex items-center gap-6">
+          <label class="inline-flex items-center gap-2">
+            <input
+              type="radio"
+              [name]="c.name + '_bool'"
+              [value]="true"
+              [(ngModel)]="model[c.name]"
+              [disabled]="!!c.isPrimary && isAutoTable"
+            />
+            <span class="text-xs text-slate-500">Yes</span>
+          </label>
 
-        <label class="inline-flex items-center gap-2">
-          <input
-            type="radio"
-            [name]="c.name + '_bool'"
-            [value]="false"
-            [(ngModel)]="model[c.name]"
-            [disabled]="!!c.isPrimary && isAutoTable"
-          />
-          <span class="text-xs text-slate-500">No</span>
-        </label>
+          <label class="inline-flex items-center gap-2">
+            <input
+              type="radio"
+              [name]="c.name + '_bool'"
+              [value]="false"
+              [(ngModel)]="model[c.name]"
+              [disabled]="!!c.isPrimary && isAutoTable"
+            />
+            <span class="text-xs text-slate-500">No</span>
+          </label>
+        </div>
+
+        @if (validationErrors[c.name]) {
+        <div class="err-msg">{{ validationErrors[c.name] }}</div>
+        }
       </div>
       } @case ('IMAGE') {
       <div class="img-field">
         @if (model[c.name]) {
         <div class="img-preview">
           <img [src]="model[c.name]" alt="" />
+          @if (validationErrors[c.name]) {
+          <div class="err-msg">{{ validationErrors[c.name] }}</div>
+          }
         </div>
         }
 
@@ -143,29 +161,53 @@
         </div>
       </div>
       }@case ('LOOKUP') {
-  <select class="input" [(ngModel)]="model[c.name]" [name]="c.name">
-  <option [ngValue]="null">-- Select ID --</option>
-  @for (opt of lookupOptions[c.name] || []; track opt.value) {
-    <option [ngValue]="opt.value">{{ opt.label }}</option>
-  }
-</select>
+      <div class="flex flex-col gap-1">
+        <select
+          class="input"
+          [class.input-error]="validationErrors[c.name]"
+          [(ngModel)]="model[c.name]"
+          [name]="c.name"
+        >
+          <option [ngValue]="null">-- Select ID --</option>
+          @for (opt of lookupOptions[c.name] || []; track opt.value) {
+          <option [ngValue]="opt.value">{{ opt.label }}</option>
+          }
+        </select>
 
-}
-
-
- @case ('FORMULA') {
+        @if (validationErrors[c.name]) {
+        <div class="err-msg">{{ validationErrors[c.name] }}</div>
+        }
+      </div>
+      } @case ('FORMULA') {
       <input class="input" [disabled]="true" [ngModel]="model[c.name]" [name]="c.name" />
       } @case ('DATE') {
-      <input class="input" type="date" [(ngModel)]="model[c.name]" [name]="c.name" />
+      <div class="flex flex-col gap-1">
+        <input
+          class="input"
+          [class.input-error]="validationErrors[c.name]"
+          type="date"
+          [(ngModel)]="model[c.name]"
+          [name]="c.name"
+        />
+        @if (validationErrors[c.name]) {
+        <div class="err-msg">{{ validationErrors[c.name] }}</div>
+        }
+      </div>
       } @default {
-      <textarea
-        class="input"
-        rows="2"
-        [(ngModel)]="model[c.name]"
-        [name]="c.name"
-        [disabled]="!!c.isPrimary && isAutoTable"
-      >
-      </textarea>
+      <div class="flex flex-col gap-1">
+        <textarea
+          class="input"
+          [class.input-error]="validationErrors[c.name]"
+          rows="2"
+          [(ngModel)]="model[c.name]"
+          [name]="c.name"
+          [disabled]="!!c.isPrimary && isAutoTable"
+        ></textarea>
+
+        @if (validationErrors[c.name]) {
+        <div class="err-msg">{{ validationErrors[c.name] }}</div>
+        }
+      </div>
       } } } }
 
       <div class="col-span-full flex justify-end gap-2 pt-3">
