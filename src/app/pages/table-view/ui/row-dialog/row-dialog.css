@@ -38,3 +38,27 @@
 .icon-btn.danger:hover { background: #ffe4e6; }
 .img-actions .or { color: #94a3b8; font-size: .85rem; user-select: none; }
 .input.url { flex: 1 1 220px; min-width: 180px; }
+
+
+/* ================ For Scrolling Add Row Dialog ==================*/
+/* ทำให้ overlay คลุมทั้งจอ + center dialog + scroll ได้ */
+.overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;            /* กัน dialog ชนขอบจอ */
+ 
+  backdrop-filter: blur(3px);
+  -webkit-backdrop-filter: blur(3px);
+
+  /* เผื่อ dialog สูงกว่าจอมาก ๆ ให้ทั้ง overlay เลื่อนได้ด้วย */
+  overflow-y: auto;
+}
+
+/* ให้ dialog ไม่กินเต็มจอ (ตัวสูงสุดเราไปคุมใน Tailwind แล้ว) */
+.dialog {
+  position: relative;
+}

@@ -5,11 +5,14 @@
   display: grid;
   place-items: center;
   z-index: 50;
+  backdrop-filter: blur(3px);
+  -webkit-backdrop-filter: blur(3px);
 }
 
 .dialog {
   background: white;
   box-shadow: 0 10px 30px rgba(0, 0, 0, .1);
+  
 }
 
 .label {
