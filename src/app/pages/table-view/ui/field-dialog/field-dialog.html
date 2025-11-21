@@ -13,7 +13,7 @@
         <div>
           <label class="label">Type</label>
           <select class="input mt-1" [(ngModel)]="preset" name="preset" (change)="onPresetChange()">
-            <option value="Identifier">Primary key (PK)</option>
+            <option value="Identifier" [disabled]="hasPrimary()">Primary key (PK)</option>
             <option value="Text">Text</option>
             <option value="Number">Number</option>
             <option value="Price">Price</option>
@@ -179,7 +179,8 @@
               type="checkbox"
               [(ngModel)]="isPrimary"
               name="isPrimary"
-              [disabled]="preset === 'Identifier' || preset === 'Formula'"
+              [disabled]="preset === 'Identifier' || preset === 'Formula' || hasPrimary()"
+              (change)="onPrimaryCheckboxChange($event)"
             />
             Use as identifier (PK)
           </label>

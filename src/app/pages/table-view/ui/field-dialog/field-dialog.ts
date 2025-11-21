@@ -11,6 +11,7 @@ import {
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { firstValueFrom } from 'rxjs';
+import { ToastService } from '../../../../shared/toast.service';
 
 import {
   TableViewService,
@@ -50,6 +51,8 @@ export class FieldDialog implements OnChanges {
   @Output() cancel = new EventEmitter<void>();
 
   private readonly api = inject(TableViewService);
+  private readonly toast = inject(ToastService);
+
 
   // ===== base form =====
   name = '';
@@ -80,6 +83,10 @@ export class FieldDialog implements OnChanges {
   readonly numericCols = signal<ColumnListItem[]>([]);
   // ใหม่: list คอลัมน์ของ table ปัจจุบัน สำหรับ dropdown Source column
   readonly currentCols = signal<ColumnListItem[]>([]);
+
+
+   // มี PK อยู่แล้วใน table นี้ไหม
+  readonly hasPrimary = signal(false);
 
   formulaOp: '+' | '-' | '*' | '/' = '+';
   formulaLeftColumnId: number | null = null;
@@ -139,8 +146,13 @@ export class FieldDialog implements OnChanges {
 
   async loadNumericColumns() {
     try {
-      // MOCK: ใช้ listColumns จาก service เดิม
+      // listColumns จาก service 
       const cols: ColumnDto[] = await firstValueFrom(this.api.listColumns(this.tableId));
+
+      // เซ็ต flag ว่าตารางนี้มี PK อยู่แล้วไหม
+    const hasPk = (cols || []).some((c) => c.isPrimary);
+    this.hasPrimary.set(hasPk);
+
       const numeric = (cols || [])
         .filter((c) => {
           const t = (c.dataType || '').toUpperCase();
@@ -150,6 +162,7 @@ export class FieldDialog implements OnChanges {
       this.numericCols.set(numeric);
     } catch {
       this.numericCols.set([]);
+       this.hasPrimary.set(false);
     }
   }
 
@@ -158,55 +171,68 @@ export class FieldDialog implements OnChanges {
   }
 
   private applyPreset() {
-    // reset พื้นฐาน
-    this.isPrimary = false;
-    this.isNullable = true;
+  // reset พื้นฐาน
+  this.isPrimary = false;
+  this.isNullable = true;
 
-    switch (this.preset) {
-      case 'Identifier':
-        this.dataType = 'INTEGER';
-        this.isPrimary = true;
-        this.isNullable = false;
-        break;
+  switch (this.preset) {
+    case 'Identifier':
+      // 🔹 ถ้าตารางนี้มี PK อยู่แล้ว ห้ามสร้างซ้ำ
+      if (this.hasPrimary()) {
+        // แจ้งเตือนด้วย toast
+        this.toast.error('ตารางนี้มี Primary key อยู่แล้ว ไม่สามารถสร้าง PK ซ้ำได้');
 
-      case 'Text':
+        // รีเซ็ต preset กลับเป็น Text
+        this.preset = 'Text';
         this.dataType = 'TEXT';
-        break;
+        this.isPrimary = false;
+        this.isNullable = true;
+        return;
+      }
 
-      case 'Number':
-        this.dataType = 'REAL';
-        break;
+      this.dataType = 'INTEGER';
+      this.isPrimary = true;
+      this.isNullable = false;
+      break;
 
-      case 'Price':
-        this.dataType = 'REAL';
-        break;
+    case 'Text':
+      this.dataType = 'TEXT';
+      break;
 
-      case 'Date':
-        this.dataType = 'DATE';
-        break;
+    case 'Number':
+      this.dataType = 'REAL';
+      break;
 
-      case 'YesNo':
-        this.dataType = 'BOOLEAN';
-        break;
+    case 'Price':
+      this.dataType = 'REAL';
+      break;
 
-      case 'Image':
-        this.dataType = 'IMAGE';
-        break;
+    case 'Date':
+      this.dataType = 'DATE';
+      break;
 
-      case 'Lookup':
-        this.dataType = 'LOOKUP';
-        break;
+    case 'YesNo':
+      this.dataType = 'BOOLEAN';
+      break;
 
-      case 'Formula':
-        this.dataType = 'FORMULA';
-        this.isPrimary = false; // formula ไม่เป็น PK
-        // ถ้ายังไม่มี numericCols ให้ลองโหลด (เผื่อกรณีเปิด dialog ครั้งแรก)
-        if (this.numericCols().length === 0) {
-          this.loadNumericColumns();
-        }
-        break;
-    }
+    case 'Image':
+      this.dataType = 'IMAGE';
+      break;
+
+    case 'Lookup':
+      this.dataType = 'LOOKUP';
+      break;
+
+    case 'Formula':
+      this.dataType = 'FORMULA';
+      this.isPrimary = false;
+      if (this.numericCols().length === 0) {
+        this.loadNumericColumns();
+      }
+      break;
   }
+}
+
 
   async onSelectTargetTable() {
     if (!this.targetTableId) {
@@ -304,19 +330,24 @@ export class FieldDialog implements OnChanges {
   }
 
   canSubmit(): boolean {
-    if (!this.name.trim()) return false;
+  if (!this.name.trim()) return false;
 
-    if (this.preset === 'Formula') {
-      return this.buildFormulaDefinition() !== null;
-    }
-
-    if (this.preset === 'Lookup') {
-      // ต้องเลือก targetTable, targetColumn, sourceColumn ให้ครบ
-      return !!this.targetTableId && !!this.targetColumnId;
-    }
-
-    return true;
+  // ถ้ามี PK อยู่แล้ว แต่ฟอร์มดันคิดว่า field นี้เป็น PK → ไม่ให้ส่ง
+  if (this.isPrimary && this.hasPrimary()) {
+    return false;
   }
+
+  if (this.preset === 'Formula') {
+    return this.buildFormulaDefinition() !== null;
+  }
+
+  if (this.preset === 'Lookup') {
+    return !!this.targetTableId && !!this.targetColumnId;
+  }
+
+  return true;
+}
+
 
   // ========== actions ==========
   submit() {
@@ -353,4 +384,15 @@ export class FieldDialog implements OnChanges {
     this.resetForm();
     this.cancel.emit();
   }
+
+
+  onPrimaryCheckboxChange(event: Event) {
+  // ถ้ามี PK อยู่แล้ว -> ไม่ยอมให้ติ๊ก PK เพิ่ม
+  if (this.hasPrimary()) {
+    (event.target as HTMLInputElement).checked = false;
+    this.isPrimary = false;
+    this.toast.error('ตารางนี้มี Primary key อยู่แล้ว ไม่สามารถตั้ง PK ซ้ำได้');
+  }
+}
+
 }

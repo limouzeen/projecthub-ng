@@ -12,6 +12,7 @@ import { FormsModule } from '@angular/forms';
 import { firstValueFrom } from 'rxjs';
 import { TableViewService,  ColumnDto} from '../../../../core/table-view.service';
 
+
 export type RowDialogSave = Record<string, any>;
 
 export type RowDialogColumn = ColumnDto;
