@@ -231,4 +231,47 @@ export class UsersService {
       profilePictureUrl: this.normalizeAvatar(res.profilePictureUrl ?? null),
     };
   }
+
+
+  /* Helpers*/
+  
+  // ============================
+  // 🔐 JWT Role Helpers (Frontend เท่านั้น)
+  // ============================
+  private decodeJwt(token: string | null): any | null {
+    if (!token) return null;
+    const parts = token.split('.');
+    if (parts.length !== 3) return null;
+    try {
+      const payload = atob(parts[1].replace(/-/g, '+').replace(/_/g, '/'));
+      return JSON.parse(payload);
+    } catch {
+      return null;
+    }
+  }
+
+  /** คืน array ของ role จาก token เช่น ["Admin"] หรือ [] */
+  getRolesFromToken(): string[] {
+    const token = localStorage.getItem('access_token');
+    const payload = this.decodeJwt(token);
+    if (!payload) return [];
+
+    // ASP.NET Core ชอบใช้ claim แบบนี้:
+    //  - "role": "Admin" หรือ ["Admin","User"]
+    //  - "http://schemas.microsoft.com/ws/2008/06/identity/claims/role"
+    const raw =
+      payload['role'] ??
+      payload['roles'] ??
+      payload['http://schemas.microsoft.com/ws/2008/06/identity/claims/role'];
+
+    if (!raw) return [];
+
+    if (Array.isArray(raw)) return raw.map((r) => String(r));
+    return [String(raw)];
+  }
+
+  /** true ถ้า token ตอนนี้มี role = "Admin" */
+  isAdmin(): boolean {
+    return this.getRolesFromToken().includes('Admin');
+  }
 }

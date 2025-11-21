@@ -1,4 +1,5 @@
 import { Routes } from '@angular/router';
+import { adminGuard } from './core/admin.guard';
 
 export const routes: Routes = [
   {
@@ -39,7 +40,12 @@ export const routes: Routes = [
 { path: 'table/:id', loadComponent: () => import('./pages/table-view/table-view').then(m => m.TableView) },
 { path: 'recently-used', loadComponent: () => import('./pages/recently-used/recently-used').then(m => m.RecentlyUsedProjects) },
 
-
+{
+    path: 'admin/users',
+    canMatch: [adminGuard],
+    loadComponent: () =>
+      import('./pages/admin-users/admin-users').then((m) => m.AdminUsers),
+  },
 
   { path: '', pathMatch: 'full', redirectTo: 'dashboard' },
   { path: '**', redirectTo: 'dashboard' },

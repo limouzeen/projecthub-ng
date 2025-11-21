@@ -25,7 +25,7 @@ export class Login implements OnInit, OnDestroy {
   readonly loading = signal(false);
   readonly error = signal('');
 
-  async onSubmit() {
+    async onSubmit() {
     this.error.set('');
 
     if (!this.formValid) {
@@ -39,7 +39,15 @@ export class Login implements OnInit, OnDestroy {
         email: this.email().trim(),
         password: this.password(),
       });
-      this.router.navigateByUrl('/dashboard');
+
+      // เช็ค role จาก JWT ผ่าน UsersService
+      if (this.users.isAdmin()) {
+        // ถ้าเป็นแอดมิน ไปหน้า Admin Dashboard
+        this.router.navigateByUrl('/admin/users');
+      } else {
+        // ถ้าเป็น user ปกติ ไปหน้า dashboard เดิม
+        this.router.navigateByUrl('/dashboard');
+      }
     } catch (e: any) {
       const msg =
         e?.error?.error ||
@@ -50,6 +58,7 @@ export class Login implements OnInit, OnDestroy {
       this.loading.set(false);
     }
   }
+
 
 
   ngOnInit(): void {
