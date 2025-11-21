@@ -212,7 +212,9 @@ export class RowDialog implements OnChanges {
         value: val,
         label: String(val),  // ถ้าอยากโชว์ชื่ออื่น เช่น Name ก็เปลี่ยนตรงนี้
       };
-    }).filter(o => !Number.isNaN(o.value));
+    }) .filter(o => !Number.isNaN(o.value))
+  //เรียงตาม PK จากน้อยไปมาก
+  .sort((a, b) => a.value - b.value);
 
     this.lookupOptions[c.name] = opts;
   } catch (err) {
