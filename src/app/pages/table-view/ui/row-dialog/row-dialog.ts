@@ -395,20 +395,42 @@ export class RowDialog implements OnChanges {
 
       // init default
       for (const c of this.columns) {
-        c.isPrimary = !!c.isPrimary;
+  c.isPrimary = !!c.isPrimary;
 
-        if (!(c.name in this.model)) {
-          const t = (c.dataType || '').toUpperCase();
-          this.model[c.name] = t === 'BOOLEAN' ? false : '';
-        }
+  const t = this.normalizeTypeStr(c.dataType);
 
-        if ((c.dataType || '').toUpperCase() === 'IMAGE') {
-          const v = this.model[c.name];
-          if (v !== '' && v !== null && v !== undefined) {
-            this.uploadSource[c.name] = 'url';
-          }
-        }
+  // ---------- ตั้งค่า default ----------
+  if (!(c.name in this.model)) {
+    if (t === 'BOOLEAN') {
+      this.model[c.name] = false;
+    } else if (t === 'LOOKUP') {
+      //  default สำหรับ lookup = null → ไปตรงกับ <option [ngValue]="null">
+      this.model[c.name] = null;
+    } else {
+      this.model[c.name] = '';
+    }
+  } else {
+    // ถ้ามีค่าอยู่แล้ว เช่นตอนแก้ row → normalize type ให้ตรงกับ option
+    if (t === 'LOOKUP') {
+      const v = this.model[c.name];
+      if (v === '' || v === null || v === undefined) {
+        this.model[c.name] = null;
+      } else {
+        // บังคับให้เป็น number ให้ match กับ [ngValue]="opt.value"
+        const num = Number(v);
+        this.model[c.name] = Number.isFinite(num) ? num : null;
       }
+    }
+  }
+
+  // ---------- init image upload source ----------
+  if (t === 'IMAGE') {
+    const v = this.model[c.name];
+    if (v !== '' && v !== null && v !== undefined) {
+      this.uploadSource[c.name] = 'url';
+    }
+  }
+}
 
       // โหลด options lookup
       for (const col of this.columns) {
