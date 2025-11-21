@@ -89,6 +89,13 @@ export class FieldDialog implements OnChanges {
   readonly allCols = signal<ColumnDto[]>([]);
   readonly nonPkCount = signal(0);
 
+  // จำนวน row ปัจจุบัน + flag ว่ามีแถวแล้วหรือยัง
+  readonly rowCount = signal(0);
+  readonly hasAnyRow = signal(false);
+
+  // เก็บ preset ก่อนหน้าไว้ เพื่อ revert เวลาเลือก Lookup แต่มี row แล้ว
+  private lastPreset: Preset = 'Text';
+
   formulaOp: '+' | '-' | '*' | '/' = '+';
   formulaLeftColumnId: number | null = null;
   formulaRightMode: FormulaRightMode = 'column';
@@ -125,6 +132,7 @@ export class FieldDialog implements OnChanges {
   resetForm() {
     this.name = '';
     this.preset = 'Text';
+    this.lastPreset = 'Text';
 
     this.isNullable = true;
     this.isPrimary = false;
@@ -159,19 +167,27 @@ export class FieldDialog implements OnChanges {
       const nonPk = cols.filter((c) => !c.isPrimary).length;
       this.nonPkCount.set(nonPk);
 
+      // คอลัมน์ตัวเลข สำหรับใช้สร้างสูตร
       const numeric = cols
         .filter((c) => {
           const t = (c.dataType || '').toUpperCase();
           return t === 'INTEGER' || t === 'REAL' || t === 'NUMBER';
         })
         .map((c) => ({ columnId: c.columnId, name: c.name }));
-
       this.numericCols.set(numeric);
+
+      // โหลดจำนวน row ปัจจุบันของ table นี้
+      const rows = await firstValueFrom(this.api.listRows(this.tableId));
+      const rc = rows?.length ?? 0;
+      this.rowCount.set(rc);
+      this.hasAnyRow.set(rc > 0);
     } catch {
       this.allCols.set([]);
       this.numericCols.set([]);
       this.hasPrimary.set(false);
       this.nonPkCount.set(0);
+      this.rowCount.set(0);
+      this.hasAnyRow.set(false);
     }
   }
 
@@ -194,13 +210,10 @@ export class FieldDialog implements OnChanges {
 
     switch (this.preset) {
       case 'Identifier':
-        // มี PK แล้ว → ไม่อนุญาต
         if (this.hasPrimary()) {
           this.toast.warning(
             'This table already has a primary key. You cannot create another one.'
           );
-
-          // รีเซ็ตกลับเป็น Text
           this.preset = 'Text';
           this.dataType = 'TEXT';
           this.isPrimary = false;
@@ -238,6 +251,7 @@ export class FieldDialog implements OnChanges {
         break;
 
       case 'Lookup':
+        // ❗ ตรงนี้ไม่ต้องเช็ค hasAnyRow แล้ว
         this.dataType = 'LOOKUP';
         break;
 
@@ -369,62 +383,89 @@ export class FieldDialog implements OnChanges {
 
   // ========== actions ==========
   submit() {
-  const trimmedName = this.name.trim();
+    const trimmedName = this.name.trim();
 
-  if (!trimmedName) {
-    this.toast.warning('Please enter a field name.');
-    return;
-  }
-
-  if (this.isDuplicateName(trimmedName)) {
-    this.toast.warning(`A column named "${trimmedName}" already exists.`);
-    return;
-  }
-
-  if (this.isPrimary && this.hasPrimary()) {
-    this.toast.warning('This table already has a primary key. You cannot create another one.');
-    return;
-  }
-
-  if (!this.isPrimary && this.nonPkCount() >= 10) {
-    this.toast.warning('You cannot add more than 10 non-primary-key fields to this table.');
-    return;
-  }
-
-  if (this.preset === 'Formula') {
-    const def = this.buildFormulaDefinition();
-    if (!def) {
-      this.toast.warning('Please select Left / Operator / Right before creating a formula field.');
+    if (!trimmedName) {
+      this.toast.warning('Please enter a field name.');
       return;
     }
-    this.formulaDefinition = def;
-  }
 
-  if (this.preset === 'Lookup') {
-    if (!this.targetTableId || !this.targetColumnId) {
+    if (this.isDuplicateName(trimmedName)) {
+      this.toast.warning(`A column named "${trimmedName}" already exists.`);
+      return;
+    }
+
+    // Extra safety: prevent duplicate PK
+    if (this.isPrimary && this.hasPrimary()) {
+      this.toast.warning('This table already has a primary key. You cannot create another one.');
+      return;
+    }
+
+    // Limit non-PK columns to 10
+    if (!this.isPrimary && this.nonPkCount() >= 10) {
+      this.toast.warning('You cannot add more than 10 non-primary-key fields to this table.');
+      return;
+    }
+
+    // ด่านกันแบบ global: ถ้า dataType จริง ๆ คือ LOOKUP + มี row แล้ว → ห้ามทุกเคส
+    if (this.preset === 'Lookup' && this.hasAnyRow()) {
       this.toast.warning(
-        'Please select both a target table and a target column for the lookup field.'
+        'You can only create a lookup field when this table has no rows. Please remove existing rows first.'
       );
       return;
     }
+
+    // Formula validation (case-by-case)
+    if (this.preset === 'Formula') {
+      const formulaError = this.validateFormula();
+      if (formulaError) {
+        this.toast.warning(formulaError);
+        return;
+      }
+
+      const def = this.buildFormulaDefinition();
+      if (!def) {
+        this.toast.warning(
+          'Cannot build the formula definition. Please check your configuration again.'
+        );
+        return;
+      }
+      this.formulaDefinition = def;
+    }
+
+    // Lookup validation ตาม preset (เผื่อเคสที่ preset ยังเป็น Lookup)
+    if (this.preset === 'Lookup') {
+      if (!this.targetTableId || !this.targetColumnId) {
+        this.toast.warning(
+          'Please select both a target table and a target column for the lookup field.'
+        );
+        return;
+      }
+    }
+
+    const model: FieldDialogModel = {
+      name: trimmedName,
+      dataType: this.dataType,
+      isNullable: this.isNullable,
+      isPrimary: this.isPrimary,
+      targetTableId: this.preset === 'Lookup' ? this.targetTableId : null,
+      targetColumnId: this.preset === 'Lookup' ? this.targetColumnId : null,
+      formulaDefinition: this.preset === 'Formula' ? this.formulaDefinition : null,
+    };
+
+    // กันอีกทีหลังสร้าง model เสร็จ
+    if (model.dataType === 'LOOKUP' && this.hasAnyRow()) {
+      this.toast.warning(
+        'You can only create a lookup field when this table has no rows. Please remove existing rows first.'
+      );
+      return;
+    }
+
+    this.save.emit(model);
+    this.resetForm();
+
+    this.toast.info('Field created successfully.');
   }
-
-  const model: FieldDialogModel = {
-    name: trimmedName,
-    dataType: this.dataType,
-    isNullable: this.isNullable,
-    isPrimary: this.isPrimary,
-    targetTableId: this.preset === 'Lookup' ? this.targetTableId : null,
-    targetColumnId: this.preset === 'Lookup' ? this.targetColumnId : null,
-    formulaDefinition: this.preset === 'Formula' ? this.formulaDefinition : null,
-  };
-
-  this.save.emit(model);
-  this.resetForm();
-
-  this.toast.info('Field created successfully.');
-}
-
 
   close() {
     this.resetForm();
@@ -436,9 +477,42 @@ export class FieldDialog implements OnChanges {
       // ถ้ามี PK อยู่แล้ว → ยกเลิกการติ๊ก และแจ้งเตือน
       (event.target as HTMLInputElement).checked = false;
       this.isPrimary = false;
-      this.toast.warning(
-        'This table already has a primary key. You cannot create another one.'
-      );
+      this.toast.warning('This table already has a primary key. You cannot create another one.');
     }
+  }
+
+  /** ตรวจสอบว่า formula config ถูกต้องไหม ถ้ามีปัญหา return ข้อความ error */
+  private validateFormula(): string | null {
+    if (this.preset !== 'Formula') return null;
+
+    // Left ต้องเลือกคอลัมน์ตัวเลข
+    const leftName = this.getNumericColNameById(this.formulaLeftColumnId);
+    if (!leftName) {
+      return 'Please select a left numeric column for the formula.';
+    }
+
+    if (this.formulaRightMode === 'column') {
+      const rightName = this.getNumericColNameById(this.formulaRightColumnId);
+      if (!rightName) {
+        return 'Please select a right numeric column for the formula.';
+      }
+    } else {
+      // literal mode
+      if (this.formulaRightLiteral === '' || this.formulaRightLiteral === (null as any)) {
+        return 'Please enter a numeric value for the formula.';
+      }
+
+      const lit = Number(this.formulaRightLiteral);
+      if (Number.isNaN(lit)) {
+        return 'The literal value for the formula must be a number.';
+      }
+
+      // เคสพิเศษ: ห้ามหารด้วย 0
+      if (this.formulaOp === '/' && lit === 0) {
+        return 'Division by zero is not allowed in formulas.';
+      }
+    }
+
+    return null;
   }
 }
