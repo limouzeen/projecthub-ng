@@ -571,11 +571,36 @@ export class TableView implements OnInit, OnDestroy, AfterViewInit {
     this.rowOpen.set(true);
   }
 
-  async onSaveRow(newObj: Record<string, any>) {
+    async onSaveRow(newObj: Record<string, any>) {
+    const isCreate = !this.editingRow;
+
+    // ตรวจ PK ซ้ำสำหรับตารางที่ไม่ใช่ auto-increment
+    if (!this.isAutoTable()) {
+      const pkCol = this.columns().find((c) => c.isPrimary);
+      if (pkCol) {
+        const pkName = pkCol.name;
+        const pkVal = newObj[pkName];
+
+        // ไม่ให้ PK ว่าง (กรณี manual PK ส่วนใหญ่จะ require อยู่แล้ว)
+        if (pkVal === null || pkVal === undefined || pkVal === '') {
+          this.toast.error(`ฟิลด์ ${pkName} ห้ามว่าง (ต้องระบุค่า Primary Key)`);
+          return;
+        }
+
+        const currentRowId = this.editingRow?.rowId ?? null;
+        const dup = this.hasDuplicatePk(pkName, pkVal, currentRowId);
+
+        if (dup) {
+          this.toast.error(`ค่าในฟิลด์ ${pkName} ห้ามซ้ำกับแถวอื่น`);
+          return;
+        }
+      }
+    }
+
+    // ผ่าน validation แล้วค่อยปิด dialog + ส่งเข้า backend
     this.rowOpen.set(false);
     this.rowInitData = null;
 
-    const isCreate = !this.editingRow;
     const normalized = this.normalizeRowForSave(
       newObj,
       isCreate && this.isAutoTable(), // สำหรับ auto PK
@@ -593,6 +618,7 @@ export class TableView implements OnInit, OnDestroy, AfterViewInit {
     }
   }
 
+
   async onDeleteRow(r: RowDto) {
     if (!confirm('Delete this row?')) return;
     await firstValueFrom(this.api.deleteRow(r.rowId));
@@ -600,7 +626,7 @@ export class TableView implements OnInit, OnDestroy, AfterViewInit {
     else this.reloadLocalCurrentPage(true);
   }
 
-  private async saveRowByRecord(record: any) {
+    private async saveRowByRecord(record: any) {
     const rowId = record.__rowId as number;
 
     const payload: Record<string, any> = {};
@@ -608,12 +634,33 @@ export class TableView implements OnInit, OnDestroy, AfterViewInit {
       payload[c.name] = record[c.name];
     }
 
-    const normalized = this.normalizeRowForSave(payload, false, false); // ส่ง flag ว่านี่คือ update
+    // ตรวจ PK ซ้ำสำหรับตารางที่ไม่ใช่ auto-increment (กรณี edit ใน grid)
+    if (!this.isAutoTable()) {
+      const pkCol = this.columns().find((c) => c.isPrimary);
+      if (pkCol) {
+        const pkName = pkCol.name;
+        const pkVal = payload[pkName];
+
+        if (pkVal === null || pkVal === undefined || pkVal === '') {
+          this.toast.error(`ฟิลด์ ${pkName} ห้ามว่าง (ต้องระบุค่า Primary Key)`);
+          return;
+        }
+
+        const dup = this.hasDuplicatePk(pkName, pkVal, rowId);
+        if (dup) {
+          this.toast.error(`ค่าในฟิลด์ ${pkName} ห้ามซ้ำกับแถวอื่น`);
+          return;
+        }
+      }
+    }
+
+    const normalized = this.normalizeRowForSave(payload, false, false);
 
     await firstValueFrom(this.api.updateRow(rowId, normalized));
     if (TableView.USE_REMOTE) this.reloadRemoteCurrentPage();
     else this.reloadLocalCurrentPage();
   }
+
 
   private async deleteRowByRecord(record: any) {
     const rowId = record.__rowId as number;
@@ -1900,6 +1947,33 @@ export class TableView implements OnInit, OnDestroy, AfterViewInit {
 
     return out;
   }
+
+    /** เช็คว่า PK ซ้ำกับ row อื่นใน grid หรือไม่ (ใช้กับตารางที่ไม่ auto-increment) */
+  private hasDuplicatePk(pkName: string, value: any, excludeRowId?: number | null): boolean {
+    if (value === null || value === undefined || value === '') return false;
+    if (!this.grid || typeof this.grid.getData !== 'function') return false;
+
+    const target = String(value);
+    const all = this.grid.getData() || [];
+
+    for (const rec of all) {
+      const rowId = rec.__rowId as number | undefined;
+
+      // ถ้ามี rowId ที่ต้องไม่เช็ค (เช่น แก้ไข row เดิม) ให้ข้าม
+      if (excludeRowId != null && rowId === excludeRowId) continue;
+
+      const v = rec[pkName];
+      if (v === null || v === undefined || v === '') continue;
+
+      if (String(v) === target) {
+        return true;
+      }
+    }
+
+    return false;
+  }
+
+
 
   // แปลง string วันที่จาก backend → แสดงเป็น dd-MM-yyyy
   private formatDateDdMmYyyy(raw: any): string {
