@@ -10,8 +10,7 @@ import {
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { firstValueFrom } from 'rxjs';
-import { TableViewService,  ColumnDto} from '../../../../core/table-view.service';
-
+import { TableViewService, ColumnDto } from '../../../../core/table-view.service';
 
 export type RowDialogSave = Record<string, any>;
 
@@ -53,10 +52,7 @@ export class RowDialog implements OnChanges {
   lookupOptions: Record<string, { value: number; label: string }[]> = {};
   lookupLoading: Record<string, boolean> = {};
 
-
-
   private readonly api = inject(TableViewService);
-
 
   /** เก็บ error message ของแต่ละ field: key = column.name */
   validationErrors: Record<string, string | null> = {};
@@ -71,41 +67,39 @@ export class RowDialog implements OnChanges {
   /** ค่าเดิมของ PK (ตอนแก้ไขแถวเดิม ใช้กัน false positive เรื่องซ้ำ) */
   private pkOriginalValue: any = null;
 
-
   // ================== TYPE HELPERS ==================
   private normalizeTypeStr(t?: string): string {
-  const up = (t ?? '').trim().toUpperCase();
+    const up = (t ?? '').trim().toUpperCase();
 
-  switch (up) {
-    case 'INT':
-      return 'INTEGER';
-    case 'FLOAT':
-      return 'REAL';
-    case 'NUMBER':
-      return 'NUMBER';
-    case 'BOOL':
-      return 'BOOLEAN';
-    case 'DATE':
-      return 'DATE';
-    default:
-      return up || 'TEXT';
+    switch (up) {
+      case 'INT':
+        return 'INTEGER';
+      case 'FLOAT':
+        return 'REAL';
+      case 'NUMBER':
+        return 'NUMBER';
+      case 'BOOL':
+        return 'BOOLEAN';
+      case 'DATE':
+        return 'DATE';
+      default:
+        return up || 'TEXT';
+    }
   }
-}
-
 
   /** ใช้เรียกจาก template */
   typeOf(c: RowDialogColumn): string {
     return this.normalizeTypeStr(c.dataType);
   }
 
- private isEmpty(v: any): boolean {
+  private isEmpty(v: any): boolean {
     return v === null || v === undefined || v === '';
   }
 
-    /** โหลดค่า PK ทั้งหมดของ table นี้ (เฉพาะเคส PK manual) */
+  /** โหลดค่า PK ทั้งหมดของ table นี้ (เฉพาะเคส PK manual) */
   private async initPkMeta() {
     // หา column ที่เป็น PK ก่อน
-    const pk = this.columns.find(c => c.isPrimary) ?? null;
+    const pk = this.columns.find((c) => c.isPrimary) ?? null;
     this.pkColumn = pk;
     this.pkExistingValues = new Set();
     this.pkOriginalValue = null;
@@ -135,159 +129,154 @@ export class RowDialog implements OnChanges {
     }
   }
 
-
-
   // ================== VALIDATION ==================
 
   /** ตรวจ field เดียว ตามชนิดข้อมูล */
   private validateField(col: RowDialogColumn, value: any): string | null {
-  const t = this.normalizeTypeStr(col.dataType);
-  const name = col.name;
+    const t = this.normalizeTypeStr(col.dataType);
+    const name = col.name;
 
-  // FORMULA ไม่ต้อง validate
-  if (t === 'FORMULA') return null;
+    // FORMULA ไม่ต้อง validate
+    if (t === 'FORMULA') return null;
 
-  // auto PK ใหม่ (ไม่ให้กรอก) → ไม่ต้องเช็ค
-  if (col.isPrimary && this.isAutoTable && !this.initData) {
-    return null;
-  }
-
-  // ค่ากลวง
-  if (this.isEmpty(value)) {
-    if (!col.isNullable) {
-      return 'จำเป็นต้องกรอกข้อมูล';
-    }
-    return null;
-  }
-
-  // จากนี้คือ "มีค่า" แล้ว → validate ตาม type
-  const raw = value;
-
-  switch (t) {
-    case 'INTEGER': {
-      // ---- เช็คว่าเป็นจำนวนเต็มถูกต้องก่อน ----
-      let numVal: number;
-
-      if (typeof raw === 'number') {
-        numVal = raw;
-        if (!Number.isInteger(numVal)) {
-          return 'ต้องเป็นจำนวนเต็มเท่านั้น';
-        }
-      } else if (typeof raw === 'string') {
-        const s = raw.trim();
-        if (!/^[-+]?\d+$/.test(s)) {
-          return 'ต้องเป็นจำนวนเต็ม ห้ามมีตัวอักษรหรือช่องว่าง';
-        }
-        const n = Number(s);
-        if (!Number.isFinite(n) || !Number.isInteger(n)) {
-          return 'ค่าจำนวนเต็มไม่ถูกต้อง';
-        }
-        numVal = n;
-      } else {
-        return 'รูปแบบข้อมูลไม่ถูกต้อง (ต้องเป็นจำนวนเต็ม)';
-      }
-
-      // ---- ถ้าเป็น PK แบบ manual → เช็ค "ห้ามซ้ำ" ----
-      if (col.isPrimary && !this.isAutoTable && this.pkColumn?.name === name) {
-        const oldVal = this.pkOriginalValue;
-        const isSameAsOriginal =
-          oldVal !== null &&
-          oldVal !== undefined &&
-          String(oldVal) === String(numVal);
-
-        // ถ้าเป็นการแก้ไข แล้วค่าที่กรอก = ค่าเดิม → ไม่ถือว่าซ้ำ
-        if (!isSameAsOriginal && this.pkExistingValues.has(numVal)) {
-          return 'ค่าของฟิลด์นี้มีอยู่ในตารางแล้ว กรุณาใช้ค่าใหม่ที่ไม่ซ้ำกัน';
-        }
-      }
-
+    // auto PK ใหม่ (ไม่ให้กรอก) → ไม่ต้องเช็ค
+    if (col.isPrimary && this.isAutoTable && !this.initData) {
       return null;
     }
 
-    case 'REAL':
-    case 'NUMBER':
-    case 'FLOAT': {
-      if (typeof raw === 'number') {
-        if (!Number.isFinite(raw)) {
-          return 'ต้องเป็นตัวเลขเท่านั้น';
+    // ค่ากลวง
+    if (this.isEmpty(value)) {
+      if (!col.isNullable) {
+        return 'จำเป็นต้องกรอกข้อมูล';
+      }
+      return null;
+    }
+
+    // จากนี้คือ "มีค่า" แล้ว → validate ตาม type
+    const raw = value;
+
+    switch (t) {
+      case 'INTEGER': {
+        // ---- เช็คว่าเป็นจำนวนเต็มถูกต้องก่อน ----
+        let numVal: number;
+
+        if (typeof raw === 'number') {
+          numVal = raw;
+          if (!Number.isInteger(numVal)) {
+            return 'ต้องเป็นจำนวนเต็มเท่านั้น';
+          }
+        } else if (typeof raw === 'string') {
+          const s = raw.trim();
+          if (!/^[-+]?\d+$/.test(s)) {
+            return 'ต้องเป็นจำนวนเต็ม ห้ามมีตัวอักษรหรือช่องว่าง';
+          }
+          const n = Number(s);
+          if (!Number.isFinite(n) || !Number.isInteger(n)) {
+            return 'ค่าจำนวนเต็มไม่ถูกต้อง';
+          }
+          numVal = n;
+        } else {
+          return 'รูปแบบข้อมูลไม่ถูกต้อง (ต้องเป็นจำนวนเต็ม)';
+        }
+
+        // ---- ถ้าเป็น PK แบบ manual → เช็ค "ห้ามซ้ำ" ----
+        if (col.isPrimary && !this.isAutoTable && this.pkColumn?.name === name) {
+          const oldVal = this.pkOriginalValue;
+          const isSameAsOriginal =
+            oldVal !== null && oldVal !== undefined && String(oldVal) === String(numVal);
+
+          // ถ้าเป็นการแก้ไข แล้วค่าที่กรอก = ค่าเดิม → ไม่ถือว่าซ้ำ
+          if (!isSameAsOriginal && this.pkExistingValues.has(numVal)) {
+            return 'ค่าของฟิลด์นี้มีอยู่ในตารางแล้ว กรุณาใช้ค่าใหม่ที่ไม่ซ้ำกัน';
+          }
+        }
+
+        return null;
+      }
+
+      case 'REAL':
+      case 'NUMBER':
+      case 'FLOAT': {
+        if (typeof raw === 'number') {
+          if (!Number.isFinite(raw)) {
+            return 'ต้องเป็นตัวเลขเท่านั้น';
+          }
+          return null;
+        }
+
+        if (typeof raw === 'string') {
+          const s = raw.trim();
+          // ตัวเลขทศนิยม / จำนวนเต็ม (+/- ได้)
+          if (!/^[-+]?\d+(\.\d+)?$/.test(s)) {
+            return 'ต้องเป็นตัวเลข ห้ามมีตัวอักษรหรืออักขระอื่น';
+          }
+          const n = Number(s);
+          if (!Number.isFinite(n)) {
+            return 'ค่าตัวเลขไม่ถูกต้อง';
+          }
+          return null;
+        }
+
+        return 'รูปแบบข้อมูลไม่ถูกต้อง (ต้องเป็นตัวเลข)';
+      }
+
+      case 'BOOLEAN': {
+        // รองรับ true/false, "true"/"false", "1"/"0", 1/0
+        const ok =
+          raw === true ||
+          raw === false ||
+          raw === 1 ||
+          raw === 0 ||
+          raw === '1' ||
+          raw === '0' ||
+          raw === 'true' ||
+          raw === 'false';
+
+        return ok ? null : 'ต้องเลือก Yes หรือ No เท่านั้น';
+      }
+
+      case 'DATE': {
+        // ในฟอร์มใช้ input type="date" → ปกติจะเป็น yyyy-MM-dd
+        if (typeof raw !== 'string') {
+          return 'รูปแบบวันที่ไม่ถูกต้อง';
+        }
+        const s = raw.trim();
+        if (!s) return col.isNullable ? null : 'จำเป็นต้องระบุวันที่';
+
+        // เช็ค pattern คร่าว ๆ
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) {
+          return 'รูปแบบวันที่ไม่ถูกต้อง (ควรเป็น yyyy-MM-dd)';
+        }
+
+        const d = new Date(s);
+        if (Number.isNaN(d.getTime())) {
+          return 'วันที่ไม่ถูกต้อง';
         }
         return null;
       }
 
-      if (typeof raw === 'string') {
-        const s = raw.trim();
-        // ตัวเลขทศนิยม / จำนวนเต็ม (+/- ได้)
-        if (!/^[-+]?\d+(\.\d+)?$/.test(s)) {
-          return 'ต้องเป็นตัวเลข ห้ามมีตัวอักษรหรืออักขระอื่น';
+      case 'LOOKUP': {
+        // ต้องเป็นตัวเลข (pk) และควรเป็นค่าที่อยู่ใน dropdown
+        const num = typeof raw === 'number' ? raw : Number(raw);
+        if (!Number.isFinite(num)) {
+          return 'ต้องเลือกจากรายการเท่านั้น';
         }
-        const n = Number(s);
-        if (!Number.isFinite(n)) {
-          return 'ค่าตัวเลขไม่ถูกต้อง';
+
+        const opts = this.lookupOptions[name] || [];
+        const exists = opts.some((o) => o.value === num);
+        if (!exists) {
+          return 'ต้องเลือกจากรายการที่มีอยู่เท่านั้น';
         }
         return null;
       }
 
-      return 'รูปแบบข้อมูลไม่ถูกต้อง (ต้องเป็นตัวเลข)';
+      // IMAGE / TEXT / อื่น ๆ → ไม่บังคับรูปแบบพิเศษ
+      default:
+        return null;
     }
-
-    case 'BOOLEAN': {
-      // รองรับ true/false, "true"/"false", "1"/"0", 1/0
-      const ok =
-        raw === true ||
-        raw === false ||
-        raw === 1 ||
-        raw === 0 ||
-        raw === '1' ||
-        raw === '0' ||
-        raw === 'true' ||
-        raw === 'false';
-
-      return ok ? null : 'ต้องเลือก Yes หรือ No เท่านั้น';
-    }
-
-    case 'DATE': {
-      // ในฟอร์มใช้ input type="date" → ปกติจะเป็น yyyy-MM-dd
-      if (typeof raw !== 'string') {
-        return 'รูปแบบวันที่ไม่ถูกต้อง';
-      }
-      const s = raw.trim();
-      if (!s) return col.isNullable ? null : 'จำเป็นต้องระบุวันที่';
-
-      // เช็ค pattern คร่าว ๆ
-      if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) {
-        return 'รูปแบบวันที่ไม่ถูกต้อง (ควรเป็น yyyy-MM-dd)';
-      }
-
-      const d = new Date(s);
-      if (Number.isNaN(d.getTime())) {
-        return 'วันที่ไม่ถูกต้อง';
-      }
-      return null;
-    }
-
-    case 'LOOKUP': {
-      // ต้องเป็นตัวเลข (pk) และควรเป็นค่าที่อยู่ใน dropdown
-      const num = typeof raw === 'number' ? raw : Number(raw);
-      if (!Number.isFinite(num)) {
-        return 'ต้องเลือกจากรายการเท่านั้น';
-      }
-
-      const opts = this.lookupOptions[name] || [];
-      const exists = opts.some((o) => o.value === num);
-      if (!exists) {
-        return 'ต้องเลือกจากรายการที่มีอยู่เท่านั้น';
-      }
-      return null;
-    }
-
-    // IMAGE / TEXT / อื่น ๆ → ไม่บังคับรูปแบบพิเศษ
-    default:
-      return null;
   }
-}
 
-
-/** ตรวจทุก field ก่อน Save */
+  /** ตรวจทุก field ก่อน Save */
   private validateAll(): boolean {
     const errors: Record<string, string | null> = {};
     let anyError = false;
@@ -312,8 +301,6 @@ export class RowDialog implements OnChanges {
     return !anyError;
   }
 
-
-
   // ---------- normalize ----------
   private normalizeBeforeSave(src: Record<string, any>): Record<string, any> {
     const out: Record<string, any> = {};
@@ -325,20 +312,19 @@ export class RowDialog implements OnChanges {
 
       // ไม่ส่ง FORMULA กลับไป
       if (t === 'FORMULA') {
-      continue;
-    }
-
+        continue;
+      }
 
       if (c.isPrimary) {
         if (this.isAutoTable) {
-         if (!this.initData) {
-          // new row + auto-increment: ไม่ส่ง PK ให้ backend
-          continue;
-        } else {
-          // edit row: ล็อก ID เป็นค่าตาม initData
-          out[key] = this.initData[key];
-          continue;
-        }
+          if (!this.initData) {
+            // new row + auto-increment: ไม่ส่ง PK ให้ backend
+            continue;
+          } else {
+            // edit row: ล็อก ID เป็นค่าตาม initData
+            out[key] = this.initData[key];
+            continue;
+          }
         }
       }
 
@@ -360,30 +346,26 @@ export class RowDialog implements OnChanges {
           break;
 
         case 'BOOLEAN':
-          out[key] =
-            v === true ||
-            v === 'true' ||
-            v === '1' ||
-            v === 1;
+          out[key] = v === true || v === 'true' || v === '1' || v === 1;
           break;
 
         default:
           // ถ้าเป็น DATE อย่าไปเดาว่าเป็น number
-        if (t !== 'DATE' && typeof v === 'string' && /^[+-]?\d+(\.\d+)?$/.test(v)) {
-          out[key] = Number.parseFloat(v);
-        } else {
-          out[key] = v;
-        }
+          if (t !== 'DATE' && typeof v === 'string' && /^[+-]?\d+(\.\d+)?$/.test(v)) {
+            out[key] = Number.parseFloat(v);
+          } else {
+            out[key] = v;
+          }
       }
     }
 
     return out;
   }
 
-   // ================== LIFE CYCLE ==================
+  // ================== LIFE CYCLE ==================
 
-    ngOnChanges(changes: SimpleChanges): void {
-    const openedNow   = !!changes['open'] && this.open;
+  ngOnChanges(changes: SimpleChanges): void {
+    const openedNow = !!changes['open'] && this.open;
     const dataChanged = !!changes['initData'];
     const colsChanged = !!changes['columns'];
 
@@ -395,42 +377,42 @@ export class RowDialog implements OnChanges {
 
       // init default
       for (const c of this.columns) {
-  c.isPrimary = !!c.isPrimary;
+        c.isPrimary = !!c.isPrimary;
 
-  const t = this.normalizeTypeStr(c.dataType);
+        const t = this.normalizeTypeStr(c.dataType);
 
-  // ---------- ตั้งค่า default ----------
-  if (!(c.name in this.model)) {
-    if (t === 'BOOLEAN') {
-      this.model[c.name] = false;
-    } else if (t === 'LOOKUP') {
-      //  default สำหรับ lookup = null → ไปตรงกับ <option [ngValue]="null">
-      this.model[c.name] = null;
-    } else {
-      this.model[c.name] = '';
-    }
-  } else {
-    // ถ้ามีค่าอยู่แล้ว เช่นตอนแก้ row → normalize type ให้ตรงกับ option
-    if (t === 'LOOKUP') {
-      const v = this.model[c.name];
-      if (v === '' || v === null || v === undefined) {
-        this.model[c.name] = null;
-      } else {
-        // บังคับให้เป็น number ให้ match กับ [ngValue]="opt.value"
-        const num = Number(v);
-        this.model[c.name] = Number.isFinite(num) ? num : null;
+        // ---------- ตั้งค่า default ----------
+        if (!(c.name in this.model)) {
+          if (t === 'BOOLEAN') {
+            this.model[c.name] = false;
+          } else if (t === 'LOOKUP') {
+            //  default สำหรับ lookup = null → ไปตรงกับ <option [ngValue]="null">
+            this.model[c.name] = null;
+          } else {
+            this.model[c.name] = '';
+          }
+        } else {
+          // ถ้ามีค่าอยู่แล้ว เช่นตอนแก้ row → normalize type ให้ตรงกับ option
+          if (t === 'LOOKUP') {
+            const v = this.model[c.name];
+            if (v === '' || v === null || v === undefined) {
+              this.model[c.name] = null;
+            } else {
+              // บังคับให้เป็น number ให้ match กับ [ngValue]="opt.value"
+              const num = Number(v);
+              this.model[c.name] = Number.isFinite(num) ? num : null;
+            }
+          }
+        }
+
+        // ---------- init image upload source ----------
+        if (t === 'IMAGE') {
+          const v = this.model[c.name];
+          if (v !== '' && v !== null && v !== undefined) {
+            this.uploadSource[c.name] = 'url';
+          }
+        }
       }
-    }
-  }
-
-  // ---------- init image upload source ----------
-  if (t === 'IMAGE') {
-    const v = this.model[c.name];
-    if (v !== '' && v !== null && v !== undefined) {
-      this.uploadSource[c.name] = 'url';
-    }
-  }
-}
 
       // โหลด options lookup
       for (const col of this.columns) {
@@ -445,47 +427,42 @@ export class RowDialog implements OnChanges {
     }
   }
 
-
-
-
   // ---------- lookup for Dropdown----------
- private async loadLookupOptionsForColumn(c: RowDialogColumn) {
-  const tableId = c.lookupTargetTableId;
-  if (!tableId) {
-    this.lookupOptions[c.name] = [];
-    return;
+  private async loadLookupOptionsForColumn(c: RowDialogColumn) {
+    const tableId = c.lookupTargetTableId;
+    if (!tableId) {
+      this.lookupOptions[c.name] = [];
+      return;
+    }
+
+    try {
+      // ดึง rows จาก table ปลายทางด้วย service เดิม
+      const rows = await firstValueFrom(this.api.listRows(tableId));
+
+      // สมมติ PK column ชื่อ "ID" (แบบที่ backend สร้าง auto-increment)
+      const pkName = 'ID';
+
+      const opts = rows
+        .map((r) => {
+          const data = typeof r.data === 'string' ? JSON.parse(r.data || '{}') : (r as any);
+
+          const val = Number(data[pkName]);
+
+          return {
+            value: val,
+            label: String(val), // ถ้าอยากโชว์ชื่ออื่น เช่น Name ก็เปลี่ยนตรงนี้
+          };
+        })
+        .filter((o) => !Number.isNaN(o.value))
+        //เรียงตาม PK จากน้อยไปมาก
+        .sort((a, b) => a.value - b.value);
+
+      this.lookupOptions[c.name] = opts;
+    } catch (err) {
+      console.error('load lookup options failed', err);
+      this.lookupOptions[c.name] = [];
+    }
   }
-
-  try {
-    // ดึง rows จาก table ปลายทางด้วย service เดิม
-    const rows = await firstValueFrom(this.api.listRows(tableId));
-
-    // สมมติ PK column ชื่อ "ID" (แบบที่ backend สร้าง auto-increment)
-    const pkName = 'ID';
-
-    const opts = rows.map(r => {
-      const data =
-        typeof r.data === 'string'
-          ? JSON.parse(r.data || '{}')
-          : (r as any);
-
-      const val = Number(data[pkName]);
-
-      return {
-        value: val,
-        label: String(val),  // ถ้าอยากโชว์ชื่ออื่น เช่น Name ก็เปลี่ยนตรงนี้
-      };
-    }) .filter(o => !Number.isNaN(o.value))
-  //เรียงตาม PK จากน้อยไปมาก
-  .sort((a, b) => a.value - b.value);
-
-    this.lookupOptions[c.name] = opts;
-  } catch (err) {
-    console.error('load lookup options failed', err);
-    this.lookupOptions[c.name] = [];
-  }
-}
- 
 
   // ---------- upload ----------
   async onFileChange(ev: Event, fieldName: string) {
@@ -514,21 +491,20 @@ export class RowDialog implements OnChanges {
     this.uploadSource[fieldName] = undefined;
   }
 
-    // ================== SUBMIT ==================
+  // ================== SUBMIT ==================
 
-  onSubmit(): void {
-    // ถ้ามี error → ไม่ให้ save + highlight ช่องผิด
+  async onSubmit(): Promise<void> {
+    // 1) validate type / required ปกติ
     const ok = this.validateAll();
     if (!ok) {
-      // เลื่อนขึ้นไปหา field แรกที่ error (ถ้าอยากทำ)
       try {
         const firstErrKey = Object.keys(this.validationErrors).find(
           (k) => !!this.validationErrors[k]
         );
         if (firstErrKey) {
-          const el = document.querySelector<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>(
-            `[name="${firstErrKey}"]`
-          );
+          const el = document.querySelector<
+            HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement
+          >(`[name="${firstErrKey}"]`);
           el?.scrollIntoView({ behavior: 'smooth', block: 'center' });
           el?.focus();
         }
@@ -536,6 +512,26 @@ export class RowDialog implements OnChanges {
       return;
     }
 
+    // 2) validate IMAGE URL แบบ async (โหลดรูปจริง)
+    const imgOk = await this.validateImageFieldsAsync();
+    if (!imgOk) {
+      // มี error ที่ field IMAGE → scroll ไป field แรกเหมือนเดิม
+      try {
+        const firstErrKey = Object.keys(this.validationErrors).find(
+          (k) => !!this.validationErrors[k]
+        );
+        if (firstErrKey) {
+          const el = document.querySelector<
+            HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement
+          >(`[name="${firstErrKey}"]`);
+          el?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          el?.focus();
+        }
+      } catch {}
+      return;
+    }
+
+    // 3) ผ่านทุก validation แล้วค่อย emit save
     const normalized = this.normalizeBeforeSave(this.model);
     this.save.emit(normalized);
   }
@@ -546,68 +542,151 @@ export class RowDialog implements OnChanges {
   }
 
   get isNewRow(): boolean {
-  return !this.initData;
-}
-
-
-private async loadLookupOptions(col: RowDialogColumn) {
-  const t = this.typeOf(col);
-  if (t !== 'LOOKUP') return;
-
-  const targetTableId = col.lookupTargetTableId;
-  if (!targetTableId) {
-    console.warn('No lookupTargetTableId on column', col);
-    return;
+    return !this.initData;
   }
 
-  this.lookupLoading[col.name] = true;
+  private async loadLookupOptions(col: RowDialogColumn) {
+    const t = this.typeOf(col);
+    if (t !== 'LOOKUP') return;
 
-  try {
-    // 1) ดึง schema ของตารางเป้าหมาย เพื่อหา PK และ column ที่ใช้แสดง
-    const cols = await firstValueFrom(this.api.listColumns(targetTableId));
-    const pkCol = cols.find(c => c.isPrimary);
-    if (!pkCol) {
-      console.warn('No primary key on lookup target table', targetTableId);
-      this.lookupOptions[col.name] = [];
+    const targetTableId = col.lookupTargetTableId;
+    if (!targetTableId) {
+      console.warn('No lookupTargetTableId on column', col);
       return;
     }
 
-    const pkName = pkCol.name;
+    this.lookupLoading[col.name] = true;
 
-    // จะเลือกใช้ column ไหนเป็น label ก็ได้ เช่น ถ้ามี TEXT column ชื่อ "Name"
-    const textCol =
-      cols.find(c => (c.dataType || '').toUpperCase() === 'TEXT' && c.name !== pkName) ?? pkCol;
-    const textName = textCol.name;
+    try {
+      // 1) ดึง schema ของตารางเป้าหมาย เพื่อหา PK และ column ที่ใช้แสดง
+      const cols = await firstValueFrom(this.api.listColumns(targetTableId));
+      const pkCol = cols.find((c) => c.isPrimary);
+      if (!pkCol) {
+        console.warn('No primary key on lookup target table', targetTableId);
+        this.lookupOptions[col.name] = [];
+        return;
+      }
 
-    // 2) ดึง rows จากตารางเป้าหมาย
-    const rows = await firstValueFrom(this.api.listRows(targetTableId));
+      const pkName = pkCol.name;
 
-    // 3) map เป็น options
-    const opts: { value: number; label: string }[] = rows
-      .map(r => {
-        let data: any = {};
-        try {
-          data = JSON.parse(r.data ?? '{}');
-        } catch {}
+      // จะเลือกใช้ column ไหนเป็น label ก็ได้ เช่น ถ้ามี TEXT column ชื่อ "Name"
+      const textCol =
+        cols.find((c) => (c.dataType || '').toUpperCase() === 'TEXT' && c.name !== pkName) ?? pkCol;
+      const textName = textCol.name;
 
-        const id = data[pkName];
-        if (id === null || id === undefined) return null;
+      // 2) ดึง rows จากตารางเป้าหมาย
+      const rows = await firstValueFrom(this.api.listRows(targetTableId));
 
-        const text = data[textName];
-        const label = text != null ? `${text} (ID: ${id})` : `ID: ${id}`;
+      // 3) map เป็น options
+      const opts: { value: number; label: string }[] = rows
+        .map((r) => {
+          let data: any = {};
+          try {
+            data = JSON.parse(r.data ?? '{}');
+          } catch {}
 
-        return { value: Number(id), label };
-      })
-      .filter((x): x is { value: number; label: string } => !!x);
+          const id = data[pkName];
+          if (id === null || id === undefined) return null;
 
-    this.lookupOptions[col.name] = opts;
-  } catch (err) {
-    console.error('loadLookupOptions failed', err);
-    this.lookupOptions[col.name] = [];
-  } finally {
-    this.lookupLoading[col.name] = false;
+          const text = data[textName];
+          const label = text != null ? `${text} (ID: ${id})` : `ID: ${id}`;
+
+          return { value: Number(id), label };
+        })
+        .filter((x): x is { value: number; label: string } => !!x);
+
+      this.lookupOptions[col.name] = opts;
+    } catch (err) {
+      console.error('loadLookupOptions failed', err);
+      this.lookupOptions[col.name] = [];
+    } finally {
+      this.lookupLoading[col.name] = false;
+    }
   }
-}
 
+  /** โหลดรูปจาก URL แล้วเช็คว่ารูปใช้ได้จริงไหม (ใช้ logic เดียวกับ TableView) */
+  private validateImageUrl(url: string, timeoutMs = 8000): Promise<void> {
+    return new Promise((resolve, reject) => {
+      if (!url || typeof url !== 'string') {
+        return reject(new Error('URL ว่าง'));
+      }
 
+      const img = new Image();
+      let done = false;
+
+      const cleanup = () => {
+        if (done) return;
+        done = true;
+        img.onload = null;
+        img.onerror = null;
+      };
+
+      const timer = setTimeout(() => {
+        cleanup();
+        reject(new Error('timeout'));
+      }, timeoutMs);
+
+      img.onload = () => {
+        clearTimeout(timer);
+        cleanup();
+        resolve();
+      };
+
+      img.onerror = () => {
+        clearTimeout(timer);
+        cleanup();
+        reject(new Error('load-error'));
+      };
+
+      const sep = url.includes('?') ? '&' : '?';
+      img.src = `${url}${sep}_ph_chk_=${Date.now()}`;
+    });
+  }
+
+  /** เช็คเฉพาะฟิลด์ IMAGE ว่า URL ใช้งานได้ไหม (ใช้ก่อน emit save) */
+  private async validateImageFieldsAsync(): Promise<boolean> {
+    const errors = { ...this.validationErrors };
+    let anyError = false;
+
+    // วนเฉพาะคอลัมน์ IMAGE
+    for (const col of this.columns) {
+      const t = this.normalizeTypeStr(col.dataType);
+      if (t !== 'IMAGE') continue;
+
+      const key = col.name;
+      const v = this.model[key];
+
+      // ว่าง + nullable → ไม่ต้องเช็ค
+      if (this.isEmpty(v)) {
+        continue;
+      }
+
+      const url = String(v).trim();
+
+      // เช็ค pattern คร่าว ๆ ก่อน
+      if (!/^https?:\/\//i.test(url)) {
+        errors[key] = 'URL ต้องขึ้นต้นด้วย http:// หรือ https://';
+        anyError = true;
+        continue;
+      }
+
+      try {
+        await this.validateImageUrl(url);
+        // ผ่าน: เคลียร์ error ถ้ามี
+        if (errors[key]) {
+          errors[key] = null;
+        }
+      } catch (err) {
+        console.warn('image url invalid in RowDialog', err);
+        errors[key] =
+          'ไม่สามารถโหลดรูปจาก URL นี้ได้ กรุณาตรวจสอบ path ให้ถูกต้อง หรือเปลี่ยนแหล่งที่มาของรูป';
+        anyError = true;
+      }
+    }
+
+    this.validationErrors = errors;
+    this.hasAnyError = this.hasAnyError || anyError;
+
+    return !anyError;
+  }
 }

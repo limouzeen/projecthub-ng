@@ -571,7 +571,7 @@ export class TableView implements OnInit, OnDestroy, AfterViewInit {
     this.rowOpen.set(true);
   }
 
-    async onSaveRow(newObj: Record<string, any>) {
+  async onSaveRow(newObj: Record<string, any>) {
     const isCreate = !this.editingRow;
 
     // ตรวจ PK ซ้ำสำหรับตารางที่ไม่ใช่ auto-increment
@@ -618,7 +618,6 @@ export class TableView implements OnInit, OnDestroy, AfterViewInit {
     }
   }
 
-
   async onDeleteRow(r: RowDto) {
     if (!confirm('Delete this row?')) return;
     await firstValueFrom(this.api.deleteRow(r.rowId));
@@ -626,7 +625,7 @@ export class TableView implements OnInit, OnDestroy, AfterViewInit {
     else this.reloadLocalCurrentPage(true);
   }
 
-    private async saveRowByRecord(record: any) {
+  private async saveRowByRecord(record: any) {
     const rowId = record.__rowId as number;
 
     const payload: Record<string, any> = {};
@@ -660,7 +659,6 @@ export class TableView implements OnInit, OnDestroy, AfterViewInit {
     if (TableView.USE_REMOTE) this.reloadRemoteCurrentPage();
     else this.reloadLocalCurrentPage();
   }
-
 
   private async deleteRowByRecord(record: any) {
     const rowId = record.__rowId as number;
@@ -733,21 +731,39 @@ export class TableView implements OnInit, OnDestroy, AfterViewInit {
     this.imageDlgOpen.set(true);
   }
 
-  onImageDialogSave(url: string) {
+    async onImageDialogSave(url: string) {
     this.imageDlgOpen.set(false);
 
-    if (this.imageDlgRecord && this.imageDlgField) {
-      const rec = this.imageDlgRecord;
-      rec[this.imageDlgField] = url; // แก้เฉพาะฝั่ง UI
-
-      try {
-        const row = this.grid?.getRow?.(rec.__rowId);
-        row?.update(rec); // ให้ Tabulator รีเฟรช cell
-      } catch {}
+    // ถ้าไม่มี URL ก็ถือว่าไม่ได้แก้อะไร
+    if (!url) {
+      this.resetImageDialogState();
+      return;
     }
 
-    this.resetImageDialogState();
+    try {
+      //  เช็คว่ารูปโหลดได้จริง (cross-site / path ผิด → จะ throw)
+      await this.validateImageUrl(url);
+
+      if (this.imageDlgRecord && this.imageDlgField) {
+        const rec = this.imageDlgRecord;
+        rec[this.imageDlgField] = url; // แก้เฉพาะฝั่ง UI
+
+        try {
+          const row = this.grid?.getRow?.(rec.__rowId);
+          row?.update(rec); // ให้ Tabulator รีเฟรช cell
+        } catch {}
+      }
+    } catch (err) {
+      console.error('image url invalid', err);
+      // เตือนด้วย toast + ไม่เซฟ URL ลง cell
+      this.toast.error(
+        'ไม่สามารถใช้รูปจาก URL นี้ได้\nกรุณาตรวจสอบว่า path ถูกต้อง และอนุญาตให้เข้าถึงรูปจากเว็บไซต์นั้น'
+      );
+    } finally {
+      this.resetImageDialogState();
+    }
   }
+
 
   onImageDialogDelete() {
     this.imageDlgOpen.set(false);
@@ -781,36 +797,34 @@ export class TableView implements OnInit, OnDestroy, AfterViewInit {
   //                 TABULATOR CONFIG
   // =====================================================
   private hasImageColumn(): boolean {
-  const cols = this.columns();
+    const cols = this.columns();
 
-  // 1) IMAGE ตรง ๆ จาก schema
-  if (
-    cols.some((c) => (c.dataType || '').toUpperCase() === 'IMAGE')
-  ) {
-    return true;
+    // 1) IMAGE ตรง ๆ จาก schema
+    if (cols.some((c) => (c.dataType || '').toUpperCase() === 'IMAGE')) {
+      return true;
+    }
+
+    // 2) LOOKUP ที่ตั้งชื่อมี img/image (force เป็นรูป)
+    const hasLookupImageByName = cols.some((c) => {
+      const t = (c.dataType || '').toUpperCase();
+      if (t !== 'LOOKUP') return false;
+
+      const name = (c.name || '').toLowerCase();
+      const target = (c.lookupTargetColumnName || '').toLowerCase();
+      return (
+        name.includes('img') ||
+        name.includes('image') ||
+        target.includes('img') ||
+        target.includes('image')
+      );
+    });
+    if (hasLookupImageByName) return true;
+
+    // 3) LOOKUP ไหนก็ได้ที่ "มีข้อมูลเป็นรูป" จริง ๆ
+    if (this.hasLookupImageData) return true;
+
+    return false;
   }
-
-  // 2) LOOKUP ที่ตั้งชื่อมี img/image (force เป็นรูป)
-  const hasLookupImageByName = cols.some((c) => {
-    const t = (c.dataType || '').toUpperCase();
-    if (t !== 'LOOKUP') return false;
-
-    const name = (c.name || '').toLowerCase();
-    const target = (c.lookupTargetColumnName || '').toLowerCase();
-    return (
-      name.includes('img') ||
-      name.includes('image') ||
-      target.includes('img') ||
-      target.includes('image')
-    );
-  });
-  if (hasLookupImageByName) return true;
-
-  // 3) LOOKUP ไหนก็ได้ที่ "มีข้อมูลเป็นรูป" จริง ๆ
-  if (this.hasLookupImageData) return true;
-
-  return false;
-}
 
   private colSignature(): string {
     return this.columns()
@@ -1635,36 +1649,35 @@ export class TableView implements OnInit, OnDestroy, AfterViewInit {
 
   // ---------- Local helpers ----------
   private async loadLocalData(goLast = false) {
-  // จำค่า mode เดิมก่อนโหลดข้อมูล (ตอนนี้ยังใช้ hasLookupImageData เก่าอยู่)
-  const beforeHasImage = this.hasImageColumn();
+    // จำค่า mode เดิมก่อนโหลดข้อมูล (ตอนนี้ยังใช้ hasLookupImageData เก่าอยู่)
+    const beforeHasImage = this.hasImageColumn();
 
-  const rows = await firstValueFrom(this.api.listRows(this.tableId));
-  const data = this.buildDataForGridFromRows(rows); //  ในนี้จะเซ็ต this.hasLookupImageData = true ถ้าเจอรูป
-  await this.grid.setData(data);
+    const rows = await firstValueFrom(this.api.listRows(this.tableId));
+    const data = this.buildDataForGridFromRows(rows); //  ในนี้จะเซ็ต this.hasLookupImageData = true ถ้าเจอรูป
+    await this.grid.setData(data);
 
-  if (goLast) {
-    let max = 1;
+    if (goLast) {
+      let max = 1;
+      try {
+        max = Number(this.grid.getPageMax?.() || 1);
+      } catch {}
+      try {
+        if (max > 1) this.grid.setPage(max);
+      } catch {}
+    }
     try {
-      max = Number(this.grid.getPageMax?.() || 1);
+      this.grid.redraw(true);
     } catch {}
-    try {
-      if (max > 1) this.grid.setPage(max);
-    } catch {}
+
+    // หลังจาก buildDataForGridFromRows แล้ว ตรวจใหม่ว่าตอนนี้มี image column หรือยัง
+    const afterHasImage = this.hasImageColumn();
+
+    // ถ้า state เปลี่ยน (เช่น จากไม่มีรูป → มีรูป lookup จริง ๆ)
+    // ให้ rebuild grid ใหม่ด้วย rowHeight แบบ image mode
+    if (afterHasImage !== beforeHasImage) {
+      this.ensureGridAndSync();
+    }
   }
-  try {
-    this.grid.redraw(true);
-  } catch {}
-
-  // หลังจาก buildDataForGridFromRows แล้ว ตรวจใหม่ว่าตอนนี้มี image column หรือยัง
-  const afterHasImage = this.hasImageColumn();
-
-  // ถ้า state เปลี่ยน (เช่น จากไม่มีรูป → มีรูป lookup จริง ๆ)
-  // ให้ rebuild grid ใหม่ด้วย rowHeight แบบ image mode
-  if (afterHasImage !== beforeHasImage) {
-    this.ensureGridAndSync();
-  }
-}
-
 
   private reloadLocalCurrentPage(goFirst = false) {
     const cur = goFirst ? 1 : this.grid?.getPage?.() || 1;
@@ -1948,7 +1961,7 @@ export class TableView implements OnInit, OnDestroy, AfterViewInit {
     return out;
   }
 
-    /** เช็คว่า PK ซ้ำกับ row อื่นใน grid หรือไม่ (ใช้กับตารางที่ไม่ auto-increment) */
+  /** เช็คว่า PK ซ้ำกับ row อื่นใน grid หรือไม่ (ใช้กับตารางที่ไม่ auto-increment) */
   private hasDuplicatePk(pkName: string, value: any, excludeRowId?: number | null): boolean {
     if (value === null || value === undefined || value === '') return false;
     if (!this.grid || typeof this.grid.getData !== 'function') return false;
@@ -1972,8 +1985,6 @@ export class TableView implements OnInit, OnDestroy, AfterViewInit {
 
     return false;
   }
-
-
 
   // แปลง string วันที่จาก backend → แสดงเป็น dd-MM-yyyy
   private formatDateDdMmYyyy(raw: any): string {
@@ -2122,5 +2133,45 @@ export class TableView implements OnInit, OnDestroy, AfterViewInit {
     }
 
     return false;
+  }
+
+  /** โหลดรูปจาก URL แล้วเช็คว่ารูปใช้ได้จริงไหม (404 / block / path ผิดจะ error) */
+  private validateImageUrl(url: string, timeoutMs = 8000): Promise<void> {
+    return new Promise((resolve, reject) => {
+      if (!url || typeof url !== 'string') {
+        return reject(new Error('URL ว่าง'));
+      }
+
+      const img = new Image();
+      let done = false;
+
+      const cleanup = () => {
+        if (done) return;
+        done = true;
+        img.onload = null;
+        img.onerror = null;
+      };
+
+      const timer = setTimeout(() => {
+        cleanup();
+        reject(new Error('timeout'));
+      }, timeoutMs);
+
+      img.onload = () => {
+        clearTimeout(timer);
+        cleanup();
+        resolve();
+      };
+
+      img.onerror = () => {
+        clearTimeout(timer);
+        cleanup();
+        reject(new Error('load-error'));
+      };
+
+      // เพิ่ม cache-buster กันเคสเบราเซอร์แคช error เก่า ๆ
+      const sep = url.includes('?') ? '&' : '?';
+      img.src = `${url}${sep}_ph_chk_=${Date.now()}`;
+    });
   }
 }

@@ -15,13 +15,19 @@
           }
         </p>
 
-        @if (mode === 'url') {
+               @if (mode === 'url') {
           <div class="ph-imgdlg-input-wrap">
             <input
               class="ph-imgdlg-input"
               [value]="url"
               (input)="onUrlChange($event)"
               placeholder="https://example.com/image.png" />
+
+            @if (url && !safeUrl) {
+              <p class="ph-imgdlg-error">
+                URL ต้องขึ้นต้นด้วย https:// และเป็นลิงก์ที่อนุญาตให้เข้าถึงรูปได้
+              </p>
+            }
           </div>
         }
 
