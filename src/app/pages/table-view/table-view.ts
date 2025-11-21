@@ -346,41 +346,39 @@ export class TableView implements OnInit, OnDestroy, AfterViewInit {
     } catch {}
   }
 
-
   // ==== Delete Field ========
   async onDeleteField(c: ColumnDto) {
-  if (c.isPrimary) {
-    return; // กัน PK เหมือนเดิม
+    if (c.isPrimary) {
+      return; // กัน PK เหมือนเดิม
+    }
+
+    this.deleteFieldTarget.set(c);
+    this.deleteFieldOpen.set(true);
   }
 
-  this.deleteFieldTarget.set(c);
-  this.deleteFieldOpen.set(true);
-}
+  // ====== Handler for Delete Field ========
 
-// ====== Handler for Delete Field ========
-
-onCancelDeleteField() {
-  this.deleteFieldOpen.set(false);
-  this.deleteFieldTarget.set(null);
-}
-
-async onConfirmDeleteField() {
-  const target = this.deleteFieldTarget();
-  if (!target) {
-    this.onCancelDeleteField();
-    return;
+  onCancelDeleteField() {
+    this.deleteFieldOpen.set(false);
+    this.deleteFieldTarget.set(null);
   }
 
-  try {
-    await firstValueFrom(this.api.deleteColumn(target.columnId));
-    await this.refresh();
-  } catch (e) {
-    this.showHttpError(e, 'ไม่สามารถลบฟิลด์ได้');
-  } finally {
-    this.onCancelDeleteField();
-  }
-}
+  async onConfirmDeleteField() {
+    const target = this.deleteFieldTarget();
+    if (!target) {
+      this.onCancelDeleteField();
+      return;
+    }
 
+    try {
+      await firstValueFrom(this.api.deleteColumn(target.columnId));
+      await this.refresh();
+    } catch (e) {
+      this.showHttpError(e, 'ไม่สามารถลบฟิลด์ได้');
+    } finally {
+      this.onCancelDeleteField();
+    }
+  }
 
   // ===== Edit Field ========
 
@@ -568,7 +566,7 @@ async onConfirmDeleteField() {
 
   private async deleteRowByRecord(record: any) {
     const rowId = record.__rowId as number;
-    
+
     await firstValueFrom(this.api.deleteRow(rowId));
     if (TableView.USE_REMOTE) this.reloadRemoteCurrentPage(true);
     else this.reloadLocalCurrentPage(true);
@@ -736,12 +734,44 @@ async onConfirmDeleteField() {
         case 'INTEGER':
           return { ...base, editor: lock ? false : 'number' };
 
-        case 'BOOLEAN':
+        case 'BOOLEAN': {
           return {
             ...base,
-            formatter: 'tickCross',
-            editor: lock ? false : 'tickCross',
+            // แสดงผลด้วย ✓ / ✗ สีเขียว-แดง เหมือน lookup bool
+            formatter: (cell: any) => {
+              const v = cell.getValue();
+              const isTrue = v === true || v === 'true' || v === 1 || v === '1';
+
+              const symbol = isTrue ? '✓' : '✗';
+              const color = isTrue ? '#22c55e' : '#ef4444';
+
+              return `<span style="
+        font-size:16px;
+        font-weight:700;
+        color:${color};
+        line-height:1;
+        display:inline-block;
+      ">${symbol}</span>`;
+            },
+
+            // ไม่ใช้ editor tickCross แล้ว
+            editor: false,
+
+            // ให้คลิกเซลล์เพื่อ toggle true/false แทน (เหมือนปุ่ม)
+            cellClick: (e: any, cell: any) => {
+              const v = cell.getValue();
+              const isTrue = v === true || v === 'true' || v === 1 || v === '1';
+
+              const next = !isTrue;
+              cell.setValue(next);
+
+              // อัปเดต rec ใน grid ด้วย เพื่อให้ไป save ตอนกดปุ่ม Save row
+              const rec = cell.getRow().getData() as any;
+              const field = cell.getField() as string;
+              rec[field] = next;
+            },
           };
+        }
 
         case 'IMAGE': {
           return {
@@ -1724,8 +1754,7 @@ async onConfirmDeleteField() {
 
   // ==================================================================================
 
-
-    // ===== Row confirm dialog (for Actions column) =====
+  // ===== Row confirm dialog (for Actions column) =====
   openRowConfirm(mode: 'save' | 'delete', record: any) {
     this.rowConfirmMode.set(mode);
     this.rowConfirmRecord.set(record);
@@ -1756,5 +1785,4 @@ async onConfirmDeleteField() {
       this.onCancelRowConfirm();
     }
   }
-
 }
