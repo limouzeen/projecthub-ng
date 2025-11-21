@@ -44,6 +44,9 @@ export class TableView implements OnInit, OnDestroy, AfterViewInit {
 
   private readonly THUMB_H = 70;
 
+  //ตัวช่วยตรวจให้ img ไม่จะเป็นต้องชื่อ "img" ก็โชว์เป็นรูปอย่างเหมาะสม
+  private hasLookupImageData = false;
+
   // profile (แสดงขวาบน)
   readonly me = signal<MeDto | null>(null);
 
@@ -731,24 +734,36 @@ export class TableView implements OnInit, OnDestroy, AfterViewInit {
   //                 TABULATOR CONFIG
   // =====================================================
   private hasImageColumn(): boolean {
-    return this.columns().some((c) => {
-      const t = (c.dataType || '').toUpperCase();
-      if (t === 'IMAGE') return true;
+  const cols = this.columns();
 
-      if (t === 'LOOKUP') {
-        const name = (c.name || '').toLowerCase();
-        const target = (c.lookupTargetColumnName || '').toLowerCase();
-        return (
-          name.includes('img') ||
-          name.includes('image') ||
-          target.includes('img') ||
-          target.includes('image')
-        );
-      }
-
-      return false;
-    });
+  // 1) IMAGE ตรง ๆ จาก schema
+  if (
+    cols.some((c) => (c.dataType || '').toUpperCase() === 'IMAGE')
+  ) {
+    return true;
   }
+
+  // 2) LOOKUP ที่ตั้งชื่อมี img/image (force เป็นรูป)
+  const hasLookupImageByName = cols.some((c) => {
+    const t = (c.dataType || '').toUpperCase();
+    if (t !== 'LOOKUP') return false;
+
+    const name = (c.name || '').toLowerCase();
+    const target = (c.lookupTargetColumnName || '').toLowerCase();
+    return (
+      name.includes('img') ||
+      name.includes('image') ||
+      target.includes('img') ||
+      target.includes('image')
+    );
+  });
+  if (hasLookupImageByName) return true;
+
+  // 3) LOOKUP ไหนก็ได้ที่ "มีข้อมูลเป็นรูป" จริง ๆ
+  if (this.hasLookupImageData) return true;
+
+  return false;
+}
 
   private colSignature(): string {
     return this.columns()
@@ -1161,60 +1176,89 @@ export class TableView implements OnInit, OnDestroy, AfterViewInit {
           const colName = (c.name || '').toLowerCase();
           const targetName = (c.lookupTargetColumnName || '').toLowerCase();
 
-          const isImageLookup =
+          // ยังเก็บ isImageLookup แบบเดิมไว้ เผื่ออยาก force เป็นรูปด้วยชื่อ
+          const isImageLookupByName =
             colName.includes('img') ||
             colName.includes('image') ||
             targetName.includes('img') ||
             targetName.includes('image');
 
-          if (isImageLookup) {
+          // helper: ตรวจว่าค่านี้ "ดูเหมือน" image url/base64 หรือไม่
+          const detectImageUrl = (raw: any): string | null => {
+            if (!raw || typeof raw !== 'string') return null;
+            const s = raw.trim();
+            if (!s) return null;
+
+            // base64 data URL
+            if (/^data:image\//i.test(s)) return s;
+
+            // http/https/blob ที่ลงท้ายเป็นนามสกุลรูป
+            if (/^(https?:\/\/|blob:)/i.test(s) && /\.(png|jpe?g|gif|webp|svg)(\?|#|$)/i.test(s)) {
+              return s;
+            }
+
+            return null;
+          };
+
+          // ใช้ formatter สำหรับ "โหมดรูป" เผื่อ reuse
+          const imageFormatter = (cell: any) => {
+            const rowData = cell.getRow().getData();
+            const field = cell.getField();
+
+            // พยายามใช้ display ก่อน ถ้าไม่มีค่อยไปดูค่า FK
+            const rawDisplay = rowData[`${field}__display`];
+            const rawValue = rowData[field];
+
+            const url = detectImageUrl(rawDisplay) || detectImageUrl(rawValue);
+
+            const wrap = document.createElement('div');
+            wrap.style.cssText = `
+      position:relative;
+      width:100%;
+      height:${this.THUMB_H}px;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      box-sizing:border-box;
+      overflow:hidden;
+    `;
+
+            if (url) {
+              const img = document.createElement('img');
+              img.src = url;
+              img.style.cssText = `
+        max-height:${this.THUMB_H - 10}px;
+        max-width:100%;
+        
+        object-fit:contain;
+        display:block;
+        margin:0 auto;
+        border-radius:10px;
+        box-shadow:0 4px 14px rgba(15,23,42,0.12);
+      `;
+              img.onload = () => {
+                try {
+                  cell.getRow().normalizeHeight();
+                } catch {}
+              };
+              wrap.appendChild(img);
+            }
+
+            return wrap;
+          };
+
+          // ถ้าอยาก force ทั้ง column ให้เป็น image ด้วยชื่อเดิม ก็ยังใช้ branch นี้ได้
+          if (isImageLookupByName) {
             return {
               ...base,
               cssClass: 'cell-image',
               minWidth: 160,
               editor: false,
-              formatter: (cell: any) => {
-                const rowData = cell.getRow().getData();
-                const field = cell.getField();
-                const url = rowData[`${field}__display`] || '';
-
-                const wrap = document.createElement('div');
-                wrap.style.cssText = `
-                position:relative;
-                width:100%;
-                height:${this.THUMB_H}px;
-                display:flex;
-                align-items:center;
-                justify-content:center;
-                box-sizing:border-box;
-                overflow:hidden;
-              `;
-
-                if (url && (/^https?:\/\//i.test(url) || url.startsWith('data:'))) {
-                  const img = document.createElement('img');
-                  img.src = url;
-                  img.style.cssText = `
-                  max-height:${this.THUMB_H - 10}px;
-                  max-width:100%;
-                  object-fit:contain;
-                  display:block;
-                  margin:0 auto;
-                  border-radius:10px;
-                  box-shadow:0 4px 14px rgba(15,23,42,0.12);
-                `;
-                  img.onload = () => {
-                    try {
-                      cell.getRow().normalizeHeight();
-                    } catch {}
-                  };
-                  wrap.appendChild(img);
-                }
-
-                return wrap;
-              },
+              formatter: imageFormatter,
             };
           }
 
+          // ค่า default: ตรวจจาก data ถ้าเป็นรูป → แสดงรูป ไม่งั้นก็ text/bool/date เหมือนเดิม
           return {
             ...base,
             editor: false,
@@ -1223,6 +1267,44 @@ export class TableView implements OnInit, OnDestroy, AfterViewInit {
               const field = cell.getField();
               const disp = rowData[`${field}__display`];
 
+              // ถ้า data ดูเป็นรูป → render รูปทันที
+              const imgUrl = detectImageUrl(disp) || detectImageUrl(rowData[field]);
+
+              if (imgUrl) {
+                // ใช้ formatter แบบเดียวกับ imageFormatter แต่ไม่ต้อง detect อีกแล้ว
+                const wrap = document.createElement('div');
+                wrap.style.cssText = `
+          position:relative;
+          width:100%;
+          height:${this.THUMB_H}px;
+          display:flex;
+          align-items:center;
+          justify-content:center;
+          box-sizing:border-box;
+          overflow:hidden;
+        `;
+
+                const img = document.createElement('img');
+                img.src = imgUrl;
+                img.style.cssText = `
+          max-height:${this.THUMB_H - 10}px;
+          max-width:100%;
+          object-fit:contain;
+          display:block;
+          margin:0 auto;
+          border-radius:10px;
+          box-shadow:0 4px 14px rgba(15,23,42,0.12);
+        `;
+                img.onload = () => {
+                  try {
+                    cell.getRow().normalizeHeight();
+                  } catch {}
+                };
+                wrap.appendChild(img);
+                return wrap;
+              }
+
+              // ไม่ใช่รูป → ใช้ logic เดิม: bool ✓✗ / date / text
               const isBoolLike =
                 disp === true ||
                 disp === false ||
@@ -1238,17 +1320,20 @@ export class TableView implements OnInit, OnDestroy, AfterViewInit {
                 const symbol = v ? '✓' : '✗';
                 const color = v ? '#22c55e' : '#ef4444';
                 return `<span style="
-                font-size:16px;
-                font-weight:700;
-                color:${color};
-                line-height:1;
-                display:inline-block;
-              ">${symbol}</span>`;
+          font-size:16px;
+          font-weight:700;
+          color:${color};
+          line-height:1;
+          display:inline-block;
+        ">${symbol}</span>`;
               }
 
               if (typeof disp === 'string') {
                 const raw10 = disp.substring(0, 10);
-                if (/^\d{4}[-/]\d{2}[-/]\d{2}$/.test(raw10) || /^\d{2}-\d{2}-\d{4}$/.test(raw10)) {
+                if (
+                  /^\d{4}[-/]\d{2}[-/]\d{2}$/.test(raw10) || // yyyy-MM-dd / yyyy/MM/dd
+                  /^\d{2}-\d{2}-\d{4}$/.test(raw10) // dd-MM-yyyy
+                ) {
                   const text = this.formatDateDdMmYyyy(raw10);
                   return `<span>${text}</span>`;
                 }
@@ -1257,7 +1342,7 @@ export class TableView implements OnInit, OnDestroy, AfterViewInit {
               return disp ?? '';
             },
 
-            // >>> ตรงนี้ <<<  กด lookup ที่เป็นตัวเลขเพื่อเอาไปคิด quick calc ได้
+            // quick calc logic เดิมยังใช้ได้
             cellClick: (_e: any, cell: any) => {
               if (!this.quickCalcActive()) return;
 
@@ -1277,14 +1362,12 @@ export class TableView implements OnInit, OnDestroy, AfterViewInit {
                 disp === '1' ||
                 disp === '0';
 
-              // ไม่เอา bool-like มาใช้คำนวณ
               if (isBoolLike) return;
 
-              // เลือก source ที่จะเอาไปแปลงเป็นเลข: ถ้า display มีใช้ display, ไม่งั้นใช้ fk
               const source = disp ?? fk;
               const num = Number(source);
 
-              if (!Number.isFinite(num)) return; // ไม่ใช่เลขก็ไม่เก็บ
+              if (!Number.isFinite(num)) return;
 
               const key = `${rowData.__rowId ?? ''}::${field}::lookup`;
               if (this.quickCalcCellKeys.has(key)) return;
@@ -1438,6 +1521,9 @@ export class TableView implements OnInit, OnDestroy, AfterViewInit {
   private buildDataForGridFromRows(rows: RowDto[]): any[] {
     const cols = this.columns();
 
+    // รีเซ็ตค่า ก่อน map rows รอบใหม่
+    this.hasLookupImageData = false;
+
     // 1) map row จาก backend → rec ที่ใช้ใน Tabulator
     const data = rows.map((r) => {
       let obj: any = {};
@@ -1458,6 +1544,12 @@ export class TableView implements OnInit, OnDestroy, AfterViewInit {
 
           rec[name] = fk;
           rec[`${name}__display`] = display ?? null;
+
+          // ตรวจว่าค่า LOOKUP อันนี้ "ดูเหมือนรูป" หรือไม่
+          if (this.looksLikeImage(display) || this.looksLikeImage(fk)) {
+            this.hasLookupImageData = true;
+          }
+
           continue;
         }
 
@@ -1466,6 +1558,8 @@ export class TableView implements OnInit, OnDestroy, AfterViewInit {
 
       return rec;
     });
+
+    //ส่วนของการ sort ด้วย PK
 
     // 2) หา primary key column (ถ้ามี) เช่น ID
     const pkCol = cols.find((c) => c.isPrimary) || null;
@@ -1494,22 +1588,36 @@ export class TableView implements OnInit, OnDestroy, AfterViewInit {
 
   // ---------- Local helpers ----------
   private async loadLocalData(goLast = false) {
-    const rows = await firstValueFrom(this.api.listRows(this.tableId));
-    const data = this.buildDataForGridFromRows(rows);
-    await this.grid.setData(data);
-    if (goLast) {
-      let max = 1;
-      try {
-        max = Number(this.grid.getPageMax?.() || 1);
-      } catch {}
-      try {
-        if (max > 1) this.grid.setPage(max);
-      } catch {}
-    }
+  // จำค่า mode เดิมก่อนโหลดข้อมูล (ตอนนี้ยังใช้ hasLookupImageData เก่าอยู่)
+  const beforeHasImage = this.hasImageColumn();
+
+  const rows = await firstValueFrom(this.api.listRows(this.tableId));
+  const data = this.buildDataForGridFromRows(rows); //  ในนี้จะเซ็ต this.hasLookupImageData = true ถ้าเจอรูป
+  await this.grid.setData(data);
+
+  if (goLast) {
+    let max = 1;
     try {
-      this.grid.redraw(true);
+      max = Number(this.grid.getPageMax?.() || 1);
+    } catch {}
+    try {
+      if (max > 1) this.grid.setPage(max);
     } catch {}
   }
+  try {
+    this.grid.redraw(true);
+  } catch {}
+
+  // หลังจาก buildDataForGridFromRows แล้ว ตรวจใหม่ว่าตอนนี้มี image column หรือยัง
+  const afterHasImage = this.hasImageColumn();
+
+  // ถ้า state เปลี่ยน (เช่น จากไม่มีรูป → มีรูป lookup จริง ๆ)
+  // ให้ rebuild grid ใหม่ด้วย rowHeight แบบ image mode
+  if (afterHasImage !== beforeHasImage) {
+    this.ensureGridAndSync();
+  }
+}
+
 
   private reloadLocalCurrentPage(goFirst = false) {
     const cur = goFirst ? 1 : this.grid?.getPage?.() || 1;
@@ -1923,5 +2031,22 @@ export class TableView implements OnInit, OnDestroy, AfterViewInit {
     } finally {
       this.onCancelRowConfirm();
     }
+  }
+
+  // ================== helper ใช้ตรวจว่า string หน้าตาเหมือน image url/base64 หรือไม่ =========
+  private looksLikeImage(raw: any): boolean {
+    if (!raw || typeof raw !== 'string') return false;
+    const s = raw.trim();
+    if (!s) return false;
+
+    // base64 data URL
+    if (/^data:image\//i.test(s)) return true;
+
+    // http/https/blob ลงท้ายเป็นนามสกุลรูป
+    if (/^(https?:\/\/|blob:)/i.test(s) && /\.(png|jpe?g|gif|webp|svg)(\?|#|$)/i.test(s)) {
+      return true;
+    }
+
+    return false;
   }
 }
