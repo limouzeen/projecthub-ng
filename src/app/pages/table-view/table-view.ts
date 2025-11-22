@@ -452,45 +452,65 @@ export class TableView implements OnInit, OnDestroy, AfterViewInit {
   // ============ Save Edit Field========
 
   async onSaveEditField() {
-    const col = this.editingColumn;
-    const newName = this.editFieldName().trim();
+  const col = this.editingColumn;
+  const newName = this.editFieldName().trim();
 
-    if (!col) {
-      this.onCancelEditField();
-      return;
-    }
+  if (!col) {
+    this.onCancelEditField();
+    return;
+  }
 
-    const oldName = col.name; // << ชื่อเดิมที่ยังมีอยู่ใน JSON ของ rows
+  const oldName = col.name;
 
-    // ถ้าไม่ได้เปลี่ยนชื่อก็ไม่ต้องทำอะไร
-    if (!newName || newName === oldName) {
-      this.onCancelEditField();
-      return;
-    }
+  if (!newName || newName === oldName) {
+    this.onCancelEditField();
+    return;
+  }
+
+  // 🔹 1) เช็คก่อนว่า column นี้ถูกใช้ใน Formula ไหนบ้างหรือเปล่า
+  const usedByFormula = this.columns().some((c) => {
+    if ((c.dataType || '').toUpperCase() !== 'FORMULA') return false;
+    const raw = (c as any).formulaDefinition;
+    if (!raw) return false;
 
     try {
-      // 1) เรียก API เปลี่ยนชื่อ column (schema)
-      await firstValueFrom(this.api.updateColumn(col, newName));
+      const def = JSON.parse(raw);
+      const usesCol = (node: any): boolean =>
+        !!node && node.type === 'column' && node.name === oldName;
 
-      // 2) refresh schema + grid ให้ this.columns() มีชื่อใหม่แล้ว
-      await this.refresh();
-
-      // 3) migrate ข้อมูลใน rows: oldName -> newName
-      await this.migrateColumnDataAfterRename(oldName, newName);
-
-      // 4) โหลดหน้า grid ปัจจุบันใหม่ (จะได้เห็นค่าที่ migrate แล้ว)
-      if (TableView.USE_REMOTE) {
-        this.reloadRemoteCurrentPage();
-      } else {
-        this.reloadLocalCurrentPage();
-      }
-    } catch (err) {
-      console.error('update column failed', err);
-      alert('Cannot rename field right now.');
-    } finally {
-      this.onCancelEditField();
+      return usesCol(def.left) || usesCol(def.right);
+    } catch {
+      return false;
     }
+  });
+
+  if (usedByFormula) {
+    this.toast.error(
+      `ฟิลด์ "${oldName}" ถูกใช้ใน Formula อยู่ กรุณาแก้ Formula หรือคอลัมน์นั้นก่อนค่อย rename`
+    );
+    return;
   }
+
+  // 🔹 2) ถ้าไม่ได้ถูกใช้ใน formula ค่อยเดิน flow เดิม
+  try {
+    await firstValueFrom(this.api.updateColumn(col, newName));
+    await this.refresh();
+    await this.migrateColumnDataAfterRename(oldName, newName);
+
+    if (TableView.USE_REMOTE) {
+      this.reloadRemoteCurrentPage();
+    } else {
+      this.reloadLocalCurrentPage();
+    }
+  } catch (err) {
+    console.error('update column failed', err);
+    alert('Cannot rename field right now.');
+  } finally {
+    this.onCancelEditField();
+  }
+}
+
+
 
   //=============  Helper for Edit Field ===========
 
@@ -552,6 +572,14 @@ export class TableView implements OnInit, OnDestroy, AfterViewInit {
   }
 
   // ---------- Row ----------
+  /**
+ * เวลา rename column แล้ว อยากให้ข้อมูลเก่าไม่หาย:
+ * ย้าย key ใน JSON ของแต่ละ row จาก oldName -> newName แล้วยิง updateRow
+ */
+
+
+
+
   async onAddRow() {
     this.editingRow = null;
 
