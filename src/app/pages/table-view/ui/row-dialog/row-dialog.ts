@@ -645,48 +645,55 @@ export class RowDialog implements OnChanges {
 
   /** เช็คเฉพาะฟิลด์ IMAGE ว่า URL ใช้งานได้ไหม (ใช้ก่อน emit save) */
   private async validateImageFieldsAsync(): Promise<boolean> {
-    const errors = { ...this.validationErrors };
-    let anyError = false;
+  const errors = { ...this.validationErrors };
+  let anyError = false;
 
-    // วนเฉพาะคอลัมน์ IMAGE
-    for (const col of this.columns) {
-      const t = this.normalizeTypeStr(col.dataType);
-      if (t !== 'IMAGE') continue;
+  for (const col of this.columns) {
+    const t = this.normalizeTypeStr(col.dataType);
+    if (t !== 'IMAGE') continue;
 
-      const key = col.name;
-      const v = this.model[key];
+    const key = col.name;
+    const v = this.model[key];
 
-      // ว่าง + nullable → ไม่ต้องเช็ค
-      if (this.isEmpty(v)) {
-        continue;
-      }
-
-      const url = String(v).trim();
-
-      // เช็ค pattern คร่าว ๆ ก่อน
-      if (!/^https?:\/\//i.test(url)) {
-        errors[key] = 'URL ต้องขึ้นต้นด้วย http:// หรือ https://';
-        anyError = true;
-        continue;
-      }
-
-      try {
-        await this.validateImageUrl(url);
-        // ผ่าน: เคลียร์ error ถ้ามี
-        if (errors[key]) {
-          errors[key] = null;
-        }
-      } catch (err) {
-        console.warn('image url invalid in RowDialog', err);
-        errors[key] =
-          'ไม่สามารถโหลดรูปจาก URL นี้ได้ กรุณาตรวจสอบ path ให้ถูกต้อง หรือเปลี่ยนแหล่งที่มาของรูป';
-        anyError = true;
-      }
+    // ว่าง → ผ่าน (ให้ rule required ไปจัดการเองแล้วจาก validateAll)
+    if (this.isEmpty(v)) {
+      continue;
     }
 
-    this.validationErrors = errors;
-    this.hasAnyError = this.hasAnyError || anyError;
+    const url = String(v).trim();
 
-    return !anyError;
+    // 👇 เช็คว่ารูปนี้มาจาก "ไฟล์ที่เราอัปโหลดเอง" ไหม
+    const source = this.uploadSource[key];
+    if (source === 'file') {
+      // มาจาก uploadImage() ของเราเอง → ถือว่า trusted ไม่ต้องเช็ค URL รูปอีก
+      errors[key] = null;
+      continue;
+    }
+
+    // ถ้าเป็น URL ที่ user พิมพ์เอง → ให้ตรวจจริงจัง
+    // จะเลือกเก็บ regex ไว้ หรือเอาออกก็ได้ ถ้าอยากปล่อยให้ validateImageUrl เช็คอย่างเดียว
+
+    // (แนะนำ: เอา regex ออกเลย แล้วให้ validateImageUrl เป็นคนเช็ค)
+    // if (!/^https?:\/\//i.test(url)) {
+    //   errors[key] = 'URL ต้องขึ้นต้นด้วย http:// หรือ https://';
+    //   anyError = true;
+    //   continue;
+    // }
+
+    try {
+      await this.validateImageUrl(url);
+      errors[key] = null;
+    } catch (err) {
+      console.warn('image url invalid in RowDialog', err);
+      errors[key] =
+        'ไม่สามารถโหลดรูปจาก URL นี้ได้ กรุณาตรวจสอบ path ให้ถูกต้อง หรือเปลี่ยนแหล่งที่มาของรูป';
+      anyError = true;
+    }
   }
+
+  this.validationErrors = errors;
+  this.hasAnyError = this.hasAnyError || anyError;
+  return !anyError;
+}
+
 }

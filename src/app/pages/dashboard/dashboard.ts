@@ -16,6 +16,10 @@ import { FooterStateService } from '../../core/footer-state.service';
 import { UsersService, MeDto } from '../../core/users.service';
 import { RecentlyUsedProjectsService } from '../../core/recently-used-projects.service';
 import { ToastService } from '../../shared/toast.service';
+import { firstValueFrom } from 'rxjs';
+import { TableViewService, ColumnDto, RowDto } from '../../core/table-view.service';
+import { ProjectDetailService } from '../../core/project-detail.service';
+
 
 @Component({
   selector: 'app-dashboard',
@@ -34,6 +38,7 @@ export class Dashboard implements AfterViewInit, OnDestroy {
     const pill = document.querySelector<HTMLElement>('.footer-pill');
     if (!pager || !pill) return;
 
+  
 
    
 
@@ -156,6 +161,8 @@ selectedCount = computed(() => this.selected().size);
     private users: UsersService,  
     private recently: RecentlyUsedProjectsService,
     private toast: ToastService,   
+    private projectDetail: ProjectDetailService,
+    private tableApi: TableViewService,
   ) {
     // sync รายการจาก service ตามเดิม
     effect(() => this.projects.set(this.svc.list()));
@@ -464,6 +471,266 @@ async confirmDeleteMany() {
 
 
 // ========================================================
+
+// ================= Export ================================
+
+
+/** ดึงข้อมูลทั้งโปรเจกต์ (tables + columns + rows) มาแพ็กเป็น object เดียว */
+private async buildProjectExportPayload(p: Project): Promise<any> {
+  const tables = await firstValueFrom(this.projectDetail.listTables(p.id));
+  const tablePayloads: any[] = [];
+
+  for (const t of tables) {
+    const [cols, rows] = await Promise.all([
+      firstValueFrom(this.tableApi.listColumns(t.tableId)),
+      firstValueFrom(this.tableApi.listRows(t.tableId)),
+    ]);
+
+    const rowPayloads = (rows ?? []).map((r: RowDto) => {
+      let data: any = {};
+      try {
+        data = r.data ? JSON.parse(r.data) : {};
+      } catch {
+        data = {};
+      }
+
+      return {
+        rowId: r.rowId,
+        data,
+      };
+    });
+
+    tablePayloads.push({
+      tableId: t.tableId,
+      name: t.name,
+      useAutoIncrement: (t as any).useAutoIncrement ?? null,
+      columns: cols,
+      rows: rowPayloads,
+    });
+  }
+
+  return {
+    project: {
+      id: p.id,
+      name: p.name,
+      favorite: p.favorite,
+      tablesCount: p.tables,
+      createdAt: (p as any).createdAt ?? null,
+      updatedAt: (p as any).updatedAt ?? null,
+      ownerId: (p as any).ownerId ?? null,
+    },
+    tables: tablePayloads,
+  };
+}
+
+/** ดึงข้อมูลทั้งโปรเจกต์ (tables + columns + rows) มาแพ็กเป็น object เดียว */
+// private async buildProjectExportPayload(p: Project): Promise<any> {
+//   const tables = await firstValueFrom(this.projectDetail.listTables(p.id));
+//   const tablePayloads: any[] = [];
+
+//   for (const t of tables) {
+//     const [cols, rows] = await Promise.all([
+//       firstValueFrom(this.tableApi.listColumns(t.tableId)),
+//       firstValueFrom(this.tableApi.listRows(t.tableId)),
+//     ]);
+
+//     const rowPayloads = (rows ?? []).map((r: RowDto) => {
+//       let data: any = {};
+//       try {
+//         data = r.data ? JSON.parse(r.data) : {};
+//       } catch {
+//         data = {};
+//       }
+
+//       return {
+//         rowId: r.rowId,
+//         data,
+//       };
+//     });
+
+//     tablePayloads.push({
+//       tableId: t.tableId,
+//       name: t.name,
+//       useAutoIncrement: (t as any).useAutoIncrement ?? null,
+//       columns: cols,
+//       rows: rowPayloads,
+//     });
+//   }
+
+//   return {
+//     project: {
+//       id: p.id,
+//       name: p.name,
+//       favorite: p.favorite,
+//       tablesCount: p.tables,
+//       createdAt: (p as any).createdAt ?? null,
+//       updatedAt: (p as any).updatedAt ?? null,
+//       ownerId: (p as any).ownerId ?? null,
+//     },
+//     tables: tablePayloads,
+//   };
+// }
+
+
+/** escape ค่าให้ใช้ใน CSV ได้ (ล้อมด้วย " และ escape " ด้านใน) */
+private toCsvValue(value: any): string {
+  if (value === null || value === undefined) return '""';
+  let text = String(value);
+
+  // ตัด \r\n ให้เหลือแค่ \n เพื่อไม่ให้เพี้ยน
+  text = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+
+  // escape " ด้านใน
+  text = text.replace(/"/g, '""');
+
+  // ล้อมด้วย " เสมอ ปลอดภัยสุด
+  return `"${text}"`;
+}
+
+
+// ================ Export Projects as CSV =====================
+async exportSelectedProjectsCsv() {
+  const ids = Array.from(this.selected());
+  if (!ids.length) {
+    this.toast.info('Please select at least one project to export.');
+    return;
+  }
+
+  try {
+    const lines: string[] = [];
+
+    for (const id of ids) {
+      const p = this.projects().find(x => x.id === id);
+      if (!p) continue;
+
+      // ดึงข้อมูลเต็มๆ ของโปรเจกต์นี้ (tables + columns + rows)
+      const projPayload = await this.buildProjectExportPayload(p);
+
+      const projectName = projPayload.project?.name ?? `Project_${p.id}`;
+
+      for (const t of projPayload.tables as any[]) {
+        const tableName = t.name ?? `Table_${t.tableId}`;
+        const columns = (t.columns ?? []) as ColumnDto[];
+        const rows = (t.rows ?? []) as { rowId: number; data: any }[];
+
+        // ถ้า table นี้ไม่มี columns ข้ามไป
+        if (!columns.length) continue;
+
+        // ใส่หัวข้อขั้นบนสุดบอกว่า section นี้ของโปรเจกต์/ตารางอะไร
+        lines.push(`# Project: ${projectName} | Table: ${tableName}`);
+        lines.push(''); // เว้น 1 บรรทัด
+
+        // header = column name ทุกคอลัมน์
+        const headers = columns.map(c => c.name ?? `col_${c.tableId}_${c.columnId}`);
+        // แถว header (column names)
+        lines.push(headers.map(h => this.toCsvValue(h)).join(','));
+
+        // data rows
+        for (const r of rows) {
+          const rowData = r.data || {};
+          const rowValues = headers.map(h => {
+            const v = rowData[h];
+            return this.toCsvValue(v);
+          });
+          lines.push(rowValues.join(','));
+        }
+
+        // เว้น 2 บรรทัดก่อนขึ้น table ต่อไป
+        lines.push('');
+        lines.push('');
+      }
+    }
+
+    if (!lines.length) {
+      this.toast.error('No table data found to export as CSV.');
+      return;
+    }
+
+    const csvText = lines.join('\r\n');
+    const blob = new Blob([csvText], {
+      type: 'text/csv;charset=utf-8',
+    });
+
+    const firstProj = this.projects().find(x => x.id === ids[0]);
+    const baseName =
+      ids.length === 1 && firstProj
+        ? `project-${firstProj.name.replace(/\s+/g, '_')}`
+        : `projects-export-${new Date().toISOString().slice(0, 10)}`;
+
+    const fileName = `${baseName}.csv`;
+
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = fileName;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+
+    this.toast.success('Projects exported as CSV successfully.');
+  } catch (err) {
+    console.error('Export CSV failed', err);
+    this.toast.error('Could not export selected projects as CSV. Please try again.');
+  }
+}
+
+
+// ================ Export Projects as JSON =====================
+async exportSelectedProjectsJson() {
+  const ids = Array.from(this.selected());
+  if (!ids.length) {
+    this.toast.info('Please select at least one project to export.');
+    return;
+  }
+
+  try {
+    const payloads: any[] = [];
+
+    for (const id of ids) {
+      const p = this.projects().find(x => x.id === id);
+      if (!p) continue;
+
+      // ใช้ helper ตัวเดียวกับ CSV
+      const projPayload = await this.buildProjectExportPayload(p);
+      payloads.push(projPayload);
+    }
+
+    if (!payloads.length) {
+      this.toast.error('No project data found to export.');
+      return;
+    }
+
+    const jsonText = JSON.stringify(payloads, null, 2);
+    const blob = new Blob([jsonText], {
+      type: 'application/json;charset=utf-8',
+    });
+
+    const firstProj = this.projects().find(x => x.id === ids[0]);
+    const baseName =
+      ids.length === 1 && firstProj
+        ? `project-${firstProj.name.replace(/\s+/g, '_')}`
+        : `projects-export-${new Date().toISOString().slice(0, 10)}`;
+
+    const fileName = `${baseName}.json`;
+
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = fileName;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+
+    this.toast.success('Projects exported as JSON successfully.');
+  } catch (err) {
+    console.error('Export JSON failed', err);
+    this.toast.error('Could not export selected projects as JSON. Please try again.');
+  }
+}
+
+
 
 
 }

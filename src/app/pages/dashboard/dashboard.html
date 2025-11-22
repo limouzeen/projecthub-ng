@@ -158,7 +158,26 @@
       </button>
 
       <!-- Export = ปุ่มรองโทน ghost ของธีม -->
-      <button class="btn-ghost-enhance" (click)="exportCSV()">Export</button>
+      <!-- Export JSON -->
+<button
+  type="button"
+  class="ph-btn ph-btn-ghost"
+  (click)="exportSelectedProjectsJson()"
+  [disabled]="selectedCount() === 0"
+>
+  Export JSON
+</button>
+
+
+<!-- Export CSV -->
+<button
+  type="button"
+  class="ph-btn ph-btn-ghost"
+  (click)="exportSelectedProjectsCsv()"
+  [disabled]="selectedCount() === 0"
+>
+  Export CSV
+</button>
     </div>
   </div>
   <!-- ============ Delete Selected Projects Dialog (Bulk) ============ -->
