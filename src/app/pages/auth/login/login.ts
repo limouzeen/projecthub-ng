@@ -5,6 +5,7 @@ import { FormsModule } from '@angular/forms';
 import { FooterStateService } from '../../../core/footer-state.service';
 import { UsersService } from '../../../core/users.service';
 import { ActivatedRoute } from '@angular/router';
+import { ToastService } from '../../../shared/toast.service';
 
 @Component({
   selector: 'app-login',
@@ -18,6 +19,7 @@ export class Login implements OnInit, OnDestroy {
   private readonly footer = inject(FooterStateService);
   private readonly users = inject(UsersService);
   private readonly route = inject(ActivatedRoute);
+  private readonly toast = inject(ToastService);
   notice = signal('');
 
   readonly email = signal('');
@@ -40,14 +42,16 @@ export class Login implements OnInit, OnDestroy {
         password: this.password(),
       });
 
-      // เช็ค role จาก JWT ผ่าน UsersService
-      if (this.users.isAdmin()) {
-        // ถ้าเป็นแอดมิน ไปหน้า Admin Dashboard
-        this.router.navigateByUrl('/admin/users');
-      } else {
-        // ถ้าเป็น user ปกติ ไปหน้า dashboard เดิม
-        this.router.navigateByUrl('/dashboard');
-      }
+       this.toast.success('Login successful. Welcome back!');
+
+       // หน่วงให้ผู้ใช้เห็น toast ชัด ๆ (ถ้าไม่อยากหน่วง ตัด setTimeout ออกได้)
+      setTimeout(() => {
+        if (this.users.isAdmin()) {
+          this.router.navigateByUrl('/admin/users');
+        } else {
+          this.router.navigateByUrl('/dashboard');
+        }
+      }, 400);
     } catch (e: any) {
       const msg =
         e?.error?.error ||
