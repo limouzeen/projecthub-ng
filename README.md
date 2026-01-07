@@ -37,7 +37,9 @@
 
 
 
- <img src="https://github.com/user-attachments/assets/9bf95b48-cf0e-4315-96ca-26c1cf9de0de" width="70%" alt="Login Screen"> 
+
+
+ <img src="https://github.com/user-attachments/assets/3a25c30b-3c5c-47fa-95c2-df781a2a2b00" width="70%" alt="Login for Administrator Screen"> 
  
 *หน้าเข้าสู่ระบบสำหรับแอดมินระบบที่เรียบง่ายและปลอดภัย* 
 
