@@ -61,7 +61,9 @@ export class About implements OnInit, OnDestroy {
       name: 'Am',
       role: 'Frontend Developer',
       img: '/assets/char2.png',
-      socials: { ig: 'https://instagram.com/byte.bunny' } 
+      socials: { line: 'https://line.me/ti/p/~pixelcat',
+               
+       } 
     },
     {
       name: 'Waiwai',

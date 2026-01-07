@@ -3,6 +3,7 @@ import { Injectable, Optional } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Observable, map } from 'rxjs';
 
+
 export interface ColumnDto {
   columnId: number;
   tableId: number;
@@ -18,6 +19,8 @@ export interface ColumnDto {
   lookupTargetColumnName?: string | null;
 
   formulaDefinition?: string | null;
+
+  referencedByLookupCount?: number;
 }
 
 
@@ -59,10 +62,13 @@ export class TableViewService {
   const rowId = r.rowId ?? r.Row_id;
   const data  = r.data  ?? r.Data ?? null;
 
+  
+
   // ดึงส่วนที่เหลือ (รวม alias ที่ backend JOIN มาให้ เช่น Product, CustomerName ฯลฯ)
   const { rowId: _, Row_id, data: __, Data, ...rest } = r;
 
   return {
+    
     rowId,
     data,
     ...rest,  //พก field อื่น ๆ มาด้วย เช่น Product, PriceName ฯลฯ
@@ -96,28 +102,71 @@ export class TableViewService {
 //   );
 // }
 
+// listColumns(tableId: number): Observable<ColumnDto[]> {
+//   return this.http.get<any[]>(`${this.base}/columns/table/${tableId}`).pipe(
+//     map(cols =>
+//       (cols ?? []).map((c: any) => ({
+//         columnId:      c.columnId,
+//         tableId:       c.tableId,
+//         name:          c.name,
+//         dataType:      c.dataType,
+//         isPrimary:     c.isPrimary ?? false,
+//         isNullable:    c.isNullable ?? true,
+//         primaryKeyType: c.primaryKeyType ?? null,
+
+//         formulaDefinition: c.formulaDefinition ?? c.FormulaDefinition ?? null,
+       
+//         lookupRelationshipId: c.lookupRelationshipId ?? null,
+//         lookupTargetColumnId: c.lookupTargetColumnId ?? null,
+//         lookupTargetTableId:  c.lookupTargetTableId  ?? null,   
+//         lookupTargetColumnName: c.lookupTargetColumnName ?? null,
+//       }))
+//     )
+//   );
+// }
 listColumns(tableId: number): Observable<ColumnDto[]> {
   return this.http.get<any[]>(`${this.base}/columns/table/${tableId}`).pipe(
     map(cols =>
       (cols ?? []).map((c: any) => ({
-        columnId:      c.columnId,
-        tableId:       c.tableId,
-        name:          c.name,
-        dataType:      c.dataType,
-        isPrimary:     c.isPrimary ?? false,
-        isNullable:    c.isNullable ?? true,
-        primaryKeyType: c.primaryKeyType ?? null,
+        columnId:   c.columnId   ?? c.column_id   ?? c.ColumnId,
+        tableId:    c.tableId    ?? c.table_id    ?? c.TableId,
+        name:       c.name       ?? c.Name,
+        dataType:   c.dataType   ?? c.data_type   ?? c.DataType,
+        isPrimary:  c.isPrimary  ?? c.is_primary  ?? c.Is_primary ?? false,
+        isNullable: c.isNullable ?? c.is_nullable ?? c.Is_nullable ?? true,
 
         formulaDefinition: c.formulaDefinition ?? c.FormulaDefinition ?? null,
-//        
-        lookupRelationshipId: c.lookupRelationshipId ?? null,
-        lookupTargetColumnId: c.lookupTargetColumnId ?? null,
-        lookupTargetTableId:  c.lookupTargetTableId  ?? null,   
-        lookupTargetColumnName: c.lookupTargetColumnName ?? null,
+        primaryKeyType:    c.primaryKeyType    ?? c.PrimaryKeyType ?? null,
+
+        // 🔹 lookup meta (รองรับหลายชื่อเหมือนเวอร์ชันเก่า)
+        lookupRelationshipId:
+          c.lookupRelationshipId ??
+          c.LookupRelationshipId ??
+          null,
+
+        lookupTargetTableId:
+          c.lookupTargetTableId ??
+          c.LookupTargetTableId ??
+          c.targetTableId ??
+          c.TargetTableId ??
+          null,
+
+        lookupTargetColumnId:
+          c.lookupTargetColumnId ??
+          c.LookupTargetColumnId ??
+          c.targetColumnId ??
+          c.TargetColumnId ??
+          null,
+
+        lookupTargetColumnName:
+          c.lookupTargetColumnName ??
+          c.LookupTargetColumnName ??
+          null,
       }))
     )
   );
 }
+
 
 
 
@@ -305,5 +354,13 @@ listColumnsLite(tableId: number): Observable<ColumnListItem[]> {
   return this.http.get<{ id: number; label: string }[]>(`/api/lookups/${targetTableId}`);
 }
 
+
+getTable(tableId: number, projectId: number): Observable<{ tableId: number; name: string } | undefined> {
+    // แทนที่จะยิง /api/tables/{id} (ซึ่ง Backend ยังไม่มี)
+    // เรายิง /api/tables/project/{projectId} แทน
+    return this.http.get<any[]>(`${this.base}/tables/project/${projectId}`).pipe(
+        map(tables => tables.find(t => t.tableId === tableId))
+    );
+}
 
 }

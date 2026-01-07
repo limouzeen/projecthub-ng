@@ -56,6 +56,7 @@ export class TableView implements OnInit, OnDestroy, AfterViewInit {
   tableId = 0;
   columns = signal<ColumnDto[]>([]);
   rows = signal<RowDto[]>([]);
+  name: string | null = null;
 
   // สำหรับ back pill
   projectId: number | null = null;
@@ -237,10 +238,13 @@ export class TableView implements OnInit, OnDestroy, AfterViewInit {
     });
   }
 
+
+  
   async ngOnInit() {
     try {
       const me = await this.users.getMe();
       this.me.set(me);
+      
     } catch (e) {
       this.showHttpError(e, 'ไม่สามารถโหลดข้อมูลผู้ใช้ได้');
       this.router.navigateByUrl('/login');
@@ -249,8 +253,10 @@ export class TableView implements OnInit, OnDestroy, AfterViewInit {
     // Footer
     this.footer.setThreshold(719);
     this.footer.setForceCompact(null); // ให้ทำงานแบบ auto ตาม threshold
+    
 
     this.tableId = Number(this.route.snapshot.paramMap.get('id'));
+    this.name = String(this.route.snapshot.paramMap.get('name'));
 
     // ดึง projectId จาก query param (รองรับ refresh)
     const fromQuery = this.route.snapshot.queryParamMap.get('projectId');
@@ -345,6 +351,8 @@ export class TableView implements OnInit, OnDestroy, AfterViewInit {
     }
   }
 
+
+
   // ================= data ops =================
 
   async refresh() {
@@ -352,10 +360,23 @@ export class TableView implements OnInit, OnDestroy, AfterViewInit {
       console.warn('refresh() called with invalid tableId:', this.tableId);
       return;
     }
+    
+    //ดึงชื่อตาราง
+    if (this.projectId) {
+        try {
+            const tableInfo = await firstValueFrom(this.api.getTable(this.tableId, this.projectId));
+            if (tableInfo) {
+                this.name = tableInfo.name;
+            }
+        } catch (err) {
+            console.warn('Load table info failed', err);
+        }
+    }
+    
     // 1) schema
     const colsFromApi = await firstValueFrom(this.api.listColumns(this.tableId));
-
-    // 🔹 บังคับเรียงคอลัมน์ตาม columnId จากน้อยไปมาก
+    console.log('[TABLE COLS]', this.tableId, colsFromApi);
+    //  บังคับเรียงคอลัมน์ตาม columnId จากน้อยไปมาก
     const cols = [...colsFromApi].sort((a, b) => {
       const aid = a.columnId ?? 0;
       const bid = b.columnId ?? 0;
@@ -397,15 +418,21 @@ export class TableView implements OnInit, OnDestroy, AfterViewInit {
     } catch {}
   }
 
+ 
   // ==== Delete Field ========
-  async onDeleteField(c: ColumnDto) {
-    if (c.isPrimary) {
-      return; // กัน PK เหมือนเดิม
-    }
 
-    this.deleteFieldTarget.set(c);
-    this.deleteFieldOpen.set(true);
-  }
+
+
+async onDeleteField(c: ColumnDto) {
+  // กัน primary key 
+  if (c.isPrimary) return;
+
+ 
+  this.deleteFieldTarget.set(c);
+  this.deleteFieldOpen.set(true);
+}
+
+
 
   // ====== Handler for Delete Field ========
 
@@ -415,21 +442,110 @@ export class TableView implements OnInit, OnDestroy, AfterViewInit {
   }
 
   async onConfirmDeleteField() {
-    const target = this.deleteFieldTarget();
-    if (!target) {
-      this.onCancelDeleteField();
-      return;
-    }
+  const target = this.deleteFieldTarget();
+  if (!target) {
+    this.onCancelDeleteField();
+    return;
+  }
 
-    try {
-      await firstValueFrom(this.api.deleteColumn(target.columnId));
-      await this.refresh();
-    } catch (e) {
-      this.showHttpError(e, 'ไม่สามารถลบฟิลด์ได้');
-    } finally {
-      this.onCancelDeleteField();
+  const cols = this.columns();
+
+  // 1) เตรียม set columnId ที่จะลบ
+  const idsToDelete = new Set<number>();
+
+  const targetId = target.columnId ?? null;
+  const targetName = (target.name || '').trim();
+  const targetNameLower = targetName.toLowerCase();
+
+  if (targetId != null) {
+    idsToDelete.add(targetId);
+  }
+
+  // 2) หา LOOKUP ใน "ตารางเดียวกัน" ที่ target เป็นปลายทาง → ลบไปด้วย
+  for (const col of cols) {
+    if (!col || col.columnId == null) continue;
+
+    const t = (col.dataType || '').toString().trim().toUpperCase();
+    if (t !== 'LOOKUP') continue;
+
+    const lkTargetId = col.lookupTargetColumnId ?? null;
+    const lkTargetName = (col.lookupTargetColumnName || '').trim().toLowerCase();
+
+    const idMatches =
+      !!targetId && !!lkTargetId && lkTargetId === targetId;
+
+    const nameMatches =
+      !!targetNameLower && !!lkTargetName && lkTargetName === targetNameLower;
+
+    if (idMatches || nameMatches) {
+      idsToDelete.add(col.columnId);
     }
   }
+
+  // 3) หา FORMULA ที่ใช้ column เป้าหมาย → ลบไปด้วย
+  for (const col of cols) {
+    if (!col || col.columnId == null) continue;
+
+    const t = (col.dataType || '').toString().trim().toUpperCase();
+    if (t !== 'FORMULA') continue;
+
+    const def = (col as any).formulaDefinition as string | null | undefined;
+    if (!def) continue;
+
+    if (this.formulaUsesColumn(def, targetName)) {
+      idsToDelete.add(col.columnId);
+    }
+  }
+
+  try {
+    // 4) ไล่ลบทีละ columnId
+    for (const id of idsToDelete) {
+      await firstValueFrom(this.api.deleteColumn(id));
+    }
+
+    // 5) refresh schema + grid
+    await this.refresh();
+  } catch (e) {
+    this.showHttpError(e, 'ไม่สามารถลบฟิลด์ได้');
+  } finally {
+    this.onCancelDeleteField();
+  }
+}
+
+/** ตรวจว่า formulaDefinition นี้ใช้ column ชื่อ targetName หรือไม่ */
+private formulaUsesColumn(formulaJson: string | null | undefined, targetName: string): boolean {
+  if (!formulaJson || !targetName) return false;
+
+  try {
+    const def = JSON.parse(formulaJson);
+
+    const visit = (node: any): boolean => {
+      if (!node || typeof node !== 'object') return false;
+
+      if (node.type === 'column' && typeof node.name === 'string') {
+        // เทียบแบบตรง ๆ ก่อน
+        if (node.name === targetName) return true;
+
+        // กันเคสต่างกันเรื่องตัวพิมพ์ใหญ่/เล็ก
+        if (node.name.trim().toLowerCase() === targetName.trim().toLowerCase()) {
+          return true;
+        }
+      }
+
+      // เดินซ้าย/ขวา ถ้าเป็น operator node
+      if (node.left && visit(node.left)) return true;
+      if (node.right && visit(node.right)) return true;
+
+      return false;
+    };
+
+    return visit(def);
+  } catch {
+    return false;
+  }
+}
+
+
 
   // ===== Edit Field ========
 
