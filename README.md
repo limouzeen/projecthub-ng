@@ -1,59 +1,81 @@
-# ProjecthubFront
+# 🚀 ProjectHub (Front-end)
 
-This project was generated using [Angular CLI](https://github.com/angular/angular-cli) version 20.3.7.
+> A modern project management dashboard built with Angular.
 
-## Development server
+![Angular](https://img.shields.io/badge/angular-%23DD0031.svg?style=for-the-badge&logo=angular&logoColor=white)
+![TypeScript](https://img.shields.io/badge/typescript-%23007ACC.svg?style=for-the-badge&logo=typescript&logoColor=white)
 
-To start a local development server, run:
+## 📸 Screen Previews (ตัวอย่างระบบ)
 
+### 🔐 Authentication
+ส่วนของการจัดการผู้ใช้งานและการเข้าสู่ระบบ
+
+| Login Page (เข้าสู่ระบบ) |
+|:---:|
+
+
+
+
+
+
+ <img src="https://github.com/user-attachments/assets/9bf95b48-cf0e-4315-96ca-26c1cf9de0de" width="70%" alt="Login Screen"> 
+ 
+*หน้าเข้าสู่ระบบที่เรียบง่ายและปลอดภัย* 
+
+| Forgot Password (ลืมรหัสผ่าน) |
+|:---:|
+
+
+
+ <img src="https://github.com/user-attachments/assets/7d08b433-62de-4e88-b697-d1bf88e0b1cd" width="70%" alt="Forgot Password Screen"> 
+ 
+ *ระบบกู้คืนรหัสผ่านผ่าน Email* 
+
+
+### 📊 Dashboard & Projects
+ภาพรวมของโปรเจกต์และการจัดการข้อมูล
+
+| Dashboard Overview | 
+|:---:|
+ <img src="https://github.com/user-attachments/assets/14a6d4c5-db50-4f21-b3d8-1c2e45a82dce" width="70%" alt="Dashboard Screen"> 
+
+ 
+| *หน้าสรุปภาพรวมสถิติและงานต่างๆ* |
+
+| Favorite Projects | 
+|:---:|
+
+
+ <img src="https://github.com/user-attachments/assets/f0fd7ca5-461a-4c4c-897e-6e9a0f6c87f5" width="70%" alt="Favorite Projects Screen"> 
+
+ 
+| *เมนูจัดการโปรเจกต์ที่ชื่นชอบ* |
+
+| Recently Used | 
+|:---:|
+
+
+
+ <img src="https://github.com/user-attachments/assets/69c7648d-0b36-4ced-b1cd-95e282df8555" width="70%" alt="Recently used Screen"> 
+
+ 
+| *แสดงเวลาและความถี่การเข้าถึงโปรเจ็กต์* |
+
+### 📂 Data Presentation
+การแสดงผลข้อมูลในรูปแบบตาราง
+
+| Table View List |
+|:---:|
+| <img src="วางลิงก์รูป_TABLE_ตรงนี้" width="100%" alt="Table View"> |
+| *ตารางแสดงข้อมูลพร้อมฟีเจอร์ Filter และ Pagination* |
+
+---
+
+## 🛠️ Installation & Setup
+
+This project was generated with [Angular CLI](https://github.com/angular/angular-cli) version 20.3.7.
+
+### 1. Clone the repository
 ```bash
-ng serve
-```
-
-Once the server is running, open your browser and navigate to `http://localhost:4200/`. The application will automatically reload whenever you modify any of the source files.
-
-## Code scaffolding
-
-Angular CLI includes powerful code scaffolding tools. To generate a new component, run:
-
-```bash
-ng generate component component-name
-```
-
-For a complete list of available schematics (such as `components`, `directives`, or `pipes`), run:
-
-```bash
-ng generate --help
-```
-
-## Building
-
-To build the project run:
-
-```bash
-ng build
-```
-
-This will compile your project and store the build artifacts in the `dist/` directory. By default, the production build optimizes your application for performance and speed.
-
-## Running unit tests
-
-To execute unit tests with the [Karma](https://karma-runner.github.io) test runner, use the following command:
-
-```bash
-ng test
-```
-
-## Running end-to-end tests
-
-For end-to-end (e2e) testing, run:
-
-```bash
-ng e2e
-```
-
-Angular CLI does not come with an end-to-end testing framework by default. You can choose one that suits your needs.
-
-## Additional Resources
-
-For more information on using the Angular CLI, including detailed command references, visit the [Angular CLI Overview and Command Reference](https://angular.dev/tools/cli) page.
+git clone [https://github.com/limouzeen/projecthub-ng.git](https://github.com/limouzeen/projecthub-ng.git)
+cd projecthub-ng
