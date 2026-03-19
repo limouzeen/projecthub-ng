@@ -7,7 +7,8 @@
 
 
 ## 🔗 Links
-- **Back-end Repository:** [github.com/limouzeen/Final_Project](https://github.com/limouzeen/Final_Project) (ASP.NET Core Web API C#)
+- **Back-end Repository:** [github.com/limouzeen/Final_Project](https://github.com/limouzeen/Final_Project) (ASP.NET Core Web API C# - Clean Architecture)
+- Application, Domain, Infrastructure and Presentation Layer
 
 ## 📸 Screen Previews (ตัวอย่างระบบ)
 
