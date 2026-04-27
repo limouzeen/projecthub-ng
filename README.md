@@ -10,6 +10,9 @@
 - **Back-end Repository:** [github.com/limouzeen/Final_Project](https://github.com/limouzeen/Final_Project) (ASP.NET Core Web API C# - Clean Architecture)
 - Application, Domain, Infrastructure and Presentation Layer
 
+## Presentation
+- https://canva.link/71l9761vid6auku
+
 ## 📸 Screen Previews (ตัวอย่างระบบ)
 
 ### 🔐 Authentication
